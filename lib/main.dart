@@ -12,14 +12,17 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Peyvok',
-      debugShowCheckedModeBanner: false,
-      showSemanticsDebugger: false,
-      theme: AppTheme.lightTheme,
-      themeMode: ThemeMode.dark,
-      darkTheme: AppTheme.darkTheme,
-      home: const SplashScreen(),
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: themeNotifier,
+      builder: (_, mode, __) => MaterialApp(
+        title: 'Peyvok',
+        debugShowCheckedModeBanner: false,
+        showSemanticsDebugger: false,
+        theme: AppTheme.lightTheme,
+        themeMode: mode,
+        darkTheme: AppTheme.darkTheme,
+        home: const SplashScreen(),
+      ),
     );
   }
 }

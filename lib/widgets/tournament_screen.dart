@@ -85,13 +85,67 @@ class _TournamentScreenState extends State<TournamentScreen>
           _loading = false;
         });
         _updateCountdown();
+        _autoStartIfReady();
       }
     });
   }
 
+  // Turnuva dolmuş veya süresi gelmiş ve hâlâ 'waiting' ise başlat
+  void _autoStartIfReady() {
+    if (_tournament == null) return;
+    final status = _data['status'] as String? ?? '';
+    if (status != 'waiting') return;
+
+    final isFull = _players.length >= _maxPlayers;
+    final startAt = (_data['startAt'] as Timestamp?)?.toDate();
+    final timeUp  = startAt != null && DateTime.now().isAfter(startAt);
+
+    if ((isFull || timeUp) && _players.length >= 2) {
+      FirestoreService.instance.startTournament(_tournament!.id);
+    }
+  }
+
+  Future<void> _openTournamentMatch() async {
+    final uid = AuthService.instance.currentUser?.uid;
+    if (uid == null || _tournament == null) return;
+
+    final match = await FirestoreService.instance.getActiveMatch(
+      tournamentId: _tournament!.id,
+      uid: uid,
+    );
+
+    if (!mounted) return;
+
+    if (match == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Şu an aktif maçın yok, sıradaki tur bekleniyor.')),
+      );
+      return;
+    }
+
+    final result = await Navigator.push<int>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ScrabbleGameScreen(tournamentMatchId: match['id'] as String),
+      ),
+    );
+
+    // Oyun bitince skoru gönder
+    if (result != null && _tournament != null) {
+      await FirestoreService.instance.submitMatchScore(
+        tournamentId: _tournament!.id,
+        matchId: match['id'] as String,
+        uid: uid,
+        score: result,
+      );
+    }
+  }
+
   Future<void> _joinTournament() async {
     final uid = AuthService.instance.currentUser?.uid;
-    final displayName = AuthService.instance.currentUser?.displayName ?? 'Oyuncu';
+    final displayName = AuthService.instance.currentUser?.displayName?.trim().isNotEmpty == true
+        ? AuthService.instance.currentUser!.displayName!
+        : AuthService.instance.effectiveDisplayName;
     if (uid == null || _tournament == null) return;
 
     setState(() => _joining = true);
@@ -473,11 +527,8 @@ class _TournamentScreenState extends State<TournamentScreen>
               : () {
                   if (!_joined) {
                     _joinTournament();
-                  } else {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const ScrabbleGameScreen()),
-                    );
+                  } else if (_data['status'] == 'active') {
+                    _openTournamentMatch();
                   }
                 },
           child: Container(

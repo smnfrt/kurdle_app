@@ -51,14 +51,19 @@ class _AuthScreenState extends State<AuthScreen>
     super.dispose();
   }
 
+  void _finish() {
+    if (Navigator.canPop(context)) Navigator.pop(context);
+    widget.onSuccess();
+  }
+
   // ── Google ────────────────────────────────────────────────────────
   Future<void> _googleSignIn() async {
     setState(() { _loading = true; _error = ''; });
     final user = await AuthService.instance.signInWithGoogle();
     if (!mounted) return;
     if (user != null) {
-      await FirestoreService.instance.createUserIfNotExists(user);
-      widget.onSuccess();
+      try { await FirestoreService.instance.createUserIfNotExists(user); } catch (_) {}
+      _finish();
     } else {
       setState(() { _error = 'Google girişi iptal edildi.'; _loading = false; });
     }
@@ -89,7 +94,7 @@ class _AuthScreenState extends State<AuthScreen>
       if (result.error != null) {
         setState(() { _error = result.error!; _loading = false; });
       } else {
-        widget.onSuccess();
+        _finish();
       }
     } else {
       final result = await AuthService.instance.registerWithEmail(
@@ -99,9 +104,9 @@ class _AuthScreenState extends State<AuthScreen>
         setState(() { _error = result.error!; _loading = false; });
       } else {
         if (result.user != null) {
-          await FirestoreService.instance.createUserIfNotExists(result.user!);
+          try { await FirestoreService.instance.createUserIfNotExists(result.user!); } catch (_) {}
         }
-        widget.onSuccess();
+        _finish();
       }
     }
   }
@@ -110,7 +115,8 @@ class _AuthScreenState extends State<AuthScreen>
     setState(() { _loading = true; _error = ''; });
     await AuthService.instance.signInAnonymously();
     if (!mounted) return;
-    widget.onSuccess();
+    // Başarılı veya başarısız (anonymous auth kapalı) — her iki durumda da giriş yap
+    _finish();
   }
 
   void _toggle() {
@@ -344,17 +350,40 @@ class _AuthScreenState extends State<AuthScreen>
                     ],
                   ),
 
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
 
-                  // ── Anonim devam ─────────────────────────────────
+                  // ── Misafir girişi ────────────────────────────────
                   GestureDetector(
-                    onTap: _loading ? null : _anonymousContinue,
-                    child: Center(
-                      child: Text(
-                        'Giriş yapmadan devam et →',
-                        style: TextStyle(
-                            color: Colors.white.withOpacity(0.25),
-                            fontSize: 12),
+                    onTap: _loading ? null : () {
+                      HapticFeedback.lightImpact();
+                      _anonymousContinue();
+                    },
+                    child: AnimatedOpacity(
+                      opacity: _loading ? 0.4 : 1.0,
+                      duration: const Duration(milliseconds: 150),
+                      child: Container(
+                        height: 50,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: Colors.white.withOpacity(0.25)),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.person_outline_rounded,
+                                color: Colors.white.withOpacity(0.75), size: 18),
+                            const SizedBox(width: 10),
+                            Text(
+                              'Misafir olarak devam et',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.75),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),

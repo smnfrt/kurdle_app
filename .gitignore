@@ -3,6 +3,19 @@
 *.log
 *.pyc
 *.swp
+
+# Firebase service account keys — ASLA commit etme!
+*-firebase-adminsdk-*.json
+service-account*.json
+
+# Ferheng pipeline — geçici çıktılar (artifact'lar assets/ferheng/'de)
+tools/ferheng_pipeline/.venv/
+tools/ferheng_pipeline/raw/
+tools/ferheng_pipeline/build/
+tools/ferheng_pipeline/__pycache__/
+tools/ferheng_pipeline/**/__pycache__/
+tools/ferheng_pipeline/.pytest_cache/
+tools/ferheng_pipeline/pipeline.log
 .DS_Store
 .atom/
 .build/

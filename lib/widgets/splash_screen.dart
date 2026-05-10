@@ -55,13 +55,21 @@ class _SplashScreenState extends State<SplashScreen>
     // Metin animasyonu
     _textCtrl.forward();
 
-    // Init işlemleri paralel çalışsın
+    // Init işlemleri paralel çalışsın — herhangi bir init hatası splash'i kilitlemesin
     await Future.wait([
-      SoundService.instance.init(),
+      SoundService.instance.init().catchError((e) {
+        debugPrint('SoundService init failed: $e');
+      }),
       FirebaseService.init().then((_) async {
         if (FirebaseService.isAvailable) {
-          await NotificationService.instance.init();
+          try {
+            await NotificationService.instance.init();
+          } catch (e) {
+            debugPrint('NotificationService init failed: $e');
+          }
         }
+      }).catchError((e) {
+        debugPrint('FirebaseService init failed: $e');
       }),
       Future.delayed(const Duration(milliseconds: 1800)),
     ]);
@@ -180,7 +188,7 @@ class _SplashScreenState extends State<SplashScreen>
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Kürmancî Kelime Oyunu',
+                          'Lîstika Peyvan',
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.35),
                             fontSize: 13,

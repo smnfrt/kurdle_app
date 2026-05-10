@@ -1,7 +1,7 @@
+import 'package:characters/characters.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/widgets.dart' show WidgetsFlutterBinding;
 import 'dart:convert';
-import 'dart:core';
 
 class WordService {
   late List<String> _answers;
@@ -39,6 +39,6 @@ class WordService {
   }
 
   bool isLongEnough(String guess) {
-    return guess.length == 5;
+    return guess.characters.length == 5;
   }
 }

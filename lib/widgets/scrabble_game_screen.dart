@@ -1,19 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:kurdle_app/services/app_locale.dart';
 import 'package:flutter/services.dart';
-import 'dart:convert';
+import 'package:kurdle_app/services/app_locale.dart';
+import 'dart:ui' as ui;
+import 'package:kurdle_app/controllers/board_touch_controller.dart';
 import 'package:kurdle_app/controllers/scrabble_game_controller.dart';
 import 'package:kurdle_app/models/game_tile.dart';
-import 'package:kurdle_app/services/auth_service.dart';
-import 'package:kurdle_app/services/firebase_service.dart';
-import 'package:kurdle_app/services/firestore_service.dart';
+import 'package:kurdle_app/models/word_suggestion.dart';
 import 'package:kurdle_app/services/game_store.dart';
 import 'package:kurdle_app/services/kurdish_meanings.dart';
 import 'package:kurdle_app/services/language_config.dart';
+import 'package:kurdle_app/services/wordlist_loader.dart';
+import 'package:kurdle_app/widgets/ferheng/word_detail_popup.dart';
 import 'package:kurdle_app/widgets/chat_screen.dart';
 import 'package:kurdle_app/services/sound_service.dart';
 import 'package:kurdle_app/widgets/letter_rack_widget.dart';
 import 'package:kurdle_app/widgets/scrabble_board_widget.dart';
+import 'package:kurdle_app/widgets/steal_banner_widget.dart';
+import 'package:kurdle_app/services/haptic_service.dart';
 
 // ── Design tokens ───────────────────────────────────────────────
 const _kBg         = Color(0xFFF5F0E8);
@@ -26,24 +29,46 @@ const _kErrorColor = Color(0xFFFF6B6B);
 
 class ScrabbleGameScreen extends StatefulWidget {
   final ScrabbleGameController? existingController;
-  const ScrabbleGameScreen({Key? key, this.existingController}) : super(key: key);
+  final String? tournamentMatchId;
+  final int? turnTimeLimitSeconds;
+
+  const ScrabbleGameScreen({Key? key, this.existingController, this.tournamentMatchId, this.turnTimeLimitSeconds}) : super(key: key);
 
   @override
   State<ScrabbleGameScreen> createState() => _ScrabbleGameScreenState();
 }
 
-class _ScrabbleGameScreenState extends State<ScrabbleGameScreen> {
+class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
+    with TickerProviderStateMixin {
   ScrabbleGameController? _controller;
   String _error = '';
   GameTile? _selectedTile;
   GamePhase? _lastPhase;
-  DateTime _startTime = DateTime.now();
 
   // ValueNotifier'lar ile sadece ilgili widget rebuild olur
   final _boardNotifier  = ValueNotifier<int>(0);
   final _rackNotifier   = ValueNotifier<int>(0);
   final _scoreNotifier  = ValueNotifier<int>(0);
   VoidCallback? _controllerListener;
+
+  final _zoomController = TransformationController();
+  TapDownDetails? _doubleTapDetails;
+  late final BoardTouchController _touchCtrl;
+
+  // Sohbet paneli
+  bool _hasUnread   = false;
+
+  void _handleDoubleTap() {
+    if (_touchCtrl.panEnabled) {
+      _zoomController.value = Matrix4.identity();
+      return;
+    }
+    final pos = _doubleTapDetails?.localPosition ?? Offset.zero;
+    const scale = 2.5;
+    _zoomController.value = Matrix4.identity()
+      ..translate(-pos.dx * (scale - 1), -pos.dy * (scale - 1))
+      ..scale(scale);
+  }
 
   void _attachListener(ScrabbleGameController ctrl) {
     _controllerListener = () {
@@ -56,6 +81,12 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen> {
   @override
   void initState() {
     super.initState();
+    _touchCtrl = BoardTouchController(
+      transformCtrl: _zoomController,
+      vsync: this,
+      onPanChanged: (enabled) { if (mounted) setState(() {}); },
+    );
+    _zoomController.addListener(_touchCtrl.onTransformChanged);
     if (widget.existingController != null) {
       _controller = widget.existingController!;
       _lastPhase = _controller!.phase;
@@ -68,18 +99,12 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen> {
 
   Future<void> _loadGame() async {
     final config = LanguageConfig.current;
-    final ls = const LineSplitter();
-    final allWords = <String>{};
-    for (final assetPath in config.wordAssets) {
-      final lines = ls.convert(await rootBundle.loadString(assetPath));
-      allWords.addAll(lines);
-    }
+    final allWords = await WordlistLoader.loadAssets(config.wordAssets);
     GameStore.instance.createRecord();
-    _startTime = DateTime.now();
     if (_controller != null && _controllerListener != null) {
       _controller!.removeListener(_controllerListener!);
     }
-    final newCtrl = ScrabbleGameController(allWords.toList(), config: config);
+    final newCtrl = ScrabbleGameController(allWords.toList(), config: config, turnTimeLimitSeconds: widget.turnTimeLimitSeconds);
     setState(() {
       _controller = newCtrl;
       _lastPhase = null;
@@ -97,7 +122,13 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen> {
       } else if (phase == GamePhase.gameOver) {
         final won = _controller!.playerScore > _controller!.aiScore;
         SoundService.instance.play(won ? SFX.win : SFX.lose);
-        _saveToFirestore(won);
+        won ? HapticService.instance.win() : HapticService.instance.lose();
+        // Turnuva modunda skoru geri döndür
+        if (widget.tournamentMatchId != null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) Navigator.pop(context, _controller!.playerScore);
+          });
+        }
       }
       _lastPhase = phase;
       // Faz değişimi tüm ekranı etkiliyor (AI sırası, game over banner)
@@ -110,29 +141,85 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen> {
     _scoreNotifier.value++;
   }
 
-  Future<void> _saveToFirestore(bool won) async {
-    final uid = AuthService.instance.currentUser?.uid;
-    if (uid == null || !FirebaseService.isAvailable) return;
-    await FirestoreService.instance.saveGameResult(
-      uid: uid,
-      playerScore: _controller!.playerScore,
-      aiScore: _controller!.aiScore,
-      won: won,
-      durationSeconds: DateTime.now().difference(_startTime).inSeconds,
-    );
-  }
-
   void _onSubmit() {
-    final err = _controller!.submitMove();
+    final ctrl = _controller!;
+    final err = ctrl.submitMove();
+
     if (err == null) {
-      HapticFeedback.lightImpact();
-      SoundService.instance.play(SFX.wordValid);
-      SoundService.instance.play(SFX.scoreUp);
-      if (_error.isNotEmpty) setState(() => _error = '');
+      if (ctrl.turnForfeited) {
+        SoundService.instance.play(SFX.wordInvalid);
+        HapticService.instance.wordInvalid();
+        setState(() => _error = ctrl.message);
+      } else {
+        HapticService.instance.submit();
+        SoundService.instance.play(SFX.wordValid);
+        SoundService.instance.play(SFX.scoreUp);
+        GameStore.instance.sync(ctrl, moveMade: true);
+        if (_error.isNotEmpty) setState(() => _error = '');
+
+        // Çalma gerçekleştiyse banner göster + 3s sonra temizle
+        if (ctrl.lastStealResult?.success == true) {
+          HapticService.instance.win();
+          SoundService.instance.play(SFX.win);
+          _showStealBanner(ctrl);
+        }
+
+        if (ctrl.highlightedCells.isNotEmpty || ctrl.stolenNewCells.isNotEmpty) {
+          Future.delayed(const Duration(milliseconds: 3000), () {
+            if (mounted) {
+              ctrl.highlightedCells = {};
+              ctrl.stolenNewCells   = {};
+              _boardNotifier.value++;
+            }
+          });
+        }
+      }
     } else {
       SoundService.instance.play(SFX.wordInvalid);
+      HapticService.instance.wordInvalid();
       setState(() => _error = err);
+
+      final suggestion = ctrl.lastSuggestion;
+      if (suggestion != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _showSuggestionSheet(suggestion);
+        });
+      }
     }
+  }
+
+  void _showStealBanner(ScrabbleGameController ctrl) {
+    final overlay = Overlay.of(context);
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (_) => StealBannerWidget(
+        result:    ctrl.lastStealResult!,
+        onDismiss: () {
+          if (entry.mounted) entry.remove();
+        },
+      ),
+    );
+    overlay.insert(entry);
+  }
+
+  void _showSuggestionSheet(WordSuggestion suggestion) {
+    final ctrl = _controller!;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _SuggestionSheet(
+        suggestion: suggestion,
+        onAccept: () {
+          Navigator.pop(context);
+          ctrl.lastSuggestion = null;
+          setState(() => _error = L.suggestionHint(suggestion.suggested));
+        },
+        onReject: () {
+          Navigator.pop(context);
+          ctrl.lastSuggestion = null;
+        },
+      ),
+    );
   }
 
   void _showGameMenu() {
@@ -164,6 +251,17 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen> {
     );
   }
 
+  void _toggleChat() {
+    setState(() => _hasUnread = false);
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const _FullScreenChat(),
+        fullscreenDialog: true,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_controller == null) {
@@ -175,96 +273,133 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen> {
 
     final ctrl = _controller!;
     final isPlayer = ctrl.phase == GamePhase.playerTurn;
+    final mainContent = Column(
+      children: [
+        // Minimal top bar
+        ValueListenableBuilder<int>(
+          valueListenable: _scoreNotifier,
+          builder: (_, __, ___) => _TopBar(
+            playerScore: ctrl.playerScore,
+            aiScore: ctrl.aiScore,
+            tilesLeft: ctrl.tilesLeft,
+            phase: ctrl.phase,
+            playerEnhancesLeft: ctrl.playerEnhancesLeft,
+            onNewGame: _loadGame,
+            canGoBack: Navigator.canPop(context),
+            onChatTap: _toggleChat,
+            hasUnread: _hasUnread,
+          ),
+        ),
+
+        // Kelime önizleme
+        ValueListenableBuilder<int>(
+          valueListenable: _boardNotifier,
+          builder: (_, __, ___) => _WordPreviewBar(words: ctrl.pendingWords),
+        ),
+
+        // Tahta — ekranın büyük bölümü
+        Expanded(
+          child: LayoutBuilder(
+            builder: (_, constraints) {
+              _touchCtrl.viewportSize = constraints.biggest;
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
+                child: GestureDetector(
+                  onDoubleTapDown: (d) => _doubleTapDetails = d,
+                  onDoubleTap: _handleDoubleTap,
+                  child: InteractiveViewer(
+                    transformationController: _zoomController,
+                    boundaryMargin: const EdgeInsets.all(double.infinity),
+                    minScale: 1.0,
+                    maxScale: 4.0,
+                    panEnabled: _touchCtrl.panEnabled,
+                    onInteractionStart: (_) => _touchCtrl.onGestureStart(),
+                    onInteractionEnd: (d) =>
+                        _touchCtrl.onGestureEnd(d.velocity.pixelsPerSecond),
+                    child: ValueListenableBuilder<int>(
+                      valueListenable: _boardNotifier,
+                      builder: (_, __, ___) => ScrabbleBoardWidget(
+                        board: ctrl.board,
+                        highlightedCells: ctrl.highlightedCells,
+                        stolenNewCells:   ctrl.stolenNewCells,
+                        onTileDrop: isPlayer
+                            ? (row, col, tile) {
+                                ctrl.placeTile(row, col, tile);
+                                HapticFeedback.selectionClick();
+                                SoundService.instance.play(SFX.tilePlace);
+                                if (_error.isNotEmpty || _selectedTile != null) {
+                                  setState(() { _error = ''; _selectedTile = null; });
+                                }
+                              }
+                            : null,
+                        onCellTap: isPlayer
+                            ? (row, col) => ctrl.recallTile(row, col)
+                            : null,
+                        onEmptyCellTap: isPlayer && _selectedTile != null
+                            ? (row, col) {
+                                ctrl.placeTile(row, col, _selectedTile!);
+                                HapticFeedback.selectionClick();
+                                SoundService.instance.play(SFX.tilePlace);
+                                setState(() { _error = ''; _selectedTile = null; });
+                              }
+                            : null,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+
+        // Alt panel
+        ValueListenableBuilder<int>(
+          valueListenable: _rackNotifier,
+          builder: (_, __, ___) => _BottomPanel(
+            tiles: ctrl.playerRack,
+            isEnabled: isPlayer,
+            error: _error,
+            phase: ctrl.phase,
+            playerScore: ctrl.playerScore,
+            aiScore: ctrl.aiScore,
+            selectedTileId: _selectedTile?.id,
+            onMenuTap: _showGameMenu,
+            onTileTap: isPlayer
+                ? (tile) => setState(() {
+                      _selectedTile = _selectedTile?.id == tile.id ? null : tile;
+                    })
+                : null,
+            onRecall: () {
+              ctrl.recallAll();
+              if (_error.isNotEmpty || _selectedTile != null) {
+                setState(() { _error = ''; _selectedTile = null; });
+              }
+            },
+            onShuffle: ctrl.shuffleRack,
+            onPass: isPlayer
+                ? () {
+                    final err = ctrl.passTurn();
+                    if (err == null) SoundService.instance.play(SFX.passTurn);
+                    setState(() => _error = err ?? '');
+                  }
+                : null,
+            onSubmit: _onSubmit,
+            onRestart: _loadGame,
+            isInStealMode: ctrl.isInStealMode,
+            playerStealsLeft: ctrl.playerStealsLeft,
+            onStealToggle: isPlayer ? () => setState(() => ctrl.toggleStealMode()) : null,
+          ),
+        ),
+      ],
+    );
 
     return Scaffold(
       backgroundColor: _kBg,
-      body: Column(
+      resizeToAvoidBottomInset: false,
+      body: Stack(
         children: [
-          // Skor/faz/kalan — sadece _scoreNotifier değişince rebuild
-          ValueListenableBuilder<int>(
-            valueListenable: _scoreNotifier,
-            builder: (_, __, ___) => _TopBar(
-              playerScore: ctrl.playerScore,
-              aiScore: ctrl.aiScore,
-              tilesLeft: ctrl.tilesLeft,
-              phase: ctrl.phase,
-              onNewGame: _loadGame,
-              canGoBack: Navigator.canPop(context),
-            ),
-          ),
+          mainContent,
 
-          // Kelime önizleme — sadece _boardNotifier değişince rebuild
-          ValueListenableBuilder<int>(
-            valueListenable: _boardNotifier,
-            builder: (_, __, ___) => _WordPreviewBar(words: ctrl.pendingWords),
-          ),
-
-          // Tahta — sadece _boardNotifier değişince rebuild
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-              child: Center(
-                child: ValueListenableBuilder<int>(
-                  valueListenable: _boardNotifier,
-                  builder: (_, __, ___) => ScrabbleBoardWidget(
-                    board: ctrl.board,
-                    onTileDrop: isPlayer
-                        ? (row, col, tile) {
-                            ctrl.placeTile(row, col, tile);
-                            HapticFeedback.selectionClick();
-                            SoundService.instance.play(SFX.tilePlace);
-                            if (_error.isNotEmpty || _selectedTile != null) {
-                              setState(() { _error = ''; _selectedTile = null; });
-                            }
-                          }
-                        : null,
-                    onCellTap: isPlayer
-                        ? (row, col) {
-                            ctrl.recallTile(row, col);
-                          }
-                        : null,
-                    onEmptyCellTap: isPlayer && _selectedTile != null
-                        ? (row, col) {
-                            ctrl.placeTile(row, col, _selectedTile!);
-                            HapticFeedback.selectionClick();
-                            SoundService.instance.play(SFX.tilePlace);
-                            setState(() { _error = ''; _selectedTile = null; });
-                          }
-                        : null,
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          // Raf + alt panel — sadece _rackNotifier değişince rebuild
-          ValueListenableBuilder<int>(
-            valueListenable: _rackNotifier,
-            builder: (_, __, ___) => _BottomPanel(
-              tiles: ctrl.playerRack,
-              isEnabled: isPlayer,
-              error: _error,
-              phase: ctrl.phase,
-              playerScore: ctrl.playerScore,
-              aiScore: ctrl.aiScore,
-              selectedTileId: _selectedTile?.id,
-              onMenuTap: _showGameMenu,
-              onTileTap: isPlayer
-                  ? (tile) => setState(() {
-                        _selectedTile = _selectedTile?.id == tile.id ? null : tile;
-                      })
-                  : null,
-              onRecall: () {
-                ctrl.recallAll();
-                if (_error.isNotEmpty || _selectedTile != null) {
-                  setState(() { _error = ''; _selectedTile = null; });
-                }
-              },
-              onShuffle: ctrl.shuffleRack,
-              onSubmit: _onSubmit,
-              onRestart: _loadGame,
-            ),
-          ),
         ],
       ),
     );
@@ -278,7 +413,40 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen> {
     _boardNotifier.dispose();
     _rackNotifier.dispose();
     _scoreNotifier.dispose();
+    _zoomController.removeListener(_touchCtrl.onTransformChanged);
+    _touchCtrl.dispose();
+    _zoomController.dispose();
     super.dispose();
+  }
+}
+
+// ── Tam ekran sohbet ────────────────────────────────────────────
+
+class _FullScreenChat extends StatelessWidget {
+  const _FullScreenChat();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFF1A1A2E),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF16213E),
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white70, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.chat_bubble_rounded, color: _kPrimary, size: 18),
+            const SizedBox(width: 8),
+            Text(L.chat,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+      ),
+      body: const ChatScreen(),
+    );
   }
 }
 
@@ -289,102 +457,250 @@ class _TopBar extends StatelessWidget {
   final int aiScore;
   final int tilesLeft;
   final GamePhase phase;
+  final int playerEnhancesLeft;
   final VoidCallback onNewGame;
+  final VoidCallback onChatTap;
   final bool canGoBack;
-
+  final bool hasUnread;
   const _TopBar({
     required this.playerScore,
     required this.aiScore,
     required this.tilesLeft,
     required this.phase,
+    required this.playerEnhancesLeft,
     required this.onNewGame,
+    required this.onChatTap,
     this.canGoBack = false,
+    this.hasUnread = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final top = MediaQuery.of(context).padding.top;
     return Container(
-      padding: EdgeInsets.fromLTRB(16, top + 10, 16, 14),
+      padding: EdgeInsets.fromLTRB(10, top + 4, 10, 6),
       decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [_kTopStart, _kTopEnd],
-        ),
+        color: _kTopStart,
+        border: Border(bottom: BorderSide(color: Colors.white10)),
       ),
       child: Row(
         children: [
+          // Geri butonu
           if (canGoBack)
             GestureDetector(
-              onTap: () => Navigator.pop(context),
+              behavior: HitTestBehavior.opaque,
+              onTapDown: (_) {
+                HapticFeedback.selectionClick();
+                Navigator.pop(context);
+              },
               child: const Padding(
-                padding: EdgeInsets.only(right: 8),
-                child: Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white54, size: 20),
+                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                child: Icon(Icons.arrow_back_ios_new_rounded,
+                    color: Colors.white38, size: 18),
               ),
             ),
-          Expanded(child: _ScoreCard(label: _s('Sen', 'Ez'), score: playerScore, isActive: phase == GamePhase.playerTurn, alignLeft: true)),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: Colors.white12,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    '$tilesLeft',
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(L.remaining, style: const TextStyle(color: Colors.white38, fontSize: 9)),
-                const SizedBox(height: 6),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    GestureDetector(
-                      onTap: onNewGame,
-                      child: const Icon(Icons.refresh_rounded, color: Colors.white38, size: 20),
-                    ),
-                    const SizedBox(width: 10),
-                    GestureDetector(
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const ChatScreen()),
-                      ),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: _kPrimary.withOpacity(0.18),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: _kPrimary.withOpacity(0.45)),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.chat_bubble_rounded, color: _kPrimary, size: 12),
-                            const SizedBox(width: 4),
-                            Text(L.chat, style: const TextStyle(color: _kPrimary, fontSize: 11, fontWeight: FontWeight.w600)),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+
+          // Sol skor
+          Expanded(child: _ScoreCard(
+            label: L.current == AppLocale.tr ? 'Sen' : 'Ez',
+            score: playerScore,
+            isActive: phase == GamePhase.playerTurn,
+            alignLeft: true,
+          )),
+
+          // Orta: torba + enhance badge + geri sayım
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('$tilesLeft',
+                      style: const TextStyle(
+                          color: Colors.white70,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15)),
+                  const SizedBox(width: 2),
+                  Text(L.remaining,
+                      style: const TextStyle(color: Colors.white30, fontSize: 9)),
+                ],
+              ),
+              const SizedBox(height: 3),
+              _EnhanceBadge(count: playerEnhancesLeft),
+            ],
           ),
-          Expanded(child: _ScoreCard(label: 'AI', score: aiScore, isActive: phase == GamePhase.aiTurn, alignLeft: false)),
+
+          // Sağ skor
+          Expanded(child: _ScoreCard(
+            label: 'AI',
+            score: aiScore,
+            isActive: phase == GamePhase.aiTurn,
+            alignLeft: false,
+          )),
+
+          // 💬 Premium glass FAB
+          _GlassChatBtn(onTap: onChatTap, hasUnread: hasUnread),
         ],
       ),
     );
   }
+}
 
-  static String _s(String tr, String ku) => L.current == AppLocale.tr ? tr : ku;
+class _GlassChatBtn extends StatefulWidget {
+  final VoidCallback onTap;
+  final bool hasUnread;
+  const _GlassChatBtn({required this.onTap, required this.hasUnread});
+
+  @override
+  State<_GlassChatBtn> createState() => _GlassChatBtnState();
+}
+
+class _GlassChatBtnState extends State<_GlassChatBtn> with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse;
+  bool _pressed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    if (widget.hasUnread) _pulse.repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(covariant _GlassChatBtn old) {
+    super.didUpdateWidget(old);
+    if (widget.hasUnread && !_pulse.isAnimating) {
+      _pulse.repeat(reverse: true);
+    } else if (!widget.hasUnread) {
+      _pulse.stop();
+      _pulse.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: widget.onTap,
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.92 : 1.0,
+        duration: const Duration(milliseconds: 110),
+        curve: Curves.easeOut,
+        child: AnimatedBuilder(
+          animation: _pulse,
+          builder: (_, __) {
+            final glow = widget.hasUnread ? (0.3 + 0.4 * _pulse.value) : 0.0;
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 38, height: 38,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        Colors.white.withOpacity(0.10),
+                        Colors.white.withOpacity(0.04),
+                      ],
+                    ),
+                    border: Border.all(
+                      color: widget.hasUnread
+                          ? const Color(0xFFFF4444).withOpacity(0.55 + 0.25 * _pulse.value)
+                          : Colors.white.withOpacity(0.15),
+                      width: 1.2,
+                    ),
+                    boxShadow: [
+                      if (widget.hasUnread)
+                        BoxShadow(
+                          color: const Color(0xFFFF4444).withOpacity(glow),
+                          blurRadius: 14,
+                          spreadRadius: 1,
+                        ),
+                    ],
+                  ),
+                  child: const Icon(Icons.chat_bubble_rounded,
+                      color: Colors.white70, size: 18),
+                ),
+                if (widget.hasUnread)
+                  Positioned(
+                    right: -2, top: -2,
+                    child: Container(
+                      width: 12, height: 12,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF4444),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: const Color(0xFF0F1923), width: 1.5),
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+// ── Geliştirme hakkı badge ────────────────────────────────────────
+
+class _EnhanceBadge extends StatelessWidget {
+  final int count;
+  const _EnhanceBadge({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    final label = L.current == AppLocale.tr ? 'Geliştirme' : 'Pêşkeftin';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: count > 0
+            ? const Color(0xFFFFD700).withOpacity(0.15)
+            : Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: count > 0
+              ? const Color(0xFFFFD700).withOpacity(0.5)
+              : Colors.white12,
+          width: 1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.auto_awesome_rounded,
+            size: 10,
+            color: count > 0
+                ? const Color(0xFFFFD700)
+                : Colors.white24,
+          ),
+          const SizedBox(width: 3),
+          Text(
+            '$count $label',
+            style: TextStyle(
+              fontSize: 8,
+              fontWeight: FontWeight.w600,
+              color: count > 0 ? const Color(0xFFFFD700) : Colors.white24,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ScoreCard extends StatelessWidget {
@@ -454,9 +770,13 @@ class _BottomPanel extends StatelessWidget {
   final void Function(GameTile)? onTileTap;
   final VoidCallback onRecall;
   final VoidCallback onShuffle;
+  final VoidCallback? onPass;
   final VoidCallback onSubmit;
   final VoidCallback onRestart;
   final VoidCallback? onMenuTap;
+  final bool isInStealMode;
+  final int playerStealsLeft;
+  final VoidCallback? onStealToggle;
 
   const _BottomPanel({
     required this.tiles,
@@ -469,49 +789,102 @@ class _BottomPanel extends StatelessWidget {
     this.onTileTap,
     required this.onRecall,
     required this.onShuffle,
+    this.onPass,
     required this.onSubmit,
     required this.onRestart,
     this.onMenuTap,
+    this.isInStealMode = false,
+    this.playerStealsLeft = 2,
+    this.onStealToggle,
   });
+
+  static const _kSteal  = Color(0xFF00BFA5);
+  static const _kStealActive = Color(0xFFFF6F00);
 
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.of(context).padding.bottom;
 
-    return Container(
-      decoration: const BoxDecoration(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      decoration: BoxDecoration(
         color: _kBottomBg,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-        boxShadow: [BoxShadow(color: Colors.black45, blurRadius: 16, offset: Offset(0, -4))],
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 20, offset: const Offset(0, -4))],
+        border: isInStealMode
+            ? Border.all(color: _kStealActive.withOpacity(0.7), width: 1.5)
+            : null,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Handle
           Container(
-            width: 40, height: 4,
-            margin: const EdgeInsets.only(top: 10, bottom: 4),
-            decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(2)),
+            width: 36, height: 3,
+            margin: const EdgeInsets.only(top: 8, bottom: 2),
+            decoration: BoxDecoration(
+                color: isInStealMode
+                    ? _kStealActive.withOpacity(0.6)
+                    : Colors.white.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(2)),
           ),
 
+          // Çalma modu banner'ı
           AnimatedSwitcher(
-            duration: const Duration(milliseconds: 250),
+            duration: const Duration(milliseconds: 200),
+            child: isInStealMode
+                ? Container(
+                    key: const ValueKey('steal_banner'),
+                    width: double.infinity,
+                    margin: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: _kStealActive.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: _kStealActive.withOpacity(0.5)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Text('⚡', style: TextStyle(fontSize: 13)),
+                        const SizedBox(width: 6),
+                        Text(
+                          L.stealModeActive,
+                          style: TextStyle(
+                            color: _kStealActive,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : const SizedBox.shrink(key: ValueKey('no_steal_banner')),
+          ),
+
+          // Hata mesajı
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 220),
             child: error.isNotEmpty
                 ? Padding(
                     key: ValueKey(error),
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                    padding: const EdgeInsets.fromLTRB(14, 4, 14, 0),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
-                        color: _kErrorColor.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: _kErrorColor.withOpacity(0.35)),
+                        color: _kErrorColor.withOpacity(0.10),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: _kErrorColor.withOpacity(0.30)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.warning_amber_rounded, color: _kErrorColor, size: 15),
-                          const SizedBox(width: 6),
-                          Flexible(child: Text(error, style: const TextStyle(color: _kErrorColor, fontSize: 12))),
+                          const Icon(Icons.warning_amber_rounded,
+                              color: _kErrorColor, size: 13),
+                          const SizedBox(width: 5),
+                          Flexible(
+                              child: Text(error,
+                                  style: const TextStyle(
+                                      color: _kErrorColor, fontSize: 11))),
                         ],
                       ),
                     ),
@@ -519,24 +892,16 @@ class _BottomPanel extends StatelessWidget {
                 : const SizedBox.shrink(),
           ),
 
+          // AI turu göstergesi — premium thinking pill
           if (phase == GamePhase.aiTurn)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const SizedBox(
-                    width: 13, height: 13,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orangeAccent),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(L.aiTurn, style: const TextStyle(color: Colors.orangeAccent, fontSize: 12)),
-                ],
-              ),
+              child: Center(child: _AiThinkingPill()),
             ),
 
+          // Harf rafı
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+            padding: const EdgeInsets.fromLTRB(10, 6, 10, 0),
             child: LetterRackWidget(
               tiles: tiles,
               enabled: isEnabled,
@@ -545,79 +910,202 @@ class _BottomPanel extends StatelessWidget {
             ),
           ),
 
+          // Küçük eylem butonları
           Padding(
-            padding: EdgeInsets.fromLTRB(12, 10, 12, bottom + 14),
+            padding: const EdgeInsets.fromLTRB(10, 6, 10, 0),
             child: Row(
               children: [
-                GestureDetector(
+                _ActionBtn(
+                  icon: Icons.undo_rounded,
+                  label: L.recall,
+                  enabled: isEnabled,
+                  onTap: isEnabled ? onRecall : null,
+                ),
+                const SizedBox(width: 6),
+                _ActionBtn(
+                  icon: Icons.skip_next_rounded,
+                  label: L.passTurn,
+                  enabled: isEnabled && onPass != null,
+                  onTap: (isEnabled && onPass != null) ? onPass : null,
+                ),
+                const SizedBox(width: 6),
+                // ── Çal butonu ─────────────────────────────────
+                _StealBtn(
+                  isEnabled: isEnabled && playerStealsLeft > 0,
+                  isActive: isInStealMode,
+                  stealsLeft: playerStealsLeft,
+                  onTap: isEnabled ? onStealToggle : null,
+                ),
+                const SizedBox(width: 6),
+                _ActionBtn(
+                  icon: Icons.more_horiz_rounded,
+                  label: L.options,
+                  enabled: isEnabled,
                   onTap: isEnabled ? onMenuTap : null,
-                  child: Container(
-                    width: 44,
-                    height: 44,
-                    margin: const EdgeInsets.only(right: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(isEnabled ? 0.07 : 0.03),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Colors.white.withOpacity(isEnabled ? 0.2 : 0.08),
-                      ),
-                    ),
-                    child: Icon(Icons.more_horiz_rounded,
-                        color: isEnabled ? Colors.white60 : Colors.white24, size: 22),
-                  ),
-                ),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: isEnabled ? onRecall : null,
-                    icon: const Icon(Icons.undo_rounded, size: 16),
-                    label: Text(L.recall, style: const TextStyle(fontSize: 12)),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: isEnabled ? Colors.white70 : Colors.white24,
-                      side: BorderSide(color: isEnabled ? Colors.white30 : Colors.white12),
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: isEnabled ? onShuffle : null,
-                    icon: const Icon(Icons.shuffle_rounded, size: 16),
-                    label: Text(L.shuffle, style: const TextStyle(fontSize: 12)),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: isEnabled ? Colors.white70 : Colors.white24,
-                      side: BorderSide(color: isEnabled ? Colors.white30 : Colors.white12),
-                      padding: const EdgeInsets.symmetric(vertical: 13),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  flex: 2,
-                  child: ElevatedButton.icon(
-                    onPressed: isEnabled ? onSubmit : null,
-                    icon: const Icon(Icons.check_circle_rounded, size: 18),
-                    label: Text(L.play, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _kPrimary,
-                      foregroundColor: Colors.white,
-                      disabledBackgroundColor: Colors.grey.shade800,
-                      disabledForegroundColor: Colors.white24,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      elevation: isEnabled ? 4 : 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
                 ),
               ],
             ),
           ),
 
+          // Büyük "Bilîze" butonu
+          Padding(
+            padding: EdgeInsets.fromLTRB(10, 6, 10, bottom + 8),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: isEnabled ? onSubmit : null,
+                icon: const Icon(Icons.check_circle_rounded, size: 20),
+                label: Text(L.play,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 16)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _kPrimary,
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: const Color(0xFF2A2A2A),
+                  disabledForegroundColor: Colors.white24,
+                  padding: const EdgeInsets.symmetric(vertical: 15),
+                  elevation: isEnabled ? 6 : 0,
+                  shadowColor: _kPrimary.withOpacity(0.5),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+              ),
+            ),
+          ),
+
           if (phase == GamePhase.gameOver)
-            _GameOverBanner(playerScore: playerScore, aiScore: aiScore, onRestart: onRestart),
+            _GameOverBanner(
+                playerScore: playerScore,
+                aiScore: aiScore,
+                onRestart: onRestart),
         ],
+      ),
+    );
+  }
+}
+
+// Küçük ikon+etiket aksiyon butonu
+class _ActionBtn extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool enabled;
+  final VoidCallback? onTap;
+
+  const _ActionBtn({
+    required this.icon,
+    required this.label,
+    required this.enabled,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(enabled ? 0.06 : 0.02),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+                color: Colors.white.withOpacity(enabled ? 0.14 : 0.05)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon,
+                  color: enabled ? Colors.white60 : Colors.white.withOpacity(0.20),
+                  size: 18),
+              const SizedBox(height: 3),
+              Text(label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                      color: enabled
+                          ? Colors.white.withOpacity(0.45)
+                          : Colors.white.withOpacity(0.15),
+                      fontSize: 9)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Çalma butonu ─────────────────────────────────────────────────
+
+class _StealBtn extends StatelessWidget {
+  final bool isEnabled;
+  final bool isActive;
+  final int stealsLeft;
+  final VoidCallback? onTap;
+
+  const _StealBtn({
+    required this.isEnabled,
+    required this.isActive,
+    required this.stealsLeft,
+    this.onTap,
+  });
+
+  static const _kSteal       = Color(0xFF00BFA5);
+  static const _kStealActive = Color(0xFFFF6F00);
+
+  @override
+  Widget build(BuildContext context) {
+    final color  = isActive ? _kStealActive : _kSteal;
+    final dimmed = !isEnabled && !isActive;
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.mediumImpact();
+          onTap?.call();
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: dimmed
+                ? Colors.white.withOpacity(0.02)
+                : isActive
+                    ? _kStealActive.withOpacity(0.15)
+                    : _kSteal.withOpacity(0.10),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: dimmed
+                  ? Colors.white.withOpacity(0.05)
+                  : color.withOpacity(isActive ? 0.75 : 0.45),
+              width: isActive ? 1.5 : 1.0,
+            ),
+            boxShadow: isActive
+                ? [BoxShadow(color: _kStealActive.withOpacity(0.25), blurRadius: 8)]
+                : null,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                isActive ? '⚡' : '🎯',
+                style: const TextStyle(fontSize: 14, height: 1),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                isActive ? L.steal : '${L.steal} (${stealsLeft})',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: dimmed
+                      ? Colors.white.withOpacity(0.15)
+                      : color,
+                  fontSize: 9,
+                  fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -651,7 +1139,7 @@ class _WordPreviewBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (words.isEmpty) return const SizedBox(height: 4);
+    if (words.isEmpty) return const SizedBox.shrink();
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       width: double.infinity,
@@ -665,6 +1153,12 @@ class _WordPreviewBar extends StatelessWidget {
           final isValid = e.valid;
           return GestureDetector(
             onTap: isValid ? () => _showMeaning(context, e.word) : null,
+            onLongPress: isValid
+                ? () {
+                    HapticFeedback.lightImpact();
+                    WordDetailPopup.show(context, e.word);
+                  }
+                : null,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 250),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -1137,12 +1631,17 @@ class _SheetOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedOpacity(
-        opacity: enabled ? 1.0 : 0.4,
-        duration: const Duration(milliseconds: 150),
-        child: Container(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        splashColor: Colors.white.withOpacity(0.08),
+        highlightColor: Colors.white.withOpacity(0.04),
+        child: AnimatedOpacity(
+          opacity: enabled ? 1.0 : 0.4,
+          duration: const Duration(milliseconds: 150),
+          child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
             color: Colors.white.withOpacity(0.05),
@@ -1179,7 +1678,201 @@ class _SheetOption extends StatelessWidget {
               Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.2), size: 20),
             ],
           ),
+          ),
         ),
+      ),
+    );
+  }
+}
+
+// ── Suggestion sheet ─────────────────────────────────────────────
+
+class _SuggestionSheet extends StatelessWidget {
+  final WordSuggestion suggestion;
+  final VoidCallback onAccept;
+  final VoidCallback onReject;
+
+  const _SuggestionSheet({
+    required this.suggestion,
+    required this.onAccept,
+    required this.onReject,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).padding.bottom;
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF1E2A3A),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.fromLTRB(20, 16, 20, bottom + 20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40, height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white12,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Icon(Icons.lightbulb_rounded, color: Color(0xFFFFB74D), size: 32),
+          const SizedBox(height: 12),
+          Text(
+            L.didYouMean(suggestion.suggested),
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '"${suggestion.original}"',
+            style: const TextStyle(color: Colors.white38, fontSize: 13),
+          ),
+          const SizedBox(height: 24),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: onReject,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white54,
+                    side: const BorderSide(color: Colors.white24),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Text(L.suggestionReject,
+                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: onAccept,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFFB74D),
+                    foregroundColor: Colors.black87,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: Text(L.suggestionAccept,
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── AI thinking pill ─────────────────────────────────────────────
+
+class _AiThinkingPill extends StatefulWidget {
+  @override
+  State<_AiThinkingPill> createState() => _AiThinkingPillState();
+}
+
+class _AiThinkingPillState extends State<_AiThinkingPill>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) {
+        final glow = 0.35 + 0.25 * (0.5 + 0.5 * (1 - (2 * _ctrl.value - 1).abs()));
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                const Color(0xFF7B1FA2).withOpacity(0.18),
+                const Color(0xFF9C27B0).withOpacity(0.22),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+                color: const Color(0xFFCE93D8).withOpacity(0.45), width: 1),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF9C27B0).withOpacity(glow * 0.6),
+                blurRadius: 14,
+                spreadRadius: 0.5,
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.psychology_rounded,
+                  color: Color(0xFFE1BEE7), size: 16),
+              const SizedBox(width: 8),
+              Text(
+                L.aiTurn,
+                style: const TextStyle(
+                  color: Color(0xFFEDE7F6),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.2,
+                ),
+              ),
+              const SizedBox(width: 6),
+              _AiDot(active: _ctrl.value < 0.33),
+              const SizedBox(width: 3),
+              _AiDot(active: _ctrl.value >= 0.33 && _ctrl.value < 0.66),
+              const SizedBox(width: 3),
+              _AiDot(active: _ctrl.value >= 0.66),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _AiDot extends StatelessWidget {
+  final bool active;
+  const _AiDot({required this.active});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      width: 4, height: 4,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: active
+            ? const Color(0xFFE1BEE7)
+            : const Color(0xFFE1BEE7).withOpacity(0.30),
       ),
     );
   }

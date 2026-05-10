@@ -1,0 +1,76 @@
+headword,categories,note
+AV,nature;basic,water
+AGIR,nature;basic,fire
+AX,nature;basic,earth/soil
+ROJ,time;nature,day/sun
+ŞEV,time;nature,night
+SAL,time,year
+HEFTE,time,week
+MEH,time,month
+SIBE,time,morning
+ÊVAR,time,evening
+DAYIK,family,mother
+BAV,family,father
+BIRA,family,brother
+XWIŞK,family,sister
+KEÇ,family,girl/daughter
+KUR,family,son
+DOST,family;emotions,friend
+HEZKIRIN,emotions,love
+DIL,body;emotions,heart
+SER,body,head
+DEST,body,hand
+LING,body,leg/foot
+ÇAV,body,eye
+GUH,body,ear
+DEV,body,mouth
+NAN,food,bread
+AV,food;nature,water
+GOŞT,food,meat
+SÊV,food,apple
+HÊK,food,egg
+SIRINC,food,milk
+ŞIR,food,milk
+KER,animals,donkey
+SE,animals,dog
+KÛÇIK,animals,dog
+PISÎK,animals,cat
+HESP,animals,horse
+ÇÛK,animals,bird
+MASÎ,animals,fish
+MAR,animals,snake
+MIRÎŞK,animals,chicken
+MAL,home;places,home/house
+ODE,home,room
+BAJAR,places,city
+GUND,places,village
+WELAT,places,country
+RÊ,places,road
+KITÊB,home,book
+DERS,home,lesson
+SÊ,numbers,three
+DU,numbers,two
+YEK,numbers,one
+ÇAR,numbers,four
+PÊNC,numbers,five
+ŞEŞ,numbers,six
+HEFT,numbers,seven
+HEŞT,numbers,eight
+NEH,numbers,nine
+DEH,numbers,ten
+SOR,colors,red
+KESK,colors,green
+ŞÎN,colors,blue
+ZER,colors,yellow
+SPÎ,colors,white
+REŞ,colors,black
+ÇÛN,verbs_common,to go
+HATIN,verbs_common,to come
+KIRIN,verbs_common,to do/make
+DÎTIN,verbs_common,to see
+XWARIN,verbs_common,to eat
+VEXWARIN,verbs_common,to drink
+GOTIN,verbs_common,to say
+BIHÎSTIN,verbs_common,to hear
+NIVÎSANDIN,verbs_common,to write
+XWENDIN,verbs_common,to read

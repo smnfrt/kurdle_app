@@ -9,6 +9,7 @@ import 'package:kurdle_app/services/matching_service.dart';
 import 'package:kurdle_app/services/settings_service.dart';
 import 'package:kurdle_app/services/stats_service.dart';
 import 'package:kurdle_app/services/version_service.dart';
+import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/word_service.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -79,7 +80,7 @@ class Kurdle {
     var context = await ContextService().loadContext();
     _stats = await _statsService.loadStats();
     _settings = await SettingsService().load();
-    _packageInfo = await VersionService().loadVersion();
+    _packageInfo = await VersionService.instance.loadVersion();
 
     await _wordService.init();
 
@@ -164,7 +165,7 @@ class Kurdle {
     _context.turnResult = TurnResult.partial;
     if (KeyboardService.isEnter(letter)) {
       if (!_wordService.isLongEnough(_context.guess)) {
-        _context.message = 'Not enough letters';
+        _context.message = L.notEnoughLetters;
         SemanticsService.announce(_context.message, TextDirection.ltr);
         _context.turnResult = TurnResult.unsuccessful;
       } else if (_wordService.isValidGuess(_context.guess)) {
@@ -173,35 +174,36 @@ class Kurdle {
         if (_settings.isHardMode) {
           var unusedLetter = _checkHardMode();
           if (unusedLetter.isNotEmpty) {
-            _context.message = 'Guess must contain $unusedLetter';
+            _context.message = L.mustContainLetter(unusedLetter);
             SemanticsService.announce(_context.message, TextDirection.ltr);
             _context.turnResult = TurnResult.unsuccessful;
           } else {
-            SemanticsService.announce(
-                'Your guess ${_context.guess} was accepted', TextDirection.ltr);
+            SemanticsService.announce(_context.guess, TextDirection.ltr);
             _context.turnResult = TurnResult.successful;
           }
         } else {
-          SemanticsService.announce('Your guess ${_context.guess} was accepted', TextDirection.ltr);
+          SemanticsService.announce(_context.guess, TextDirection.ltr);
           _context.turnResult = TurnResult.successful;
         }
       } else {
-        _context.message = 'Not in Word list';
-        SemanticsService.announce('${_context.guess} was ${_context.message}', TextDirection.ltr);
+        _context.message = L.notInWordList;
+        SemanticsService.announce(_context.message, TextDirection.ltr);
         _context.turnResult = TurnResult.unsuccessful;
       }
     } else if (KeyboardService.isBackspace(letter)) {
       if (_context.guess.isNotEmpty) {
-        var letterToRemove = _context.guess.characters.last;
-        var guess = _context.guess.substring(0, _context.guess.length - 1).padRight(rowLength);
+        final chars = _context.guess.characters;
+        final letterToRemove = chars.last;
+        final trimmed = chars.skipLast(1).toString();
+        final guess = trimmed.padRight(rowLength);
         var buffer = guess.split('').map((l) => Letter(value: l));
         updateBoard(buffer.toList());
-        _context.guess = guess.replaceAll(' ', '');
+        _context.guess = trimmed;
         _context.currentIndex -= 1;
         SemanticsService.announce('$letterToRemove removed', TextDirection.ltr);
       }
     } else {
-      if (_context.guess.length < rowLength) {
+      if (_context.guess.characters.length < rowLength) {
         _context.guess = _context.guess + letter;
         _context.board.tiles[_context.currentIndex++] = Letter(value: letter);
         SemanticsService.announce('$letter added to board', TextDirection.ltr);

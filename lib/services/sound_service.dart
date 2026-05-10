@@ -1,7 +1,9 @@
 import 'package:audioplayers/audioplayers.dart';
 
 enum SFX {
+  tilePickup,
   tilePlace,
+  tileReturn,
   wordValid,
   wordInvalid,
   aiTurn,
@@ -23,7 +25,9 @@ class SoundService {
   final _players = <SFX, AudioPlayer>{};
 
   static const _files = {
+    SFX.tilePickup:   'sounds/tile_pickup.wav',
     SFX.tilePlace:    'sounds/tile_place.wav',
+    SFX.tileReturn:   'sounds/tile_return.wav',
     SFX.wordValid:    'sounds/word_valid.wav',
     SFX.wordInvalid:  'sounds/word_invalid.wav',
     SFX.aiTurn:       'sounds/ai_turn.wav',

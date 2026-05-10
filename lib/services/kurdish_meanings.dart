@@ -1,3 +1,14 @@
+/// Curated Kurmancî → Türkçe sözlük (~330 giriş).
+///
+/// Bu Map artık sözlük sisteminin TEK kaynağı değil; `tools/ferheng_pipeline/`
+/// bunu okur ve `assets/ferheng/legacy_meanings.json` ile Firestore'a aktarır.
+/// Senkron arama ve günlük meydan-okuma deterministic seçimi için sync API
+/// olarak burada kalır.
+///
+/// Yeni kod tam metadatalı arama için [FerhengService.getOrFallback] kullanmalı:
+/// definitions (kmr+tr), examples, etymology, kategori vb. erişimi sağlar.
+@Deprecated('Yeni kod için FerhengService.getOrFallback() kullan; bu sınıf '
+    'sadece senkron API ihtiyacı olan çağıranlar için tutuluyor.')
 class KurdishMeanings {
   static const Map<String, String> _meanings = {
     // 2 harf

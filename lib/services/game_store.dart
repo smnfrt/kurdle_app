@@ -6,6 +6,7 @@ class GameRecord {
   int playerScore;
   int aiScore;
   bool isFinished;
+  DateTime? lastMoveAt;
 
   GameRecord({
     required this.id,
@@ -13,6 +14,7 @@ class GameRecord {
     this.playerScore = 0,
     this.aiScore = 0,
     this.isFinished = false,
+    this.lastMoveAt,
   });
 }
 
@@ -23,6 +25,8 @@ class GameStore {
   final List<GameRecord> records = [];
   ScrabbleGameController? activeController;
   String? activeRecordId;
+
+  int dailyBonusPoints = 0;
 
   static const int _maxRecords = 20;
 
@@ -39,12 +43,13 @@ class GameStore {
     return record;
   }
 
-  void sync(ScrabbleGameController ctrl) {
+  void sync(ScrabbleGameController ctrl, {bool moveMade = false}) {
     final idx = records.indexWhere((r) => r.id == activeRecordId);
     if (idx < 0) return;
     records[idx].playerScore = ctrl.playerScore;
     records[idx].aiScore    = ctrl.aiScore;
     records[idx].isFinished = ctrl.phase == GamePhase.gameOver;
+    if (moveMade) records[idx].lastMoveAt = DateTime.now();
   }
 
   GameRecord? get activeRecord {

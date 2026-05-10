@@ -20,26 +20,26 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   static const _pages = [
     _SlideData(
       icon: null,
-      title: 'Peyvok\'a Hoş Geldin!',
-      subtitle: 'Kürmancî dilinde\nkelime bul oyunu',
+      title: 'Bi Xêr Hatî Peyvok!',
+      subtitle: 'Lîstika peyvên\nKürmancî',
       isLogo: true,
     ),
     _SlideData(
       icon: Icons.grid_4x4_rounded,
-      title: 'Nasıl Oynanır?',
-      subtitle: '6 denemede 5 harfli\nKürmancî kelimeyi bul',
+      title: 'Çawa tê lîstin?',
+      subtitle: 'Di 6 hewlan de peyveke\n5 tîpî ya Kürmancî bibîne',
       isBoard: true,
     ),
     _SlideData(
       icon: null,
-      title: 'Renk İpuçları',
-      subtitle: 'Renkler sana yol gösterir',
+      title: 'Rengên Alîkar',
+      subtitle: 'Reng riya te nîşan didin',
       isColors: true,
     ),
     _SlideData(
       icon: Icons.emoji_events_rounded,
-      title: 'Hazır mısın?',
-      subtitle: 'Her gün yeni bir kelime\nseni bekliyor!',
+      title: 'Tu amade yî?',
+      subtitle: 'Her roj peyveke nû\nli benda te ye!',
       isLast: true,
     ),
   ];
@@ -96,7 +96,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: GestureDetector(
                 onTap: _finish,
                 child: Text(
-                  'Atla',
+                  'Derbas bike',
                   style: TextStyle(
                       color: Colors.white.withOpacity(0.35), fontSize: 13),
                 ),
@@ -138,7 +138,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       shadowColor: _kPrimary.withOpacity(0.4),
                     ),
                     child: Text(
-                      isLast ? 'Oynamaya Başla' : 'Devam',
+                      isLast ? 'Destpê bike' : 'Berdewam bike',
                       style: const TextStyle(
                           fontSize: 16, fontWeight: FontWeight.bold),
                     ),
@@ -310,9 +310,9 @@ class _BoardTile extends StatelessWidget {
 
 class _ColorHints extends StatelessWidget {
   static const _hints = [
-    (color: Color(0xFF538D4E), label: 'Doğru harf, doğru yer', letter: 'R'),
-    (color: Color(0xFFB59F3B), label: 'Kelimede var, yanlış yer', letter: 'O'),
-    (color: Color(0xFF3A3A3C), label: 'Kelimede yok', letter: 'J'),
+    (color: Color(0xFF538D4E), label: 'Tîpa rast, cîhê rast', letter: 'R'),
+    (color: Color(0xFFB59F3B), label: 'Di peyvê de ye, cîhê şaş', letter: 'O'),
+    (color: Color(0xFF3A3A3C), label: 'Di peyvê de tune ye', letter: 'J'),
   ];
 
   @override

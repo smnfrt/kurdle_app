@@ -14,13 +14,17 @@ class LanguageConfig {
   static LanguageConfig get current =>
       L.current == AppLocale.tr ? turkish : kurdish;
 
+  // Tile bag dağılımı: 1.48M Kurmancî yüzey form üzerinden hesaplanan harf
+  // frekansından (largest-remainder method) türetildi. Toplam 100 tile.
+  // Her harf min 1 garantili. tools/ferheng_pipeline/scripts/letter_freq.py
+  // kalibre eder.
   static const LanguageConfig kurdish = LanguageConfig(
     tileBag: {
-      'A': 8, 'B': 3, 'C': 3, 'Ç': 2, 'D': 4, 'E': 8,
-      'Ê': 3, 'F': 2, 'G': 3, 'H': 3, 'I': 6, 'Î': 3,
-      'J': 2, 'K': 4, 'L': 4, 'M': 3, 'N': 5, 'O': 3,
-      'P': 2, 'Q': 1, 'R': 5, 'S': 4, 'Ş': 2, 'T': 5,
-      'U': 3, 'Û': 2, 'V': 2, 'W': 2, 'X': 1, 'Y': 3, 'Z': 2,
+      'A': 7, 'B': 5, 'C': 1, 'Ç': 1, 'D': 6, 'E': 8,
+      'Ê': 2, 'F': 1, 'G': 1, 'H': 2, 'I': 10, 'Î': 4,
+      'J': 1, 'K': 3, 'L': 3, 'M': 3, 'N': 9, 'O': 2,
+      'P': 2, 'Q': 2, 'R': 6, 'S': 2, 'Ş': 2, 'T': 3,
+      'U': 1, 'Û': 3, 'V': 2, 'W': 1, 'X': 2, 'Y': 3, 'Z': 2,
     },
     letterPoints: {
       'A': 1, 'E': 1, 'I': 1, 'N': 1, 'R': 1, 'T': 1,
@@ -33,6 +37,10 @@ class LanguageConfig {
     wordAssets: [
       'assets/allowed_guesses.txt',
       'assets/answers.txt',
+      'assets/ferheng/wordlist.txt.gz',
+      // Curated 516-kelime listesi — Hunspell henüz tüm Kurmancî kelimeleri
+      // kapsamıyor (özellikle 3-4 harf curated kelimeler eksik). Union ile
+      // hem geriye dönük uyumluluk hem de yeni morfolojik kapsam sağlanır.
       'assets/kurdish_dictionary.txt',
     ],
   );

@@ -12,6 +12,9 @@ class FirebaseService {
       await Firebase.initializeApp();
       _initialized = true;
 
+      // Misafir UID Firebase'den sonra başlat
+      await AuthService.instance.initGuestUid();
+
       // Kullanıcı yoksa anonim giriş yap
       final user = await AuthService.instance.signInAnonymously();
       if (user != null) {
@@ -21,6 +24,8 @@ class FirebaseService {
       // google-services.json eksik veya network yok — offline modda devam et
       // ignore: avoid_print
       print('[FirebaseService] init failed, running offline: $e');
+      // Firebase olmasa bile misafir UID hazırlansın
+      try { await AuthService.instance.initGuestUid(); } catch (_) {}
     }
   }
 }

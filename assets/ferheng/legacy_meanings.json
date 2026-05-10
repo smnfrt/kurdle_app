@@ -1,0 +1,960 @@
+{
+  "version": "1.0.0",
+  "license": "CC BY-SA 4.0 + project-internal",
+  "entries": {
+    "ABORÎ": {
+      "tr": "ekonomik, mali"
+    },
+    "AV": {
+      "tr": "su"
+    },
+    "AX": {
+      "tr": "toprak"
+    },
+    "AZADÎ": {
+      "tr": "özgürlük"
+    },
+    "AŞITÎ": {
+      "tr": "barış"
+    },
+    "BAHOZ": {
+      "tr": "fırtına"
+    },
+    "BAJAR": {
+      "tr": "şehir"
+    },
+    "BAJÊR": {
+      "tr": "şehirde"
+    },
+    "BAKUR": {
+      "tr": "kuzey"
+    },
+    "BARAN": {
+      "tr": "yağmur"
+    },
+    "BARÎN": {
+      "tr": "yağmak (yağmur/kar)"
+    },
+    "BAV": {
+      "tr": "baba"
+    },
+    "BAXÇE": {
+      "tr": "bahçe"
+    },
+    "BAZ": {
+      "tr": "kartal; rüzgar"
+    },
+    "BAŞÛR": {
+      "tr": "güney"
+    },
+    "BEJNA": {
+      "tr": "boy, endam"
+    },
+    "BERAN": {
+      "tr": "koç (erkek koyun)"
+    },
+    "BERAZ": {
+      "tr": "domuz"
+    },
+    "BERXW": {
+      "tr": "kuzu"
+    },
+    "BERÊZ": {
+      "tr": "saygın, şerefli"
+    },
+    "BERÎ": {
+      "tr": "önce"
+    },
+    "BERÎN": {
+      "tr": "yaralamak; geçmek"
+    },
+    "BEXT": {
+      "tr": "şans, baht"
+    },
+    "BIHAR": {
+      "tr": "ilkbahar"
+    },
+    "BIHÊZ": {
+      "tr": "güçlü, kuvvetli"
+    },
+    "BIR": {
+      "tr": "biraz"
+    },
+    "BIRA": {
+      "tr": "erkek kardeş"
+    },
+    "BIRÎN": {
+      "tr": "yara; kesmek"
+    },
+    "BIYAN": {
+      "tr": "yabancı"
+    },
+    "BIZIN": {
+      "tr": "keçi"
+    },
+    "BIÇÛK": {
+      "tr": "küçük"
+    },
+    "BO": {
+      "tr": "için"
+    },
+    "BÊ": {
+      "tr": "olmadan, -siz"
+    },
+    "BÊDIL": {
+      "tr": "üzgün, gönülsüz"
+    },
+    "BÊROJ": {
+      "tr": "güneşsiz, şanssız"
+    },
+    "BÎRAN": {
+      "tr": "hatırlamak; kuyular"
+    },
+    "CAN": {
+      "tr": "can, ruh"
+    },
+    "CARAN": {
+      "tr": "zaman, kez"
+    },
+    "CIWAN": {
+      "tr": "genç, güzel"
+    },
+    "DAL": {
+      "tr": "dal (ağaç)"
+    },
+    "DAR": {
+      "tr": "ağaç"
+    },
+    "DAY": {
+      "tr": "anne"
+    },
+    "DAYIK": {
+      "tr": "anne"
+    },
+    "DAYÎK": {
+      "tr": "anne"
+    },
+    "DELAL": {
+      "tr": "sevgili, güzel"
+    },
+    "DENG": {
+      "tr": "ses"
+    },
+    "DER": {
+      "tr": "kapı; dışarı"
+    },
+    "DERD": {
+      "tr": "dert, acı"
+    },
+    "DEST": {
+      "tr": "el"
+    },
+    "DESTE": {
+      "tr": "demet; grup; sap"
+    },
+    "DESTÊ": {
+      "tr": "elin, elinden"
+    },
+    "DEWLE": {
+      "tr": "kova, bakraç"
+    },
+    "DEŞT": {
+      "tr": "ova, düzlük"
+    },
+    "DI": {
+      "tr": "-de / -da (edat)"
+    },
+    "DIKAN": {
+      "tr": "dükkân"
+    },
+    "DIL": {
+      "tr": "kalp, gönül"
+    },
+    "DILAN": {
+      "tr": "kalpler; Dilan (isim)"
+    },
+    "DILOP": {
+      "tr": "damla"
+    },
+    "DILPAK": {
+      "tr": "temiz kalpli"
+    },
+    "DILSOZ": {
+      "tr": "sadık, vefalı"
+    },
+    "DILŞA": {
+      "tr": "mutlu, neşeli"
+    },
+    "DIN": {
+      "tr": "din; başka"
+    },
+    "DIRÊJ": {
+      "tr": "uzun"
+    },
+    "DIWÊR": {
+      "tr": "duvar"
+    },
+    "DU": {
+      "tr": "iki"
+    },
+    "DÎROK": {
+      "tr": "tarih"
+    },
+    "EGER": {
+      "tr": "eğer"
+    },
+    "EV": {
+      "tr": "bu"
+    },
+    "EVIN": {
+      "tr": "sevgi, aşk"
+    },
+    "EVÎN": {
+      "tr": "sevgi, aşk"
+    },
+    "EZ": {
+      "tr": "ben"
+    },
+    "EZMÛN": {
+      "tr": "deneyim, sınav"
+    },
+    "FEQÎR": {
+      "tr": "fakir, yoksul"
+    },
+    "FIREH": {
+      "tr": "geniş"
+    },
+    "FIRR": {
+      "tr": "uç (fiil)"
+    },
+    "FIRÎN": {
+      "tr": "uçmak"
+    },
+    "GAV": {
+      "tr": "adım; an"
+    },
+    "GEL": {
+      "tr": "halk, millet"
+    },
+    "GELO": {
+      "tr": "acaba"
+    },
+    "GERM": {
+      "tr": "sıcak"
+    },
+    "GEWR": {
+      "tr": "gri"
+    },
+    "GEWRE": {
+      "tr": "büyük, geniş"
+    },
+    "GEWZE": {
+      "tr": "ceviz"
+    },
+    "GIHA": {
+      "tr": "ot, çimen"
+    },
+    "GIRAN": {
+      "tr": "ağır; pahalı"
+    },
+    "GIRTÎ": {
+      "tr": "tutuklu, kapalı"
+    },
+    "GIYAN": {
+      "tr": "ruh, nefes"
+    },
+    "GOL": {
+      "tr": "göl"
+    },
+    "GOLEK": {
+      "tr": "buzağı, dana"
+    },
+    "GOLÊN": {
+      "tr": "göller"
+    },
+    "GOTAR": {
+      "tr": "konuşma, makale"
+    },
+    "GUL": {
+      "tr": "çiçek, gül"
+    },
+    "GULAN": {
+      "tr": "çiçekler; Mayıs ayı"
+    },
+    "GUND": {
+      "tr": "köy"
+    },
+    "GUNDÎ": {
+      "tr": "köylü"
+    },
+    "HAN": {
+      "tr": "han, kervansaray"
+    },
+    "HAVÎN": {
+      "tr": "yaz"
+    },
+    "HEBÛN": {
+      "tr": "olmak, var olmak"
+    },
+    "HEFTÊ": {
+      "tr": "hafta (tamlama)"
+    },
+    "HEKIM": {
+      "tr": "doktor"
+    },
+    "HELAL": {
+      "tr": "helal"
+    },
+    "HELÎN": {
+      "tr": "erimek; uçmak"
+    },
+    "HETA": {
+      "tr": "kadar, -e dek"
+    },
+    "HEV": {
+      "tr": "birlikte, beraber"
+    },
+    "HEVAL": {
+      "tr": "arkadaş"
+    },
+    "HEVKARÎ": {
+      "tr": "işbirliği"
+    },
+    "HEVRA": {
+      "tr": "birlikte, beraber"
+    },
+    "HEWŞE": {
+      "tr": "avlu"
+    },
+    "HOLE": {
+      "tr": "avlu"
+    },
+    "HOZAN": {
+      "tr": "şair, ozan"
+    },
+    "HURMET": {
+      "tr": "saygı, hürmet"
+    },
+    "HÊSAN": {
+      "tr": "kolay"
+    },
+    "JAR": {
+      "tr": "zayıf, ince"
+    },
+    "JI": {
+      "tr": "-den / için"
+    },
+    "JINIK": {
+      "tr": "kadın"
+    },
+    "JIYAN": {
+      "tr": "hayat, yaşam"
+    },
+    "JÊDER": {
+      "tr": "kaynak, referans"
+    },
+    "KAL": {
+      "tr": "ihtiyar, yaşlı"
+    },
+    "KAN": {
+      "tr": "kan"
+    },
+    "KANÎ": {
+      "tr": "kaynak, pınar"
+    },
+    "KAR": {
+      "tr": "iş"
+    },
+    "KEDER": {
+      "tr": "keder, üzüntü"
+    },
+    "KELAM": {
+      "tr": "söz, konuşma"
+    },
+    "KELEJ": {
+      "tr": "heyecanlı, aktif"
+    },
+    "KELEK": {
+      "tr": "sal (nehir taşıtı)"
+    },
+    "KELEM": {
+      "tr": "lahana"
+    },
+    "KERGE": {
+      "tr": "tavuk"
+    },
+    "KESER": {
+      "tr": "üzüntü"
+    },
+    "KESK": {
+      "tr": "yeşil"
+    },
+    "KEVIR": {
+      "tr": "taş"
+    },
+    "KEW": {
+      "tr": "keklik"
+    },
+    "KEZAL": {
+      "tr": "ceylan"
+    },
+    "KEÇA": {
+      "tr": "kız (tamlama)"
+    },
+    "KEÇEL": {
+      "tr": "kel"
+    },
+    "KEÇIK": {
+      "tr": "genç kız"
+    },
+    "KILAM": {
+      "tr": "şarkı, türkü"
+    },
+    "KITÊB": {
+      "tr": "kitap"
+    },
+    "KOVAR": {
+      "tr": "dergi"
+    },
+    "KU": {
+      "tr": "ki, olan"
+    },
+    "KULÎL": {
+      "tr": "çiçek"
+    },
+    "KUR": {
+      "tr": "oğul"
+    },
+    "KÊLEK": {
+      "tr": "yan, taraf"
+    },
+    "KÊTOR": {
+      "tr": "sepet"
+    },
+    "KÛÇIK": {
+      "tr": "köpek"
+    },
+    "LAL": {
+      "tr": "dilsiz; lal"
+    },
+    "LAW": {
+      "tr": "genç erkek"
+    },
+    "LAWIK": {
+      "tr": "genç erkek"
+    },
+    "LEZAN": {
+      "tr": "lezzet, tat"
+    },
+    "LI": {
+      "tr": "-de / -da"
+    },
+    "MAL": {
+      "tr": "ev"
+    },
+    "MANGE": {
+      "tr": "inek"
+    },
+    "MAR": {
+      "tr": "yılan"
+    },
+    "MEZIN": {
+      "tr": "büyük"
+    },
+    "MIN": {
+      "tr": "benim"
+    },
+    "MIROV": {
+      "tr": "insan"
+    },
+    "MUZÎK": {
+      "tr": "müzik"
+    },
+    "MÊRIK": {
+      "tr": "adam, erkek"
+    },
+    "MÊRXE": {
+      "tr": "kahraman, yiğit"
+    },
+    "MÊVAN": {
+      "tr": "misafir"
+    },
+    "MÎNAK": {
+      "tr": "örnek"
+    },
+    "MÎREK": {
+      "tr": "bey, emir"
+    },
+    "NA": {
+      "tr": "hayır, değil"
+    },
+    "NAL": {
+      "tr": "nal (at)"
+    },
+    "NAMÛS": {
+      "tr": "namus"
+    },
+    "NARIN": {
+      "tr": "ince, narin"
+    },
+    "NAV": {
+      "tr": "isim; içi"
+    },
+    "NAVEND": {
+      "tr": "merkez, orta"
+    },
+    "NAVÇE": {
+      "tr": "bölge, ilçe"
+    },
+    "NEHIR": {
+      "tr": "nehir"
+    },
+    "NEHÊN": {
+      "tr": "gizli, sır"
+    },
+    "NERM": {
+      "tr": "yumuşak"
+    },
+    "NERÎN": {
+      "tr": "bakmak, görmek"
+    },
+    "NET": {
+      "tr": "temiz, net"
+    },
+    "NEXAŞ": {
+      "tr": "usta, nakkaş"
+    },
+    "NEXWE": {
+      "tr": "hasta"
+    },
+    "NEXŞE": {
+      "tr": "harita; desen"
+    },
+    "NIHA": {
+      "tr": "şimdi"
+    },
+    "NIJAR": {
+      "tr": "ince, zayıf"
+    },
+    "NIRXE": {
+      "tr": "değer, kıymet"
+    },
+    "NISAN": {
+      "tr": "Nisan (ay)"
+    },
+    "NIVÎS": {
+      "tr": "yazı, metin"
+    },
+    "NIŞAN": {
+      "tr": "işaret, nişan"
+    },
+    "NIŞTÎ": {
+      "tr": "yerleşik, sakin"
+    },
+    "NÊ": {
+      "tr": "hayır (kuvvetli)"
+    },
+    "NÊRÎN": {
+      "tr": "erkek, eril"
+    },
+    "NÊZIK": {
+      "tr": "yakın"
+    },
+    "NÊZÎK": {
+      "tr": "yakın"
+    },
+    "NÊÇÎR": {
+      "tr": "av, avcılık"
+    },
+    "NÎVRO": {
+      "tr": "öğle"
+    },
+    "NÛBÛN": {
+      "tr": "yenilenmek"
+    },
+    "NÛJEN": {
+      "tr": "modern, yeni"
+    },
+    "PAR": {
+      "tr": "pay, hisse"
+    },
+    "PAYÎZ": {
+      "tr": "sonbahar"
+    },
+    "PEL": {
+      "tr": "yaprak"
+    },
+    "PEMBE": {
+      "tr": "pembe"
+    },
+    "PIR": {
+      "tr": "çok; köprü"
+    },
+    "PISÎK": {
+      "tr": "kedi"
+    },
+    "PIŞTÎ": {
+      "tr": "sonra, arkasından"
+    },
+    "PÊDAN": {
+      "tr": "vermek, sunmak"
+    },
+    "PÎROZ": {
+      "tr": "kutsal, mübarek"
+    },
+    "QELEM": {
+      "tr": "kalem"
+    },
+    "QELEW": {
+      "tr": "şişman, kalın"
+    },
+    "QENÇÎ": {
+      "tr": "iyilik, güzellik"
+    },
+    "RAN": {
+      "tr": "uyluk"
+    },
+    "RAST": {
+      "tr": "doğru; sağ"
+    },
+    "REQAS": {
+      "tr": "dansçı"
+    },
+    "RESIM": {
+      "tr": "resim"
+    },
+    "REV": {
+      "tr": "kaçış"
+    },
+    "REWŞE": {
+      "tr": "durum, hal"
+    },
+    "RIZGARÎ": {
+      "tr": "kurtuluş"
+    },
+    "ROJ": {
+      "tr": "gün, güneş"
+    },
+    "ROJAV": {
+      "tr": "batı"
+    },
+    "RON": {
+      "tr": "aydınlık"
+    },
+    "RONIN": {
+      "tr": "oturmak, ikamet etmek"
+    },
+    "RÊ": {
+      "tr": "yol"
+    },
+    "RÊBER": {
+      "tr": "rehber, önder"
+    },
+    "RÛKAL": {
+      "tr": "bol gömlek, cübbe"
+    },
+    "RÛMET": {
+      "tr": "onur, saygınlık"
+    },
+    "RÛPEL": {
+      "tr": "sayfa"
+    },
+    "SAATÊ": {
+      "tr": "saatin, saate"
+    },
+    "SAL": {
+      "tr": "yıl"
+    },
+    "SALAN": {
+      "tr": "yıllar"
+    },
+    "SALON": {
+      "tr": "salon"
+    },
+    "SAR": {
+      "tr": "soğuk"
+    },
+    "SARD": {
+      "tr": "soğuk"
+    },
+    "SER": {
+      "tr": "baş, üst"
+    },
+    "SERDE": {
+      "tr": "dönem, çağ"
+    },
+    "SERKEFTÎ": {
+      "tr": "başarılı"
+    },
+    "SEROK": {
+      "tr": "başkan"
+    },
+    "SERWA": {
+      "tr": "hanım, prenses"
+    },
+    "SERÊK": {
+      "tr": "başlık, başlı"
+    },
+    "SIBE": {
+      "tr": "sabah; yarın"
+    },
+    "SIBEH": {
+      "tr": "sabah"
+    },
+    "SIVIK": {
+      "tr": "hafif"
+    },
+    "SIWAR": {
+      "tr": "atlı, binici"
+    },
+    "SOR": {
+      "tr": "kırmızı"
+    },
+    "SOZ": {
+      "tr": "söz, vaat"
+    },
+    "SPÎ": {
+      "tr": "beyaz"
+    },
+    "STRAN": {
+      "tr": "şarkı"
+    },
+    "STÊRK": {
+      "tr": "yıldız"
+    },
+    "SÊ": {
+      "tr": "üç"
+    },
+    "SÊŞEM": {
+      "tr": "Salı"
+    },
+    "SÎNOR": {
+      "tr": "sınır"
+    },
+    "TATÎL": {
+      "tr": "tatil"
+    },
+    "TENIK": {
+      "tr": "ince, narin"
+    },
+    "TEV": {
+      "tr": "hepsi, tüm"
+    },
+    "TIRS": {
+      "tr": "korku"
+    },
+    "TIRÊJ": {
+      "tr": "ışın, ışık demeti"
+    },
+    "TIRŞE": {
+      "tr": "ekşi"
+    },
+    "TOFAN": {
+      "tr": "sel, tufan"
+    },
+    "TOLA": {
+      "tr": "intikam"
+    },
+    "TU": {
+      "tr": "sen"
+    },
+    "VEXWARIN": {
+      "tr": "içmek"
+    },
+    "WAR": {
+      "tr": "yer, yurt"
+    },
+    "WEKÎL": {
+      "tr": "vekil, avukat"
+    },
+    "WELAT": {
+      "tr": "yurt, vatan"
+    },
+    "WELÊT": {
+      "tr": "vatan, yurt"
+    },
+    "WELÊTÎ": {
+      "tr": "vatansever"
+    },
+    "WINDA": {
+      "tr": "kaybolmuş, yitik"
+    },
+    "WÊNEK": {
+      "tr": "resim, fotoğraf"
+    },
+    "WÊRAN": {
+      "tr": "harap, yıkık"
+    },
+    "XATIR": {
+      "tr": "hatır, hatıra"
+    },
+    "XEBAT": {
+      "tr": "çalışma, mücadele"
+    },
+    "XEBER": {
+      "tr": "haber"
+    },
+    "XELAS": {
+      "tr": "kurtarma; tamam"
+    },
+    "XEWNA": {
+      "tr": "rüya (tamlama)"
+    },
+    "XURT": {
+      "tr": "güçlü"
+    },
+    "XWEDÊ": {
+      "tr": "Tanrı, Allah"
+    },
+    "XWEH": {
+      "tr": "kız kardeş"
+    },
+    "XWENDIN": {
+      "tr": "okumak"
+    },
+    "XWEZÎ": {
+      "tr": "keşke"
+    },
+    "XWEŞÎ": {
+      "tr": "sağlık, güzellik"
+    },
+    "YA": {
+      "tr": "ya, veya"
+    },
+    "YEK": {
+      "tr": "bir"
+    },
+    "YEKÎTÎ": {
+      "tr": "birlik"
+    },
+    "ZAN": {
+      "tr": "bil, bilmek"
+    },
+    "ZANÎN": {
+      "tr": "bilmek"
+    },
+    "ZEMÎN": {
+      "tr": "zemin, yer"
+    },
+    "ZIMAN": {
+      "tr": "dil (lisan)"
+    },
+    "ZINAR": {
+      "tr": "kayalık"
+    },
+    "ZÊR": {
+      "tr": "altın; sarı"
+    },
+    "ÇALAK": {
+      "tr": "aktif, çalışkan"
+    },
+    "ÇANDÎ": {
+      "tr": "kültürel; ekilmiş"
+    },
+    "ÇEM": {
+      "tr": "nehir, dere"
+    },
+    "ÇEMAN": {
+      "tr": "çayırlar, otlaklar"
+    },
+    "ÇEMEK": {
+      "tr": "dere, çay (küçük)"
+    },
+    "ÇEPEL": {
+      "tr": "kirli, pis"
+    },
+    "ÇEPIK": {
+      "tr": "alkış; şaplak"
+    },
+    "ÇIMÊN": {
+      "tr": "çayır, otlak"
+    },
+    "ÇIQAS": {
+      "tr": "ne kadar, kaç"
+    },
+    "ÇIYA": {
+      "tr": "dağ"
+    },
+    "ÇÎLEK": {
+      "tr": "çilek"
+    },
+    "ÇÎNAR": {
+      "tr": "çınar ağacı"
+    },
+    "ÇÎROK": {
+      "tr": "hikâye"
+    },
+    "ÇÎYAN": {
+      "tr": "dağlar"
+    },
+    "ÇÛBÛN": {
+      "tr": "gitmek (geçmiş)"
+    },
+    "ÇÛYÎN": {
+      "tr": "gitmek"
+    },
+    "ÊVARE": {
+      "tr": "akşam"
+    },
+    "ÊVARÊ": {
+      "tr": "akşamleyin"
+    },
+    "ŞADÎN": {
+      "tr": "neşeli; Şadîn (isim)"
+    },
+    "ŞAHID": {
+      "tr": "tanık, şahit"
+    },
+    "ŞAN": {
+      "tr": "şan, ün"
+    },
+    "ŞEMAL": {
+      "tr": "kuzey rüzgarı"
+    },
+    "ŞER": {
+      "tr": "savaş"
+    },
+    "ŞEREF": {
+      "tr": "şeref"
+    },
+    "ŞEREFDAR": {
+      "tr": "şerefli"
+    },
+    "ŞERT": {
+      "tr": "şart, koşul"
+    },
+    "ŞEV": {
+      "tr": "gece"
+    },
+    "ŞEVÊN": {
+      "tr": "geceler"
+    },
+    "ŞEWAN": {
+      "tr": "geceler"
+    },
+    "ŞEWAT": {
+      "tr": "yangın, ateş"
+    },
+    "ŞIKIR": {
+      "tr": "şeker; teşekkür"
+    },
+    "ŞIVAN": {
+      "tr": "çoban"
+    },
+    "ŞIYAR": {
+      "tr": "uyanık"
+    },
+    "ŞORBA": {
+      "tr": "çorba"
+    },
+    "ŞOREŞ": {
+      "tr": "devrim"
+    },
+    "ŞÎLAV": {
+      "tr": "selam"
+    },
+    "ŞÎRÎN": {
+      "tr": "tatlı"
+    }
+  }
+}

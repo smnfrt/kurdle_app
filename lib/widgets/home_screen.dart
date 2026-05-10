@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kurdle_app/services/app_locale.dart';
@@ -6,23 +7,144 @@ import 'package:kurdle_app/services/firebase_service.dart';
 import 'package:kurdle_app/services/firestore_service.dart';
 import 'package:kurdle_app/services/game_store.dart';
 import 'package:kurdle_app/services/sound_service.dart';
-import 'package:kurdle_app/services/kurdish_meanings.dart';
 import 'package:kurdle_app/services/daily_word_service.dart';
 import 'package:kurdle_app/services/stats_service.dart';
 import 'package:kurdle_app/widgets/auth_screen.dart';
+import 'package:kurdle_app/widgets/ferheng/ferheng_home_screen.dart';
 import 'package:kurdle_app/widgets/how_to_play_screen.dart';
 import 'package:kurdle_app/widgets/onboarding_screen.dart';
 import 'package:kurdle_app/services/onboarding_service.dart';
 import 'package:kurdle_app/widgets/profile_screen.dart';
 import 'package:kurdle_app/widgets/scrabble_game_screen.dart';
 import 'package:kurdle_app/widgets/tournament_screen.dart';
-import 'package:kurdle_app/widgets/wordle_game_screen.dart';
+import 'package:kurdle_app/widgets/daily_challenge_screen.dart';
+import 'package:kurdle_app/services/multiplayer_service.dart';
+import 'package:kurdle_app/services/notification_service.dart';
+import 'package:kurdle_app/widgets/friend_game_screen.dart';
+import 'package:kurdle_app/widgets/friend_lobby_screen.dart';
+import 'package:kurdle_app/widgets/random_match_screen.dart';
+import 'package:kurdle_app/widgets/username_match_screen.dart';
+import 'package:kurdle_app/route_transitions.dart';
+import 'package:kurdle_app/app_theme.dart';
 
-const _kBg       = Color(0xFF0F1923);
-const _kSurface  = Color(0xFF1A2533);
-const _kPrimary  = Color(0xFF4CAF50);
-const _kGold     = Color(0xFFFFD700);
+const _kBg       = Color(0xFF080E18);
+const _kSurface  = Color(0xFF121C2B);
+const _kPrimary  = Color(0xFF3FBE6F);
+const _kGold     = Color(0xFFFFD27A);
 const _kGoldDim  = Color(0xFFB8860B);
+
+// Premium surface tonu — kart yüzeyi için tutarlı çok katmanlı kaplama
+class _PremiumSurface {
+  static BoxDecoration build({
+    Color? accent,
+    double radius = 22,
+    double accentOpacity = 0.22,
+    double topHighlight = 0.06,
+  }) {
+    final a = accent ?? Colors.white;
+    return BoxDecoration(
+      borderRadius: BorderRadius.circular(radius),
+      gradient: LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          Color.lerp(const Color(0xFF182233), a, 0.04)!,
+          const Color(0xFF0E1622),
+        ],
+      ),
+      border: Border.all(
+        color: Colors.white.withOpacity(0.08),
+        width: 1,
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: a.withOpacity(accentOpacity),
+          blurRadius: 30,
+          spreadRadius: -4,
+          offset: const Offset(0, 10),
+        ),
+        BoxShadow(
+          color: Colors.black.withOpacity(0.40),
+          blurRadius: 14,
+          offset: const Offset(0, 6),
+        ),
+      ],
+    );
+  }
+}
+
+void _showAboutDialog(BuildContext ctx) {
+  HapticFeedback.selectionClick();
+  showDialog(
+    context: ctx,
+    builder: (_) => Dialog(
+      backgroundColor: const Color(0xFF1A2535),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 72, height: 72,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF4CAF50), Color(0xFF2E7D32)],
+                ),
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(color: _kPrimary.withOpacity(0.35), blurRadius: 14, offset: const Offset(0, 4)),
+                ],
+              ),
+              child: const Center(
+                child: Text('P', style: TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.bold, height: 1)),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text('Peyvok', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+            const SizedBox(height: 4),
+            Text(L.aboutTagline, style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 13)),
+            const SizedBox(height: 20),
+            Container(height: 1, color: Colors.white.withOpacity(0.08)),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(L.version, style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 13)),
+                const Text('1.0.0', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(L.aboutDev, style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 13)),
+                const Text('Peyvok Team', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
+              ],
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton(
+                onPressed: () {
+                  HapticFeedback.selectionClick();
+                  Navigator.pop(ctx);
+                },
+                style: TextButton.styleFrom(
+                  backgroundColor: _kPrimary.withOpacity(0.12),
+                  foregroundColor: _kPrimary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+                child: const Text('OK', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -31,11 +153,194 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
+  int _streak = 0;
+  late AnimationController _entranceCtrl;
+  List<MultiplayerRoom> _pendingInvites = [];
+  final Set<String> _notifiedInviteCodes = <String>{};
+  StreamSubscription<List<MultiplayerRoom>>? _inviteSub;
+  late final void Function(String) _onNotificationInviteTap;
+  late final VoidCallback _onOpenMyGames;
+  List<MultiplayerRoom> _activeRooms = [];
+  StreamSubscription<List<MultiplayerRoom>>? _activeRoomsSub;
+
   @override
   void initState() {
     super.initState();
+    _entranceCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    )..forward();
     _checkOnboarding();
+    _loadStreak();
+    _listenInvites();
+    _listenActiveRooms();
+    _onNotificationInviteTap = _handleNotificationInviteTap;
+    NotificationService.instance.onInviteTap(_onNotificationInviteTap);
+    _onOpenMyGames = _handleOpenMyGames;
+    homeOpenMyGamesTick.addListener(_onOpenMyGames);
+  }
+
+  @override
+  void dispose() {
+    _entranceCtrl.dispose();
+    _inviteSub?.cancel();
+    _activeRoomsSub?.cancel();
+    NotificationService.instance.offInviteTap(_onNotificationInviteTap);
+    homeOpenMyGamesTick.removeListener(_onOpenMyGames);
+    super.dispose();
+  }
+
+  void _handleOpenMyGames() {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        builder: (_) => _MyGamesSheet(
+          onResume: (ctrl) {
+            Navigator.pop(context);
+            Navigator.push(
+              context,
+              appRoute(ScrabbleGameScreen(existingController: ctrl)),
+            ).then((_) => setState(() {}));
+          },
+          onAcceptInvite: (inv) async {
+            Navigator.pop(context);
+            final uid = AuthService.instance.effectiveUid;
+            final name = AuthService.instance.effectiveDisplayName;
+            if (uid == null) return;
+            final err = await MultiplayerService.instance
+                .joinRoom(inv.roomCode, uid, name);
+            if (err == null && mounted) {
+              Navigator.push(context,
+                  appRoute(FriendGameScreen(roomCode: inv.roomCode, myUid: uid)));
+            }
+          },
+          onDeclineInvite: (inv) =>
+              MultiplayerService.instance.declineInvite(inv.roomCode),
+          onOpenRoom: (room) {
+            Navigator.pop(context);
+            final uid = AuthService.instance.effectiveUid ?? '';
+            Navigator.push(context,
+                appRoute(FriendGameScreen(roomCode: room.roomCode, myUid: uid)));
+          },
+          invites: _pendingInvites,
+          activeRooms: _activeRooms,
+        ),
+      );
+    });
+  }
+
+  Future<void> _handleNotificationInviteTap(String roomCode) async {
+    if (!mounted) return;
+    final inv = _pendingInvites.firstWhere(
+      (r) => r.roomCode == roomCode,
+      orElse: () => MultiplayerRoom(
+        roomCode: '', hostUid: '', hostName: '', status: '',
+        currentTurnUid: '',
+      ),
+    );
+    if (inv.roomCode.isEmpty) return;
+    final accepted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A2535),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.mail_rounded, color: Color(0xFF64B5F6)),
+            SizedBox(width: 10),
+            Text('Oyun Daveti', style: TextStyle(color: Colors.white, fontSize: 18)),
+          ],
+        ),
+        content: Text(
+          '${inv.hostName} seni oyuna davet etti.',
+          style: const TextStyle(color: Colors.white70, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(L.decline, style: const TextStyle(color: Color(0xFFEF5350))),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF4CAF50),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(L.accept),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || accepted == null) return;
+    if (accepted == false) {
+      await MultiplayerService.instance.declineInvite(inv.roomCode);
+      return;
+    }
+    final uid = AuthService.instance.effectiveUid;
+    final name = AuthService.instance.effectiveDisplayName;
+    if (uid == null) return;
+    final err = await MultiplayerService.instance.joinRoom(inv.roomCode, uid, name);
+    if (err == null && mounted) {
+      Navigator.push(context, appRoute(FriendGameScreen(roomCode: inv.roomCode, myUid: uid)));
+    }
+  }
+
+  void _listenInvites() {
+    final uid = AuthService.instance.currentUser?.uid;
+    if (uid == null || !FirebaseService.isAvailable) return;
+    _inviteSub = MultiplayerService.instance.inviteStream(uid).listen((invites) {
+      if (!mounted) return;
+      for (final inv in invites) {
+        if (_notifiedInviteCodes.add(inv.roomCode)) {
+          NotificationService.instance.showInviteNotification(
+            fromName: inv.hostName,
+            roomCode: inv.roomCode,
+          );
+        }
+      }
+      final activeCodes = invites.map((i) => i.roomCode).toSet();
+      _notifiedInviteCodes.removeWhere((c) => !activeCodes.contains(c));
+      setState(() => _pendingInvites = invites);
+    });
+  }
+
+  void _listenActiveRooms() {
+    final uid = AuthService.instance.effectiveUid;
+    if (uid == null || !FirebaseService.isAvailable) return;
+    _activeRoomsSub = MultiplayerService.instance.myActiveRoomsStream(uid).listen((rooms) {
+      if (mounted) setState(() => _activeRooms = rooms);
+    });
+  }
+
+  Widget _stagger(int index, Widget child) {
+    final start = (index * 0.10).clamp(0.0, 0.8);
+    final end   = (start + 0.55).clamp(0.0, 1.0);
+    final anim = CurvedAnimation(
+      parent: _entranceCtrl,
+      curve: Interval(start, end, curve: Curves.easeOutCubic),
+    );
+    return AnimatedBuilder(
+      animation: anim,
+      builder: (_, __) => Opacity(
+        opacity: anim.value,
+        child: Transform.translate(
+          offset: Offset(0, 22 * (1 - anim.value)),
+          child: child,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _loadStreak() async {
+    final stats = await StatsService().loadStats();
+    if (mounted) setState(() => _streak = stats.streak.current);
   }
 
   Future<void> _checkOnboarding() async {
@@ -60,12 +365,58 @@ class _HomeScreenState extends State<HomeScreen> {
     final bottom = MediaQuery.of(context).padding.bottom;
 
     return Scaffold(
-      backgroundColor: _kBg,
-      body: Column(
+      body: Stack(
+        children: [
+          // Cinematic background: linear gradient + radial top glow + bottom vignette
+          const Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xFF0E1827), Color(0xFF050810)],
+                ),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment.topCenter,
+                    radius: 1.1,
+                    colors: [
+                      const Color(0xFF4CAF50).withOpacity(0.07),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    center: Alignment.bottomCenter,
+                    radius: 1.0,
+                    colors: [
+                      const Color(0xFF6CC0F5).withOpacity(0.05),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Column(
         children: [
           // Header
           _HomeHeader(
             statusBarHeight: top,
+            streak: _streak,
             onLocaleChanged: () => setState(() {}),
             onSettingsTap: () => _showSettingsSheet(context),
             onStatsTap: () => _showStatsSheet(context),
@@ -75,43 +426,67 @@ class _HomeScreenState extends State<HomeScreen> {
           // Menu cards
           Expanded(
             child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(20, 24, 20, bottom + 24),
+              padding: EdgeInsets.fromLTRB(18, 22, 18, bottom + 28),
               child: Column(
                 children: [
-                  _GununKelimesiCard(),
-                  const SizedBox(height: 14),
-                  _SiralamalarCard(),
-                  const SizedBox(height: 14),
-                  _YeniOyunCard(
-                    onAi: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const ScrabbleGameScreen()),
-                    ).then((_) => setState(() {})),
-                    onFriend: () => _showComingSoon(context),
-                    onRandom: () => _showComingSoon(context),
-                  ),
-                  const SizedBox(height: 14),
-                  _OyunlarimCard(
-                    onResume: (ctrl) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ScrabbleGameScreen(existingController: ctrl),
-                        ),
-                      ).then((_) => setState(() {}));
-                    },
-                  ),
-                  const SizedBox(height: 14),
-                  _TurnuvaModuCard(
+                  _stagger(0, _QuickPlayCard(
                     onTap: () => Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const TournamentScreen()),
+                      appRoute(const ScrabbleGameScreen()),
+                    ).then((_) => setState(() {})),
+                  )),
+                  const SizedBox(height: 16),
+                  _stagger(1, _GamePairPanel(
+                    invites: _pendingInvites,
+                    activeRooms: _activeRooms,
+                    onAi: (seconds) => Navigator.push(
+                      context, appRoute(ScrabbleGameScreen(turnTimeLimitSeconds: seconds)),
+                    ).then((_) => setState(() {})),
+                    onFriend: (seconds) => Navigator.push(
+                      context, appRoute(FriendLobbyScreen(turnTimeLimitSeconds: seconds)),
                     ),
-                  ),
+                    onUsername: () => Navigator.push(
+                      context, appRoute(const UsernameMatchScreen()),
+                    ),
+                    onRandom: () => Navigator.push(
+                      context, appRoute(const RandomMatchScreen()),
+                    ),
+                    onResume: (ctrl) => Navigator.push(
+                      context,
+                      appRoute(ScrabbleGameScreen(existingController: ctrl)),
+                    ).then((_) => setState(() {})),
+                    onAcceptInvite: (inv) async {
+                      final uid  = AuthService.instance.effectiveUid;
+                      final name = AuthService.instance.effectiveDisplayName;
+                      if (uid == null) return;
+                      final err = await MultiplayerService.instance.joinRoom(inv.roomCode, uid, name);
+                      if (err == null && context.mounted) {
+                        Navigator.push(context, appRoute(FriendGameScreen(roomCode: inv.roomCode, myUid: uid)));
+                      }
+                    },
+                    onDeclineInvite: (inv) => MultiplayerService.instance.declineInvite(inv.roomCode),
+                    onOpenRoom: (room) {
+                      final uid = AuthService.instance.effectiveUid ?? '';
+                      Navigator.push(context, appRoute(FriendGameScreen(roomCode: room.roomCode, myUid: uid)));
+                    },
+                  )),
+                  const SizedBox(height: 16),
+                  _stagger(2, _TurnuvaModuCard(
+                    onTap: () => Navigator.push(
+                      context,
+                      appRoute(const TournamentScreen()),
+                    ),
+                  )),
+                  const SizedBox(height: 16),
+                  _stagger(3, _GununKelimesiCard()),
+                  const SizedBox(height: 16),
+                  _stagger(4, _SiralamalarCard()),
                 ],
               ),
             ),
           ),
+        ],
+        ),
         ],
       ),
     );
@@ -157,6 +532,11 @@ class _HomeScreenState extends State<HomeScreen> {
       elevation: 12,
       items: [
         PopupMenuItem(
+          value: 'ferheng',
+          child: _MenuRow(icon: Icons.menu_book_rounded, label: L.ferheng),
+        ),
+        const PopupMenuDivider(),
+        PopupMenuItem(
           value: 'how_to_play',
           child: _MenuRow(icon: Icons.help_outline_rounded, label: L.howToPlayShort),
         ),
@@ -179,8 +559,14 @@ class _HomeScreenState extends State<HomeScreen> {
         ],
       ],
     ).then((val) {
-      if (val == 'how_to_play') {
+      if (val == 'ferheng') {
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => const FerhengHomeScreen(),
+        ));
+      } else if (val == 'how_to_play') {
         _showHowTo(context);
+      } else if (val == 'about') {
+        _showAboutDialog(context);
       } else if (val == 'google_signin') {
         _doGoogleSignIn();
       } else if (val == 'signout') {
@@ -211,10 +597,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showHowTo(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const HowToPlayScreen()),
-    );
+    Navigator.push(context, appRoute(const HowToPlayScreen()));
   }
 
   void _showComingSoon(BuildContext context) {
@@ -380,7 +763,7 @@ class _SiralamalarCardState extends State<_SiralamalarCard> {
                         const SizedBox(height: 10),
                         if (myRank == null)
                           Text(
-                            'Henüz skor yok',
+                            L.noScoreYet,
                             style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12),
                           )
                         else ...[
@@ -444,22 +827,28 @@ class _TabBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: active ? _kGold.withOpacity(0.15) : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: active ? _kGold.withOpacity(0.5) : Colors.transparent),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () { HapticFeedback.selectionClick(); onTap(); },
+        borderRadius: BorderRadius.circular(8),
+        splashColor: _kGold.withOpacity(0.15),
+        highlightColor: _kGold.withOpacity(0.08),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: active ? _kGold.withOpacity(0.15) : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: active ? _kGold.withOpacity(0.5) : Colors.transparent),
+          ),
+          child: Text(label,
+              style: TextStyle(
+                color: active ? _kGold : Colors.white.withOpacity(0.35),
+                fontSize: 10,
+                fontWeight: active ? FontWeight.bold : FontWeight.normal,
+              )),
         ),
-        child: Text(label,
-            style: TextStyle(
-              color: active ? _kGold : Colors.white.withOpacity(0.35),
-              fontSize: 10,
-              fontWeight: active ? FontWeight.bold : FontWeight.normal,
-            )),
       ),
     );
   }
@@ -474,182 +863,1648 @@ class _GununKelimesiCard extends StatefulWidget {
 
 class _GununKelimesiCardState extends State<_GununKelimesiCard>
     with SingleTickerProviderStateMixin {
-  late AnimationController _anim;
-  late Animation<double> _fade;
-  late Animation<Offset> _slide;
-  bool _revealed = false;
-  int _globalPlayed = 0;
-  int _globalWon    = 0;
-
-  static ({String word, String meaning}) _todaysWord() {
-    final entries = KurdishMeanings.allEntries;
-    final index = DateTime.now().difference(DateTime(2025, 1, 1)).inDays % entries.length;
-    return entries[index];
-  }
+  late AnimationController _pulseCtrl;
+  bool _hasPlayed = false;
+  int _challengePlays = 0;
+  int _perfectRuns   = 0;
+  bool _loading = true;
+  int _activeStage = 0; // 0=kolay, 1=orta, 2=zor
+  Timer? _stageTimer;
 
   @override
   void initState() {
     super.initState();
-    _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 500));
-    _fade  = CurvedAnimation(parent: _anim, curve: Curves.easeOut);
-    _slide = Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
-        .animate(CurvedAnimation(parent: _anim, curve: Curves.easeOutCubic));
-    _loadGlobalStats();
+    _pulseCtrl = AnimationController(
+      vsync: this, duration: const Duration(seconds: 2))..repeat(reverse: true);
+    _loadState();
+    _stageTimer = Timer.periodic(const Duration(milliseconds: 2500), (_) {
+      if (mounted && !_hasPlayed) {
+        setState(() => _activeStage = (_activeStage + 1) % 3);
+      }
+    });
   }
 
-  Future<void> _loadGlobalStats() async {
-    final stats = await DailyWordService.instance.fetchTodayStats();
-    if (stats != null && mounted) {
-      setState(() { _globalPlayed = stats.totalPlayed; _globalWon = stats.totalWon; });
+  Future<void> _loadState() async {
+    final svc = DailyWordService.instance;
+    final played = svc.hasPlayedTodayLocal || await svc.hasPlayedToday();
+    final stats  = await svc.fetchTodayStats();
+    if (mounted) {
+      setState(() {
+        _hasPlayed     = played;
+        _challengePlays = stats?.totalPlayed ?? 0;
+        _perfectRuns   = stats?.totalWon ?? 0;
+        _loading       = false;
+      });
     }
   }
 
   @override
   void dispose() {
-    _anim.dispose();
+    _pulseCtrl.dispose();
+    _stageTimer?.cancel();
     super.dispose();
   }
 
-  void _reveal() {
+  void _openChallenge() {
     HapticFeedback.mediumImpact();
-    if (_revealed) {
-      setState(() => _revealed = false);
-      _anim.reverse();
-    } else {
-      setState(() => _revealed = true);
-      _anim.forward(from: 0);
-    }
+    Navigator.push(
+      context,
+      PageRouteBuilder(
+        pageBuilder: (_, __, ___) => const DailyChallengeScreen(),
+        transitionsBuilder: (_, anim, __, child) => FadeTransition(
+          opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
+          child: child,
+        ),
+        transitionDuration: const Duration(milliseconds: 280),
+      ),
+    ).then((_) => _loadState());
+  }
+
+  // Gece yarısına kalan süre
+  String _nextResetCountdown() {
+    final now = DateTime.now();
+    final midnight = DateTime(now.year, now.month, now.day + 1);
+    final diff = midnight.difference(now);
+    final h = diff.inHours.toString().padLeft(2, '0');
+    final m = (diff.inMinutes % 60).toString().padLeft(2, '0');
+    return '$h:$m';
   }
 
   @override
   Widget build(BuildContext context) {
-    final today = _todaysWord();
-    final letters = today.word.split('');
-
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF1A1040), Color(0xFF2D1B69), Color(0xFF11235A)],
-        ),
-        border: Border.all(color: const Color(0xFF7C4DFF).withOpacity(0.5), width: 1.5),
-        boxShadow: [
-          BoxShadow(color: const Color(0xFF7C4DFF).withOpacity(0.2), blurRadius: 20, offset: const Offset(0, 6)),
-          BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 4)),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Başlık + harf karoları + buton — hepsi tek satırda
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            child: Row(
-              children: [
-                const Icon(Icons.auto_awesome_rounded, color: Color(0xFFB39DDB), size: 14),
-                const SizedBox(width: 6),
-                Text(L.wordOfDay,
-                    style: const TextStyle(color: Color(0xFFB39DDB), fontSize: 11, fontWeight: FontWeight.w600)),
-                const SizedBox(width: 10),
-                ...letters.map((ch) => Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 2),
-                  width: 26, height: 30,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF7C4DFF).withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xFF7C4DFF).withOpacity(0.5), width: 1.2),
-                  ),
-                  child: Center(
-                    child: Text(ch,
-                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                  ),
-                )),
-                const Spacer(),
-                // Oyna butonu
-                GestureDetector(
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const WordleGameScreen()),
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(colors: [Color(0xFF4CAF50), Color(0xFF2E7D32)]),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Text('Oyna',
-                        style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                // Anlam / Keşfet butonu
-                if (!_revealed)
-                  GestureDetector(
-                    onTap: _reveal,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(colors: [Color(0xFF7C4DFF), Color(0xFF512DA8)]),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(L.revealMeaning,
-                          style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-              ],
+    return AnimatedBuilder(
+      animation: _pulseCtrl,
+      builder: (_, __) {
+        final t = _pulseCtrl.value;
+        return Container(
+          width: double.infinity,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF1A1538), Color(0xFF0F0E27)],
             ),
+            border: Border.all(
+              color: const Color(0xFF7C4DFF).withOpacity(0.22 + 0.10 * t),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF7C4DFF).withOpacity(0.18 + 0.06 * t),
+                blurRadius: 26,
+                spreadRadius: -4,
+                offset: const Offset(0, 10),
+              ),
+              BoxShadow(
+                color: Colors.black.withOpacity(0.40),
+                blurRadius: 14,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: _loading
+              ? const SizedBox(
+                  height: 60,
+                  child: Center(child: SizedBox(width: 16, height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF7C4DFF)))))
+              : _body(),
+        );
+      },
+    );
+  }
+
+  Widget _body() {
+    return Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Başlık satırı ───────────────────────────────────────
+          Row(
+            children: [
+              const Icon(Icons.auto_awesome_rounded, color: Color(0xFFB39DDB), size: 14),
+              const SizedBox(width: 6),
+              Text(L.dailyChallenge,
+                  style: const TextStyle(
+                      color: Color(0xFFB39DDB),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5)),
+              const Spacer(),
+              if (_hasPlayed)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4CAF50).withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.4)),
+                  ),
+                  child: Text(L.alreadyPlayed,
+                      style: const TextStyle(
+                          color: Color(0xFF4CAF50), fontSize: 10, fontWeight: FontWeight.w700)),
+                ),
+            ],
           ),
 
-          if (_revealed)
-            SlideTransition(
-              position: _slide,
-              child: FadeTransition(
-                opacity: _fade,
-                child: GestureDetector(
-                  onTap: _reveal,
-                  child: Container(
-                    margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.white.withOpacity(0.08)),
+          const SizedBox(height: 8),
+
+          // ── Bugünkü hedef + kalan süre ───────────────────────────
+          Row(
+            children: [
+              const Icon(Icons.flag_rounded, color: Color(0xFF9575CD), size: 13),
+              const SizedBox(width: 5),
+              Text(
+                L.dailyGoal,
+                style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500),
+              ),
+              const Spacer(),
+              const Text('⏳', style: TextStyle(fontSize: 11)),
+              const SizedBox(width: 4),
+              Text(
+                '${_nextResetCountdown()} ${L.timeRemaining}',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.45),
+                  fontSize: 11,
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 8),
+
+          // ── 3 Aşama göstergesi ───────────────────────────────────
+          Row(
+            children: [
+              _StagePreview(
+                color: const Color(0xFF4CAF50),
+                label: L.stageEasy,
+                icon: '🟢',
+                percent: '30%',
+                seconds: '5s',
+                isActive: !_hasPlayed && _activeStage == 0,
+              ),
+              const SizedBox(width: 8),
+              _StagePreview(
+                color: const Color(0xFFFFB74D),
+                label: L.stageMedium,
+                icon: '🟡',
+                percent: '50%',
+                seconds: '7s',
+                isActive: !_hasPlayed && _activeStage == 1,
+              ),
+              const SizedBox(width: 8),
+              _StagePreview(
+                color: const Color(0xFFEF5350),
+                label: L.stageHard,
+                icon: '🔴',
+                percent: '70%',
+                seconds: '10s',
+                isActive: !_hasPlayed && _activeStage == 2,
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 8),
+
+          // ── Alt satır: istatistik + buton ────────────────────────
+          Row(
+            children: [
+              if (_challengePlays > 0) ...[
+                Icon(Icons.people_alt_rounded,
+                    color: const Color(0xFFB39DDB).withOpacity(0.5), size: 12),
+                const SizedBox(width: 4),
+                Text(
+                  '$_challengePlays',
+                  style: TextStyle(
+                      color: const Color(0xFFB39DDB).withOpacity(0.5),
+                      fontSize: 10),
+                ),
+                const SizedBox(width: 8),
+                Icon(Icons.emoji_events_rounded,
+                    color: const Color(0xFFFFD700).withOpacity(0.5), size: 12),
+                const SizedBox(width: 4),
+                Text(
+                  '$_perfectRuns',
+                  style: TextStyle(
+                      color: const Color(0xFFFFD700).withOpacity(0.5),
+                      fontSize: 10),
+                ),
+              ],
+              const Spacer(),
+              if (_hasPlayed)
+                // Sonraki oyuna geri sayım
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.timer_outlined,
+                        color: Colors.white.withOpacity(0.3), size: 12),
+                    const SizedBox(width: 4),
+                    Text(
+                      _nextResetCountdown(),
+                      style: TextStyle(
+                          color: Colors.white.withOpacity(0.3),
+                          fontSize: 11,
+                          fontFamily: 'monospace'),
                     ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.translate_rounded, color: Color(0xFFB39DDB), size: 14),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(L.meaningLabel,
-                                  style: TextStyle(color: const Color(0xFFB39DDB).withOpacity(0.7), fontSize: 10)),
-                              const SizedBox(height: 2),
-                              Text(today.meaning,
-                                  style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500)),
+                  ],
+                )
+              else
+                // Oyna butonu
+                GestureDetector(
+                  onTap: _openChallenge,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                          colors: [Color(0xFF7C4DFF), Color(0xFF512DA8)]),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                            color: const Color(0xFF7C4DFF).withOpacity(0.35),
+                            blurRadius: 10, offset: const Offset(0, 3)),
+                      ],
+                    ),
+                    child: Text(
+                      L.play,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StagePreview extends StatelessWidget {
+  final Color color;
+  final String label;
+  final String icon;
+  final String percent;
+  final String seconds;
+  final bool isActive;
+
+  const _StagePreview({
+    required this.color,
+    required this.label,
+    required this.icon,
+    required this.percent,
+    required this.seconds,
+    this.isActive = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+        decoration: BoxDecoration(
+          color: isActive ? color.withOpacity(0.16) : color.withOpacity(0.07),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isActive ? color.withOpacity(0.7) : color.withOpacity(0.25),
+            width: isActive ? 1.5 : 1.0,
+          ),
+          boxShadow: isActive
+              ? [BoxShadow(color: color.withOpacity(0.35), blurRadius: 10, spreadRadius: 1)]
+              : [],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(icon, style: const TextStyle(fontSize: 9)),
+                const SizedBox(width: 3),
+                Expanded(
+                  child: Text(label,
+                      style: TextStyle(
+                          color: color,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700)),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(percent,
+                style: TextStyle(
+                    color: isActive ? Colors.white : Colors.white70,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold)),
+            Text(seconds,
+                style: TextStyle(color: Colors.white.withOpacity(0.35), fontSize: 10)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Hızlı Oyna CTA kartı ─────────────────────────────────────────
+
+class _QuickPlayCard extends StatefulWidget {
+  final VoidCallback onTap;
+  const _QuickPlayCard({required this.onTap});
+
+  @override
+  State<_QuickPlayCard> createState() => _QuickPlayCardState();
+}
+
+class _QuickPlayCardState extends State<_QuickPlayCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _pulse;
+  bool _pressed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(vsync: this, duration: const Duration(seconds: 2))
+      ..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _pulse,
+      builder: (_, __) {
+        final t = _pulse.value;
+        return GestureDetector(
+          onTapDown: (_) => setState(() => _pressed = true),
+          onTapUp: (_) {
+            setState(() => _pressed = false);
+            HapticFeedback.mediumImpact();
+            widget.onTap();
+          },
+          onTapCancel: () => setState(() => _pressed = false),
+          child: AnimatedScale(
+            scale: _pressed ? 0.975 : 1.0,
+            duration: const Duration(milliseconds: 120),
+            curve: Curves.easeOut,
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(22),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF1B5E20).withOpacity(0.28 + 0.10 * t),
+                    blurRadius: 32,
+                    spreadRadius: -4,
+                    offset: const Offset(0, 14),
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.45),
+                    blurRadius: 16,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(22),
+                child: Stack(
+                  children: [
+                    // Layer 1: deep diagonal base
+                    Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFF14502B), Color(0xFF071E11)],
+                        ),
+                      ),
+                    ),
+                    // Layer 2: ambient radial glow (pulses)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: RadialGradient(
+                              center: Alignment(-0.4 + 0.3 * t, -0.5),
+                              radius: 1.2,
+                              colors: [
+                                const Color(0xFF66E093).withOpacity(0.35 + 0.10 * t),
+                                Colors.transparent,
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Layer 3: top inner highlight
+                    Positioned(
+                      top: 0, left: 0, right: 0,
+                      child: Container(
+                        height: 44,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.white.withOpacity(0.10),
+                              Colors.transparent,
                             ],
                           ),
                         ),
-                        Icon(Icons.keyboard_arrow_up_rounded, color: Colors.white.withOpacity(0.25), size: 16),
-                      ],
+                      ),
+                    ),
+                    // Border ring
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(22),
+                            border: Border.all(
+                              color: const Color(0xFF66E093).withOpacity(0.30 + 0.18 * t),
+                              width: 1,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(22, 20, 18, 20),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      L.quickPlay,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 23,
+                                        fontWeight: FontWeight.w800,
+                                        letterSpacing: -0.4,
+                                        height: 1.0,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Icon(
+                                      Icons.flash_on_rounded,
+                                      color: const Color(0xFFFFD27A).withOpacity(0.85 + 0.15 * t),
+                                      size: 19,
+                                      shadows: [
+                                        Shadow(
+                                          color: const Color(0xFFFFB300).withOpacity(0.55),
+                                          blurRadius: 10,
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  L.quickPlaySub,
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.62),
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w500,
+                                    letterSpacing: 0.1,
+                                    height: 1.3,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Premium play button — double ring + pulse
+                          SizedBox(
+                            width: 60, height: 60,
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                // Outer pulse ring
+                                Container(
+                                  width: 60, height: 60,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.white.withOpacity(0.10 + 0.10 * t),
+                                      width: 1.2,
+                                    ),
+                                  ),
+                                ),
+                                // Main play button
+                                Container(
+                                  width: 50, height: 50,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: const LinearGradient(
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                      colors: [Color(0xFFFFFFFF), Color(0xFFC8E6C9)],
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.white.withOpacity(0.30 + 0.15 * t),
+                                        blurRadius: 16,
+                                        spreadRadius: 1,
+                                      ),
+                                      BoxShadow(
+                                        color: const Color(0xFF1B5E20).withOpacity(0.4),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 3),
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(
+                                    Icons.play_arrow_rounded,
+                                    color: Color(0xFF1B5E20),
+                                    size: 30,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ── Yeni Oyun + Oyunlarım ikili panel ────────────────────────────
+
+class _GamePairPanel extends StatefulWidget {
+  final void Function(int? seconds) onAi;
+  final void Function(int? seconds) onFriend;
+  final VoidCallback onUsername;
+  final VoidCallback onRandom;
+  final void Function(dynamic) onResume;
+  final void Function(MultiplayerRoom) onAcceptInvite;
+  final void Function(MultiplayerRoom) onDeclineInvite;
+  final void Function(MultiplayerRoom) onOpenRoom;
+  final List<MultiplayerRoom> invites;
+  final List<MultiplayerRoom> activeRooms;
+
+  const _GamePairPanel({
+    required this.onAi,
+    required this.onFriend,
+    required this.onUsername,
+    required this.onRandom,
+    required this.onResume,
+    required this.onAcceptInvite,
+    required this.onDeclineInvite,
+    required this.onOpenRoom,
+    this.invites = const [],
+    this.activeRooms = const [],
+  });
+
+  @override
+  State<_GamePairPanel> createState() => _GamePairPanelState();
+}
+
+class _GamePairPanelState extends State<_GamePairPanel> {
+
+  void _showMyGamesSheet(BuildContext context) {
+    HapticFeedback.selectionClick();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _MyGamesSheet(
+        onResume: (ctrl) { Navigator.pop(context); widget.onResume(ctrl); },
+        onAcceptInvite: (inv) { Navigator.pop(context); widget.onAcceptInvite(inv); },
+        onDeclineInvite: (inv) { widget.onDeclineInvite(inv); },
+        onOpenRoom: (room) { Navigator.pop(context); widget.onOpenRoom(room); },
+        invites: widget.invites,
+        activeRooms: widget.activeRooms,
+      ),
+    );
+  }
+
+  void _showNewGameSheet(BuildContext context) {
+    HapticFeedback.selectionClick();
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _NewGameSheet(
+        onAi: widget.onAi,
+        onFriend: widget.onFriend,
+        onUsername: widget.onUsername,
+        onRandom: widget.onRandom,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final store = GameStore.instance;
+    final hasActiveGame = store.activeController != null &&
+        store.activeRecord != null &&
+        !store.activeRecord!.isFinished;
+    final totalActive = (hasActiveGame ? 1 : 0) + widget.activeRooms.length;
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF141E2B), Color(0xFF0F1923)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(color: Colors.white.withOpacity(0.10), width: 1.2),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.28), blurRadius: 14, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ── Sol: Yeni Oyun ─────────────────────────────────
+            Expanded(
+              child: ClipRRect(
+                borderRadius: const BorderRadius.horizontal(left: Radius.circular(17)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Başlık
+                    Expanded(
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          onTap: () => _showNewGameSheet(context),
+                          borderRadius: const BorderRadius.horizontal(left: Radius.circular(17)),
+                          splashColor: _kPrimary.withOpacity(0.10),
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 16, 10, 16),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 38, height: 38,
+                                  decoration: BoxDecoration(
+                                    color: _kPrimary.withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: _kPrimary.withOpacity(0.3)),
+                                  ),
+                                  child: const Icon(Icons.play_circle_fill_rounded, color: _kPrimary, size: 20),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(L.newGame,
+                                          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                                      Text(L.howToPlay,
+                                          style: const TextStyle(color: Colors.white38, fontSize: 10),
+                                          maxLines: 2, overflow: TextOverflow.ellipsis),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(Icons.chevron_right_rounded,
+                                    color: Colors.white38, size: 18),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // ── Dikey ayraç ────────────────────────────────────
+            Container(width: 1, color: Colors.white.withOpacity(0.08)),
+
+            // ── Sağ: Oyunlarım ─────────────────────────────────
+            Expanded(
+              child: ClipRRect(
+                borderRadius: const BorderRadius.horizontal(right: Radius.circular(17)),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => _showMyGamesSheet(context),
+                      borderRadius: const BorderRadius.horizontal(right: Radius.circular(17)),
+                      splashColor: _kGold.withOpacity(0.10),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 16, 14, 16),
+                        child: Row(
+                          children: [
+                            Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Container(
+                                  width: 38, height: 38,
+                                  decoration: BoxDecoration(
+                                    color: _kGold.withOpacity(0.12),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(color: _kGold.withOpacity(0.3)),
+                                  ),
+                                  child: const Icon(Icons.grid_view_rounded, color: _kGold, size: 20),
+                                ),
+                                if (widget.invites.isNotEmpty)
+                                  Positioned(
+                                    right: -4, top: -4,
+                                    child: Container(
+                                      width: 14, height: 14,
+                                      decoration: const BoxDecoration(
+                                        color: Color(0xFFFF5252),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: Center(
+                                        child: Text('${widget.invites.length}',
+                                            style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(L.myGames,
+                                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                                      maxLines: 1, overflow: TextOverflow.ellipsis),
+                                  Text(
+                                    totalActive > 0 ? L.gamesCount(totalActive) : L.noGames,
+                                    style: TextStyle(color: Colors.white.withOpacity(0.38), fontSize: 10),
+                                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          const Icon(Icons.chevron_right_rounded, color: Colors.white38, size: 18),
+                        ],
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-        if (_globalPlayed > 0)
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Kompakt alt seçenek — yarım genişlik için optimize
+class _CompactOption extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+  final VoidCallback onTap;
+  const _CompactOption({required this.icon, required this.color, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () { HapticFeedback.selectionClick(); onTap(); },
+        splashColor: color.withOpacity(0.12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 30, height: 30,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.10),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: color.withOpacity(0.2)),
+                ),
+                child: Icon(icon, color: color, size: 15),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(label,
+                    style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w500),
+                    maxLines: 2, overflow: TextOverflow.ellipsis),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Yeni Oyun tam ekran seçenekler ──────────────────────────────
+
+class _NewGameSheet extends StatelessWidget {
+  final void Function(int? seconds) onAi;
+  final void Function(int? seconds) onFriend;
+  final VoidCallback onUsername;
+  final VoidCallback onRandom;
+
+  const _NewGameSheet({
+    required this.onAi,
+    required this.onFriend,
+    required this.onUsername,
+    required this.onRandom,
+  });
+
+  void _pickDirect(BuildContext ctx, VoidCallback action) {
+    Navigator.pop(ctx);
+    action();
+  }
+
+  void _pickWithTime(BuildContext ctx, void Function(int? seconds) action) {
+    showModalBottomSheet(
+      context: ctx,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _TimeControlSheet(
+        onSelected: (seconds) {
+          Navigator.pop(ctx);
+          action(seconds);
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF101824),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: EdgeInsets.fromLTRB(20, 12, 20, 24 + mq.viewInsets.bottom),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // pill
+          Container(
+            width: 40, height: 4,
+            margin: const EdgeInsets.only(bottom: 24),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          // başlık
+          Row(
+            children: [
+              Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  color: _kPrimary.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _kPrimary.withOpacity(0.35)),
+                ),
+                child: const Icon(Icons.play_circle_fill_rounded, color: _kPrimary, size: 24),
+              ),
+              const SizedBox(width: 14),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(L.newGame,
+                      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(L.howToPlay,
+                      style: TextStyle(color: Colors.white.withOpacity(0.40), fontSize: 13)),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          // seçenekler
+          _SheetOption(
+            icon: Icons.smart_toy_rounded,
+            color: _kPrimary,
+            label: L.aiPlay,
+            onTap: () => _pickWithTime(context, onAi),
+          ),
+          const SizedBox(height: 12),
+          _SheetOption(
+            icon: Icons.people_alt_rounded,
+            color: const Color(0xFF64B5F6),
+            label: L.friendPlay,
+            onTap: () => _pickWithTime(context, onFriend),
+          ),
+          const SizedBox(height: 12),
+          _SheetOption(
+            icon: Icons.alternate_email_rounded,
+            color: const Color(0xFFBA68C8),
+            label: L.byUsername,
+            onTap: () => _pickDirect(context, onUsername),
+          ),
+          const SizedBox(height: 12),
+          _SheetOption(
+            icon: Icons.search_rounded,
+            color: const Color(0xFFFFB74D),
+            label: L.findPlayer,
+            onTap: () => _pickDirect(context, onRandom),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+}
+
+class _SheetOption extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+  final VoidCallback onTap;
+  const _SheetOption({required this.icon, required this.color, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withOpacity(0.04),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        onTap: () { HapticFeedback.selectionClick(); onTap(); },
+        borderRadius: BorderRadius.circular(16),
+        splashColor: color.withOpacity(0.10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          child: Row(
+            children: [
+              Container(
+                width: 46, height: 46,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: color.withOpacity(0.3)),
+                ),
+                child: Icon(icon, color: color, size: 22),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Text(label,
+                    style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)),
+              ),
+              Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.25), size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Oyunlarım tam ekran çekmece ─────────────────────────────────
+
+class _MyGamesSheet extends StatefulWidget {
+  final void Function(dynamic) onResume;
+  final void Function(MultiplayerRoom) onAcceptInvite;
+  final void Function(MultiplayerRoom) onDeclineInvite;
+  final void Function(MultiplayerRoom) onOpenRoom;
+  final List<MultiplayerRoom> invites;
+  final List<MultiplayerRoom> activeRooms;
+
+  const _MyGamesSheet({
+    required this.onResume,
+    required this.onAcceptInvite,
+    required this.onDeclineInvite,
+    required this.onOpenRoom,
+    this.invites = const [],
+    this.activeRooms = const [],
+  });
+
+  @override
+  State<_MyGamesSheet> createState() => _MyGamesSheetState();
+}
+
+class _MyGamesSheetState extends State<_MyGamesSheet>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabs;
+
+  static String _timeAgo(DateTime t) {
+    final d = DateTime.now().difference(t);
+    if (d.inSeconds < 60)  return L.current == AppLocale.tr ? 'Az önce' : 'Nû';
+    if (d.inMinutes < 60)  return L.current == AppLocale.tr ? '${d.inMinutes} dk önce' : '${d.inMinutes} xul berê';
+    if (d.inHours < 24)    return L.current == AppLocale.tr ? '${d.inHours} sa önce' : '${d.inHours} st berê';
+    return L.current == AppLocale.tr ? '${d.inDays} gün önce' : '${d.inDays} roj berê';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _tabs = TabController(length: 3, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
+  }
+
+  Widget _tabView(List<Widget> items, String emptyTr, String emptyKu) {
+    final mq = MediaQuery.of(context);
+    if (items.isEmpty) {
+      return Center(
+        child: _EmptyHint(L.current == AppLocale.tr ? emptyTr : emptyKu),
+      );
+    }
+    return ListView(
+      padding: EdgeInsets.fromLTRB(20, 12, 20, 24 + mq.viewPadding.bottom),
+      children: items,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final store    = GameStore.instance;
+    final active   = store.records.where((r) => !r.isFinished).toList();
+    final finished = store.records.where((r) => r.isFinished).toList();
+    final mq       = MediaQuery.of(context);
+    final myUid    = AuthService.instance.effectiveUid ?? '';
+
+    final isTr = L.current == AppLocale.tr;
+
+    final activeItems = active.map((rec) => Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: _ActiveGameCard(
+        record: rec,
+        onTap: () => widget.onResume(store.activeController),
+      ),
+    )).toList();
+
+    final multiplayerItems = widget.activeRooms.map((room) => Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: _MultiplayerGameCard(
+        room: room,
+        myUid: myUid,
+        onTap: () => widget.onOpenRoom(room),
+      ),
+    )).toList();
+
+    final finishedItems = finished.map((rec) => Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: _FinishedGameCard(record: rec),
+    )).toList();
+
+    final inviteItems = widget.invites.map((inv) => Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: _InviteCard(
+        invite: inv,
+        onAccept: () => widget.onAcceptInvite(inv),
+        onDecline: () { widget.onDeclineInvite(inv); setState(() {}); },
+      ),
+    )).toList();
+
+    return Container(
+      height: mq.size.height * 0.85,
+      decoration: const BoxDecoration(
+        color: Color(0xFF101824),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      child: Column(
+        children: [
+          // pill
+          Container(
+            width: 40, height: 4,
+            margin: const EdgeInsets.only(top: 12, bottom: 16),
+            decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(2)),
+          ),
+          // Başlık
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Row(
               children: [
-                Icon(Icons.people_alt_rounded, color: const Color(0xFFB39DDB).withOpacity(0.5), size: 12),
-                const SizedBox(width: 5),
+                Container(
+                  width: 44, height: 44,
+                  decoration: BoxDecoration(
+                    color: _kGold.withOpacity(0.14),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _kGold.withOpacity(0.35)),
+                  ),
+                  child: const Icon(Icons.grid_view_rounded, color: _kGold, size: 24),
+                ),
+                const SizedBox(width: 14),
+                Text(L.myGames, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          // TabBar
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.06),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: TabBar(
+                controller: _tabs,
+                indicator: BoxDecoration(
+                  color: _kPrimary.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: _kPrimary.withOpacity(0.5)),
+                ),
+                indicatorSize: TabBarIndicatorSize.tab,
+                dividerColor: Colors.transparent,
+                labelColor: Colors.white,
+                unselectedLabelColor: Colors.white54,
+                labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                unselectedLabelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w400),
+                tabs: [
+                  Tab(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.play_circle_rounded, size: 16),
+                          const SizedBox(width: 4),
+                          Text(isTr ? 'Devam Eden' : 'Berdewam'),
+                          if (active.isNotEmpty || multiplayerItems.isNotEmpty) ...[
+                            const SizedBox(width: 4),
+                            _TabBadge(active.length + multiplayerItems.length, _kPrimary),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  Tab(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.flag_rounded, size: 16),
+                          const SizedBox(width: 4),
+                          Text(isTr ? 'Biten' : 'Qediyayî'),
+                          if (finished.isNotEmpty) ...[
+                            const SizedBox(width: 4),
+                            _TabBadge(finished.length, Colors.white38),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  Tab(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.mail_rounded, size: 16),
+                          const SizedBox(width: 4),
+                          Text(isTr ? 'Davetler' : 'Vexwendin'),
+                          if (widget.invites.isNotEmpty) ...[
+                            const SizedBox(width: 4),
+                            _TabBadge(widget.invites.length, const Color(0xFF64B5F6)),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          // TabBarView
+          Expanded(
+            child: TabBarView(
+              controller: _tabs,
+              children: [
+                _tabView([...activeItems, ...multiplayerItems], 'Aktif oyun yok', 'Lîstikek çalak tune'),
+                _tabView(finishedItems, 'Biten oyun yok', 'Lîstikeke qediyayî tune'),
+                _tabView(inviteItems, 'Bekleyen davet yok', 'Vexwendinek li bendê tune'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TabBadge extends StatelessWidget {
+  final int count;
+  final Color color;
+  const _TabBadge(this.count, this.color);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.25),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withOpacity(0.5)),
+      ),
+      child: Text(
+        '$count',
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color),
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String label;
+  final int count;
+  const _SectionHeader({required this.icon, required this.color, required this.label, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, color: color, size: 14),
+        const SizedBox(width: 6),
+        Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.4)),
+        const SizedBox(width: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+          decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
+          child: Text('$count', style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
+        ),
+      ],
+    );
+  }
+}
+
+class _EmptyHint extends StatelessWidget {
+  final String text;
+  const _EmptyHint(this.text);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: Text(text, style: TextStyle(color: Colors.white.withOpacity(0.25), fontSize: 13)),
+  );
+}
+
+class _ActiveGameCard extends StatelessWidget {
+  final GameRecord record;
+  final VoidCallback onTap;
+  const _ActiveGameCard({required this.record, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: _kPrimary.withOpacity(0.07),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: () { HapticFeedback.selectionClick(); onTap(); },
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 10, height: 10,
+                decoration: const BoxDecoration(shape: BoxShape.circle, color: _kPrimary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      L.current == AppLocale.tr ? 'AI ile Oyun' : 'Lîstik bi AI',
+                      style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${record.playerScore} — ${record.aiScore}',
+                      style: const TextStyle(color: Colors.white38, fontSize: 12),
+                    ),
+                    if (record.lastMoveAt != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        _MyGamesSheetState._timeAgo(record.lastMoveAt!),
+                        style: TextStyle(color: Colors.white.withOpacity(0.25), fontSize: 11),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: _kPrimary.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: _kPrimary.withOpacity(0.4)),
+                ),
+                child: Text(
+                  L.current == AppLocale.tr ? 'Devam Et' : 'Berdewam bike',
+                  style: const TextStyle(color: _kPrimary, fontSize: 11, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MultiplayerGameCard extends StatelessWidget {
+  final MultiplayerRoom room;
+  final String myUid;
+  final VoidCallback onTap;
+  const _MultiplayerGameCard({required this.room, required this.myUid, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final isMyTurn = room.currentTurnUid == myUid;
+    final isHost   = room.hostUid == myUid;
+    final myScore  = isHost ? room.hostScore : room.guestScore;
+    final oppScore = isHost ? room.guestScore : room.hostScore;
+    final oppName  = isHost ? (room.guestName ?? 'Rakip') : room.hostName;
+    final dotColor = isMyTurn ? _kPrimary : Colors.white38;
+    final isTr     = L.current == AppLocale.tr;
+
+    final lastBy = room.lastMoveBy;
+    final lastScore = room.lastMoveScore;
+    String? lastMoveText;
+    if (lastBy != null && lastScore != null) {
+      final byMe = (lastBy == 'host' && isHost) || (lastBy == 'guest' && !isHost);
+      final who = byMe ? (isTr ? 'Sen' : 'Tu') : oppName;
+      final sign = lastScore >= 0 ? '+' : '';
+      lastMoveText = isTr
+          ? '$who: $sign$lastScore puan'
+          : '$who: $sign$lastScore xal';
+    }
+
+    return Opacity(
+      opacity: isMyTurn ? 1.0 : 0.45,
+      child: Material(
+        color: isMyTurn
+            ? const Color(0xFF1A3A2A)
+            : const Color(0xFF1A2030),
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: () { HapticFeedback.selectionClick(); onTap(); },
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Container(
+                  width: 10, height: 10,
+                  decoration: BoxDecoration(shape: BoxShape.circle, color: dotColor),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        oppName,
+                        style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        '$myScore — $oppScore',
+                        style: const TextStyle(color: Colors.white38, fontSize: 12),
+                      ),
+                      if (lastMoveText != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          lastMoveText,
+                          style: TextStyle(
+                            color: (lastScore ?? 0) >= 0
+                                ? const Color(0xFFFFD54F)
+                                : const Color(0xFFEF9A9A),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                      const SizedBox(height: 2),
+                      Text(
+                        isMyTurn
+                            ? (isTr ? 'Senin sıran' : 'Nöbeta te')
+                            : (isTr ? 'Rakip sırası' : 'Nöbeta hevrik'),
+                        style: TextStyle(
+                          color: isMyTurn ? _kPrimary.withOpacity(0.8) : Colors.white38,
+                          fontSize: 11,
+                          fontWeight: isMyTurn ? FontWeight.w600 : FontWeight.normal,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (isMyTurn)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: _kPrimary.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: _kPrimary.withOpacity(0.4)),
+                    ),
+                    child: Text(
+                      isTr ? 'Oyna' : 'Bilîze',
+                      style: const TextStyle(color: _kPrimary, fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                  )
+                else
+                  const Icon(Icons.hourglass_bottom_rounded, color: Colors.white24, size: 18),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FinishedGameCard extends StatelessWidget {
+  final GameRecord record;
+  const _FinishedGameCard({required this.record});
+
+  @override
+  Widget build(BuildContext context) {
+    final won = record.playerScore > record.aiScore;
+    final color = won ? const Color(0xFFFFD700) : Colors.white38;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withOpacity(0.06)),
+      ),
+      child: Row(
+        children: [
+          Text(won ? '🏆' : '💀', style: const TextStyle(fontSize: 20)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(
-                  'Bugün $_globalPlayed kişi oynadı · %${_globalPlayed > 0 ? (_globalWon / _globalPlayed * 100).round() : 0} kazandı',
-                  style: TextStyle(color: const Color(0xFFB39DDB).withOpacity(0.5), fontSize: 10),
+                  won
+                      ? (L.current == AppLocale.tr ? 'Kazandın' : 'Tu biri')
+                      : (L.current == AppLocale.tr ? 'Kaybettin' : 'Tu şikestî'),
+                  style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 3),
+                Text('${record.playerScore} — ${record.aiScore}',
+                    style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                Text(_MyGamesSheetState._timeAgo(record.startedAt),
+                    style: TextStyle(color: Colors.white.withOpacity(0.2), fontSize: 11)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InviteCard extends StatelessWidget {
+  final MultiplayerRoom invite;
+  final VoidCallback onAccept;
+  final VoidCallback onDecline;
+  const _InviteCard({required this.invite, required this.onAccept, required this.onDecline});
+
+  static const _blue = Color(0xFF64B5F6);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [_blue.withOpacity(0.10), _blue.withOpacity(0.04)],
+          begin: Alignment.topLeft, end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _blue.withOpacity(0.35), width: 1.2),
+        boxShadow: [BoxShadow(color: _blue.withOpacity(0.08), blurRadius: 12, offset: const Offset(0, 4))],
+      ),
+      child: Column(
+        children: [
+          // Üst: kim davet etti
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+            child: Row(
+              children: [
+                Container(
+                  width: 42, height: 42,
+                  decoration: BoxDecoration(
+                    color: _blue.withOpacity(0.15),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: _blue.withOpacity(0.4)),
+                  ),
+                  child: const Icon(Icons.sports_esports_rounded, color: _blue, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(invite.hostName,
+                          style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 2),
+                      Text(L.inviteFrom,
+                          style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12)),
+                    ],
+                  ),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _blue.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(width: 6, height: 6,
+                          decoration: const BoxDecoration(color: _blue, shape: BoxShape.circle)),
+                      const SizedBox(width: 5),
+                      Text(L.current == AppLocale.tr ? 'Bekliyor' : 'Hêvî dike',
+                          style: const TextStyle(color: _blue, fontSize: 10, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Alt: butonlar tam genişlik yan yana
+          Container(
+            height: 1,
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            color: _blue.withOpacity(0.15),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+            child: Row(
+              children: [
+                // Reddet
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () { HapticFeedback.selectionClick(); onDecline(); },
+                    child: Container(
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.06),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.white.withOpacity(0.10)),
+                      ),
+                      child: Center(
+                        child: Text(L.decline,
+                            style: TextStyle(color: Colors.white.withOpacity(0.55),
+                                fontSize: 13, fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                // Kabul Et
+                Expanded(
+                  flex: 2,
+                  child: GestureDetector(
+                    onTap: () { HapticFeedback.mediumImpact(); onAccept(); },
+                    child: Container(
+                      height: 44,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF42A5F5), Color(0xFF1E88E5)],
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [BoxShadow(color: _blue.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 3))],
+                      ),
+                      child: Center(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.check_rounded, color: Colors.white, size: 16),
+                            const SizedBox(width: 6),
+                            Text(L.accept,
+                                style: const TextStyle(color: Colors.white,
+                                    fontSize: 13, fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -658,21 +2513,128 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
       ),
     );
   }
+}
 
-  String _monthName(int m) {
-    const months = ['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','Ara'];
-    return months[m - 1];
+// ── Süre seçim sayfası ──────────────────────────────────────────
+
+class _TimeControlSheet extends StatelessWidget {
+  final void Function(int? seconds) onSelected;
+  const _TimeControlSheet({required this.onSelected});
+
+  static const _options = [
+    (label: '48 Saat', sublabel: 'Her hamle için 48 saat', seconds: 48 * 3600, icon: Icons.calendar_today_rounded, color: Color(0xFF64B5F6)),
+    (label: '24 Saat', sublabel: 'Her hamle için 24 saat', seconds: 24 * 3600, icon: Icons.wb_sunny_rounded, color: Color(0xFFFFB74D)),
+    (label: '12 Saat', sublabel: 'Her hamle için 12 saat', seconds: 12 * 3600, icon: Icons.schedule_rounded, color: Color(0xFFBA68C8)),
+    (label: '5 Dakika', sublabel: 'Canlı hızlı oyun', seconds: 5 * 60, icon: Icons.bolt_rounded, color: Color(0xFFFF5252)),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF101824),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      padding: EdgeInsets.fromLTRB(20, 12, 20, 24 + mq.viewInsets.bottom),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40, height: 4,
+            margin: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Row(
+            children: [
+              Container(
+                width: 44, height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.14),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.withOpacity(0.35)),
+                ),
+                child: const Icon(Icons.timer_rounded, color: Colors.orange, size: 24),
+              ),
+              const SizedBox(width: 14),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(L.selectTime,
+                      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text(L.timePerMove,
+                      style: TextStyle(color: Colors.white.withOpacity(0.40), fontSize: 13)),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          ..._options.map((opt) => Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Material(
+              color: Colors.white.withOpacity(0.04),
+              borderRadius: BorderRadius.circular(16),
+              child: InkWell(
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  onSelected(opt.seconds);
+                },
+                borderRadius: BorderRadius.circular(16),
+                splashColor: opt.color.withOpacity(0.10),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 46, height: 46,
+                        decoration: BoxDecoration(
+                          color: opt.color.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: opt.color.withOpacity(0.3)),
+                        ),
+                        child: Icon(opt.icon, color: opt.color, size: 22),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(opt.label,
+                                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                            Text(opt.sublabel,
+                                style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12)),
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.25), size: 20),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          )),
+          const SizedBox(height: 4),
+        ],
+      ),
+    );
   }
 }
+
+// ── Oyun modları kartı ────────────────────────────────────────────
 
 class _YeniOyunCard extends StatefulWidget {
   final VoidCallback onAi;
   final VoidCallback onFriend;
+  final VoidCallback onUsername;
   final VoidCallback onRandom;
 
   const _YeniOyunCard({
     required this.onAi,
     required this.onFriend,
+    required this.onUsername,
     required this.onRandom,
   });
 
@@ -702,41 +2664,53 @@ class _YeniOyunCardState extends State<_YeniOyunCard> {
       ),
       child: Column(
         children: [
-          GestureDetector(
-            onTap: () => setState(() => _expanded = !_expanded),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-              child: Row(
-                children: [
-                  Container(
-                    width: 52, height: 52,
-                    decoration: BoxDecoration(
-                      color: _kPrimary.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: _kPrimary.withOpacity(0.25)),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () {
+                HapticFeedback.selectionClick();
+                setState(() => _expanded = !_expanded);
+              },
+              borderRadius: BorderRadius.vertical(
+                top: const Radius.circular(18),
+                bottom: _expanded ? Radius.zero : const Radius.circular(18),
+              ),
+              splashColor: _kPrimary.withOpacity(0.10),
+              highlightColor: _kPrimary.withOpacity(0.05),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 52, height: 52,
+                      decoration: BoxDecoration(
+                        color: _kPrimary.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: _kPrimary.withOpacity(0.25)),
+                      ),
+                      child: const Icon(Icons.play_circle_fill_rounded, color: _kPrimary, size: 26),
                     ),
-                    child: const Icon(Icons.play_circle_fill_rounded, color: _kPrimary, size: 26),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(L.newGame,
-                            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 3),
-                        Text(L.howToPlay,
-                            style: const TextStyle(color: Colors.white38, fontSize: 12)),
-                      ],
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(L.newGame,
+                              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 3),
+                          Text(L.howToPlay,
+                              style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                        ],
+                      ),
                     ),
-                  ),
-                  AnimatedRotation(
-                    turns: _expanded ? 0.5 : 0,
-                    duration: const Duration(milliseconds: 250),
-                    child: Icon(Icons.keyboard_arrow_down_rounded,
-                        color: Colors.white.withOpacity(0.4), size: 22),
-                  ),
-                ],
+                    AnimatedRotation(
+                      turns: _expanded ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 250),
+                      child: Icon(Icons.keyboard_arrow_down_rounded,
+                          color: Colors.white.withOpacity(0.4), size: 22),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -753,15 +2727,20 @@ class _YeniOyunCardState extends State<_YeniOyunCard> {
               icon: Icons.people_alt_rounded,
               iconColor: const Color(0xFF64B5F6),
               title: L.friendPlay,
-              badge: L.soon,
               onTap: widget.onFriend,
+            ),
+            Container(height: 1, color: Colors.white.withOpacity(0.04)),
+            _SubOption(
+              icon: Icons.alternate_email_rounded,
+              iconColor: const Color(0xFFBA68C8),
+              title: L.byUsername,
+              onTap: widget.onUsername,
             ),
             Container(height: 1, color: Colors.white.withOpacity(0.04)),
             _SubOption(
               icon: Icons.search_rounded,
               iconColor: const Color(0xFFFFB74D),
               title: L.findPlayer,
-              badge: L.soon,
               onTap: widget.onRandom,
             ),
             const SizedBox(height: 4),
@@ -789,39 +2768,47 @@ class _SubOption extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        child: Row(
-          children: [
-            Container(
-              width: 38, height: 38,
-              decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: iconColor.withOpacity(0.2)),
-              ),
-              child: Icon(icon, color: iconColor, size: 20),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Text(title,
-                  style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w500)),
-            ),
-            if (badge != null)
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        splashColor: iconColor.withOpacity(0.12),
+        highlightColor: iconColor.withOpacity(0.06),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+          child: Row(
+            children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                width: 40, height: 40,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(8),
+                  color: iconColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: iconColor.withOpacity(0.2)),
                 ),
-                child: Text(badge!,
-                    style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 9, fontWeight: FontWeight.w600)),
+                child: Icon(icon, color: iconColor, size: 20),
               ),
-            if (badge == null)
-              Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.2), size: 20),
-          ],
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(title,
+                    style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w500)),
+              ),
+              if (badge != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(badge!,
+                      style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 9, fontWeight: FontWeight.w600)),
+                ),
+              if (badge == null)
+                Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.2), size: 20),
+            ],
+          ),
         ),
       ),
     );
@@ -832,6 +2819,7 @@ class _SubOption extends StatelessWidget {
 
 class _HomeHeader extends StatelessWidget {
   final double statusBarHeight;
+  final int streak;
   final VoidCallback onLocaleChanged;
   final VoidCallback onSettingsTap;
   final VoidCallback onStatsTap;
@@ -839,6 +2827,7 @@ class _HomeHeader extends StatelessWidget {
 
   const _HomeHeader({
     required this.statusBarHeight,
+    required this.streak,
     required this.onLocaleChanged,
     required this.onSettingsTap,
     required this.onStatsTap,
@@ -849,21 +2838,21 @@ class _HomeHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.fromLTRB(16, statusBarHeight + 12, 16, 16),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF1A2535), Color(0xFF0F1923)],
+      padding: EdgeInsets.fromLTRB(16, statusBarHeight + 10, 16, 14),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xE6111A28), Color(0x99111A28)],
         ),
-        boxShadow: [
-          BoxShadow(color: Colors.black38, blurRadius: 12, offset: Offset(0, 3)),
-        ],
+        border: Border(
+          bottom: BorderSide(color: Colors.white.withOpacity(0.05), width: 1),
+        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // Sol grup: Ayarlar + İstatistikler
+          // Sol grup
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -872,7 +2861,7 @@ class _HomeHeader extends StatelessWidget {
                 tooltip: L.settings,
                 onTap: onSettingsTap,
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
               _IconBtn(
                 icon: Icons.bar_chart_rounded,
                 tooltip: L.statistics,
@@ -881,7 +2870,7 @@ class _HomeHeader extends StatelessWidget {
             ],
           ),
 
-          // Orta: Logo + başlık
+          // Orta: Logo + başlık + streak
           Expanded(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -891,53 +2880,103 @@ class _HomeHeader extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Container(
-                      width: 32,
-                      height: 32,
+                      width: 34,
+                      height: 34,
                       decoration: BoxDecoration(
                         gradient: const LinearGradient(
-                          colors: [Color(0xFF4CAF50), Color(0xFF2E7D32)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFF66E093), Color(0xFF1B5E20)],
                         ),
-                        borderRadius: BorderRadius.circular(9),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.20),
+                          width: 1,
+                        ),
                         boxShadow: [
                           BoxShadow(
-                            color: _kPrimary.withOpacity(0.35),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
+                            color: _kPrimary.withOpacity(0.45),
+                            blurRadius: 14,
+                            spreadRadius: -1,
+                            offset: const Offset(0, 4),
                           ),
                         ],
                       ),
                       child: const Center(
                         child: Text('P',
-                            style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold, height: 1)),
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 19,
+                              fontWeight: FontWeight.w900,
+                              height: 1,
+                              letterSpacing: -0.5,
+                            )),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 9),
                     const Text(
                       'Peyvok',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.8,
+                        fontSize: 21,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.2,
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  L.appSubtitle,
-                  style: TextStyle(color: Colors.white.withOpacity(0.38), fontSize: 10, letterSpacing: 0.3),
-                ),
+                const SizedBox(height: 6),
+                if (streak > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFFFF6F00).withOpacity(0.20),
+                          const Color(0xFFFF6F00).withOpacity(0.08),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFFFF8F00).withOpacity(0.45)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.local_fire_department_rounded,
+                            color: Color(0xFFFFB74D), size: 12),
+                        const SizedBox(width: 4),
+                        Text(
+                          '$streak gün streak',
+                          style: const TextStyle(
+                            color: Color(0xFFFFB74D),
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                else
+                  Text(
+                    L.appSubtitle,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.42),
+                      fontSize: 10.5,
+                      letterSpacing: 0.4,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
               ],
             ),
           ),
 
-          // Sağ grup: Dil seçici + Seçenekler
+          // Sağ grup
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               _LangSwitcher(onChanged: onLocaleChanged),
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
               Builder(
                 builder: (btnCtx) => _IconBtn(
                   icon: Icons.more_vert_rounded,
@@ -966,17 +3005,37 @@ class _IconBtn extends StatelessWidget {
   Widget build(BuildContext context) {
     return Tooltip(
       message: tooltip,
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.07),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.10)),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () { HapticFeedback.selectionClick(); onTap(); },
+          borderRadius: BorderRadius.circular(13),
+          splashColor: Colors.white.withOpacity(0.10),
+          highlightColor: Colors.white.withOpacity(0.04),
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.white.withOpacity(0.08),
+                  Colors.white.withOpacity(0.03),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(color: Colors.white.withOpacity(0.10), width: 1),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.18),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Icon(icon, color: Colors.white.withOpacity(0.78), size: 19),
           ),
-          child: Icon(icon, color: Colors.white70, size: 20),
         ),
       ),
     );
@@ -1020,19 +3079,24 @@ class _SettingsSheetState extends State<_SettingsSheet> {
   bool _notifs      = false;
   bool _darkMode    = true;
 
+  @override
+  void initState() {
+    super.initState();
+    _darkMode = themeNotifier.value == ThemeMode.dark;
+  }
+
   void _showAuthScreen(BuildContext ctx) {
     Navigator.push(
       ctx,
-      MaterialPageRoute(
-        builder: (_) => AuthScreen(
-          onSuccess: () {
-            Navigator.pop(ctx);
-            setState(() {});
-          },
-        ),
-      ),
+      appRoute(AuthScreen(
+        onSuccess: () {
+          if (mounted) setState(() {});
+        },
+      )),
     );
   }
+
+  void _showAbout(BuildContext ctx) => _showAboutDialog(ctx);
 
   @override
   Widget build(BuildContext context) {
@@ -1099,19 +3163,26 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                     },
                   ),
                   const SizedBox(height: 8),
-                  if (!AuthService.instance.isAnonymous) ...[
+                  _SettingsTile(
+                    icon: Icons.edit_rounded,
+                    iconColor: const Color(0xFF64B5F6),
+                    label: L.editProfile,
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(context, appRoute(const ProfileScreen()));
+                    },
+                  ),
+                  if (AuthService.instance.isAnonymous)
                     _SettingsTile(
-                      icon: Icons.edit_rounded,
-                      iconColor: const Color(0xFF64B5F6),
-                      label: L.editProfile,
+                      icon: Icons.link_rounded,
+                      iconColor: _kPrimary,
+                      label: L.linkWithGoogle,
                       onTap: () {
                         Navigator.pop(context);
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const ProfileScreen()),
-                        );
+                        _showAuthScreen(context);
                       },
-                    ),
+                    )
+                  else
                     _SettingsTile(
                       icon: Icons.logout_rounded,
                       iconColor: const Color(0xFFEF5350),
@@ -1122,16 +3193,6 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                           Navigator.pop(context);
                           setState(() {});
                         }
-                      },
-                    ),
-                  ] else
-                    _SettingsTile(
-                      icon: Icons.login_rounded,
-                      iconColor: _kPrimary,
-                      label: 'Giriş Yap / Kayıt Ol',
-                      onTap: () {
-                        Navigator.pop(context);
-                        _showAuthScreen(context);
                       },
                     ),
 
@@ -1167,9 +3228,12 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                   _SettingsToggle(
                     icon: Icons.dark_mode_rounded,
                     iconColor: const Color(0xFF4FC3F7),
-                    label: L.darkMode,
+                    label: _darkMode ? L.darkMode : L.darkModeOff,
                     value: _darkMode,
-                    onChanged: (v) => setState(() => _darkMode = v),
+                    onChanged: (v) {
+                      setState(() => _darkMode = v);
+                      themeNotifier.value = v ? ThemeMode.dark : ThemeMode.light;
+                    },
                   ),
 
                   const SizedBox(height: 24),
@@ -1199,7 +3263,7 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                     iconColor: Colors.white38,
                     label: L.about,
                     trailing: Text('v1.0.0', style: TextStyle(color: Colors.white.withOpacity(0.28), fontSize: 12)),
-                    onTap: () {},
+                    onTap: () => _showAbout(context),
                   ),
                 ],
               ),
@@ -1224,6 +3288,7 @@ class _ProfileCard extends StatefulWidget {
 class _ProfileCardState extends State<_ProfileCard> {
   int _level = 1;
   int _xp    = 0;
+  String? _profileName;
 
   @override
   void initState() {
@@ -1236,7 +3301,11 @@ class _ProfileCardState extends State<_ProfileCard> {
     if (uid == null || !FirebaseService.isAvailable) return;
     final profile = await FirestoreService.instance.getProfile(uid);
     if (mounted && profile != null) {
-      setState(() { _level = profile.level; _xp = profile.xp; });
+      setState(() {
+        _level = profile.level;
+        _xp = profile.xp;
+        _profileName = profile.displayName;
+      });
     }
   }
 
@@ -1244,7 +3313,11 @@ class _ProfileCardState extends State<_ProfileCard> {
   Widget build(BuildContext context) {
     final user       = AuthService.instance.currentUser;
     final isAnon     = AuthService.instance.isAnonymous;
-    final name       = user?.displayName ?? (isAnon ? 'Anonim Oyuncu' : 'Oyuncu');
+    final name       = (user?.displayName?.trim().isNotEmpty == true)
+        ? user!.displayName!
+        : (_profileName?.trim().isNotEmpty == true
+            ? _profileName!
+            : AuthService.instance.effectiveDisplayName);
     final email      = user?.email ?? '';
     final initial    = name.isNotEmpty ? name[0].toUpperCase() : 'P';
     final photoUrl   = user?.photoURL;
@@ -1302,7 +3375,7 @@ class _ProfileCardState extends State<_ProfileCard> {
                         style: TextStyle(
                             color: Colors.white.withOpacity(0.38), fontSize: 12))
                   else if (isAnon)
-                    Text('Giriş yaparak skorlarını kaydet',
+                    Text(L.signInToSaveScores,
                         style: TextStyle(
                             color: _kPrimary.withOpacity(0.8), fontSize: 11)),
                   const SizedBox(height: 6),
@@ -1320,9 +3393,9 @@ class _ProfileCardState extends State<_ProfileCard> {
                       ),
                     ),
                     child: Text(
-                      isAnon ? 'Giriş Yapılmadı' : 'Seviye $_level · $_xp XP',
+                      isAnon ? L.guestBadge : L.levelXp(_level, _xp),
                       style: TextStyle(
-                        color: isAnon ? Colors.white38 : _kPrimary,
+                        color: isAnon ? Colors.white60 : _kPrimary,
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
                       ),
@@ -1339,8 +3412,8 @@ class _ProfileCardState extends State<_ProfileCard> {
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: _kPrimary.withOpacity(0.4)),
                 ),
-                child: const Text('Giriş Yap',
-                    style: TextStyle(color: _kPrimary,
+                child: Text(L.signIn,
+                    style: const TextStyle(color: _kPrimary,
                         fontSize: 11, fontWeight: FontWeight.bold)),
               )
             else
@@ -1392,30 +3465,36 @@ class _SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1A2535),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withOpacity(0.06)),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 34, height: 34,
-              decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(10),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap != null ? () { HapticFeedback.mediumImpact(); onTap!(); } : null,
+        borderRadius: BorderRadius.circular(14),
+        splashColor: Colors.white.withOpacity(0.06),
+        highlightColor: Colors.white.withOpacity(0.03),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A2535),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white.withOpacity(0.06)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 34, height: 34,
+                decoration: BoxDecoration(
+                  color: iconColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: iconColor, size: 17),
               ),
-              child: Icon(icon, color: iconColor, size: 17),
-            ),
-            const SizedBox(width: 14),
-            Expanded(child: Text(label, style: const TextStyle(color: Colors.white70, fontSize: 14))),
-            trailing ?? Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.18), size: 18),
-          ],
+              const SizedBox(width: 14),
+              Expanded(child: Text(label, style: const TextStyle(color: Colors.white70, fontSize: 14))),
+              trailing ?? Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.18), size: 18),
+            ],
+          ),
         ),
       ),
     );
@@ -1503,7 +3582,7 @@ class _SettingsToggle extends StatelessWidget {
           Expanded(child: Text(label, style: const TextStyle(color: Colors.white70, fontSize: 14))),
           Switch(
             value: value,
-            onChanged: onChanged,
+            onChanged: (v) { HapticFeedback.mediumImpact(); onChanged(v); },
             activeColor: _kPrimary,
             activeTrackColor: _kPrimary.withOpacity(0.3),
             inactiveThumbColor: Colors.white38,
@@ -1622,11 +3701,11 @@ class _LangSwitcher extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _LangBtn(label: 'TR', active: cur == AppLocale.tr,
-              onTap: () { L.set(AppLocale.tr); onChanged(); }),
-          const SizedBox(width: 4),
           _LangBtn(label: 'KU', active: cur == AppLocale.ku,
               onTap: () { L.set(AppLocale.ku); onChanged(); }),
+          const SizedBox(width: 4),
+          _LangBtn(label: 'TR', active: cur == AppLocale.tr,
+              onTap: () { L.set(AppLocale.tr); onChanged(); }),
         ],
       ),
     );
@@ -1641,22 +3720,28 @@ class _LangBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: active ? _kPrimary : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: active ? Colors.white : Colors.white54,
-            fontSize: 13,
-            fontWeight: active ? FontWeight.bold : FontWeight.normal,
-            letterSpacing: 0.5,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () { HapticFeedback.selectionClick(); onTap(); },
+        borderRadius: BorderRadius.circular(8),
+        splashColor: _kPrimary.withOpacity(0.2),
+        highlightColor: _kPrimary.withOpacity(0.1),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: active ? _kPrimary : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              color: active ? Colors.white : Colors.white54,
+              fontSize: 13,
+              fontWeight: active ? FontWeight.bold : FontWeight.normal,
+              letterSpacing: 0.5,
+            ),
           ),
         ),
       ),
@@ -1687,9 +3772,14 @@ class _MenuCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        splashColor: Colors.white.withOpacity(0.08),
+        highlightColor: Colors.white.withOpacity(0.04),
+        child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
         decoration: BoxDecoration(
           gradient: gradient,
@@ -1764,6 +3854,7 @@ class _MenuCard extends StatelessWidget {
             Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.2), size: 22),
           ],
         ),
+        ),
       ),
     );
   }
@@ -1803,28 +3894,34 @@ class _TurnuvaModuCardState extends State<_TurnuvaModuCard>
     return AnimatedBuilder(
       animation: _pulse,
       builder: (context, _) {
-        final glow = 0.18 + 0.12 * _pulse.value;
-        return GestureDetector(
-          onTap: widget.onTap,
+        final t = _pulse.value;
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+          onTap: () { HapticFeedback.mediumImpact(); widget.onTap(); },
+          borderRadius: BorderRadius.circular(22),
+          splashColor: _kGold.withOpacity(0.08),
+          highlightColor: _kGold.withOpacity(0.04),
           child: Container(
             decoration: BoxDecoration(
               gradient: const LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [Color(0xFF2A1A00), Color(0xFF3D2800), Color(0xFF1C1000)],
+                colors: [Color(0xFF1F1809), Color(0xFF130C04)],
               ),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: _kGold.withOpacity(0.55), width: 1.5),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: _kGold.withOpacity(0.30 + 0.08 * t), width: 1),
               boxShadow: [
                 BoxShadow(
-                  color: _kGold.withOpacity(glow),
-                  blurRadius: 18,
-                  offset: const Offset(0, 5),
+                  color: const Color(0xFFB8860B).withOpacity(0.18 + 0.06 * t),
+                  blurRadius: 28,
+                  spreadRadius: -4,
+                  offset: const Offset(0, 12),
                 ),
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.3),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
+                  color: Colors.black.withOpacity(0.40),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
                 ),
               ],
             ),
@@ -1974,38 +4071,70 @@ class _TurnuvaModuCardState extends State<_TurnuvaModuCard>
                               ),
                             ),
                           ),
-                          const SizedBox(height: 10),
-                          // Katıl butonu
+                          const SizedBox(height: 8),
+                          // "Son 2 yer!" uyarısı
                           Container(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 8),
+                                horizontal: 7, vertical: 3),
                             decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  Color.lerp(const Color(0xFF8B6000),
-                                      const Color(0xFFB8860B), _pulse.value)!,
-                                  const Color(0xFF5A3D00),
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(10),
+                              color: const Color(0xFFFF3D00).withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(6),
                               border: Border.all(
-                                  color: _kGold.withOpacity(0.6 + 0.3 * _pulse.value)),
+                                  color: const Color(0xFFFF6E40).withOpacity(0.5)),
+                            ),
+                            child: Text(
+                              L.lastTwoSpots,
+                              style: const TextStyle(
+                                color: Color(0xFFFF6E40),
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          // Katıl butonu — premium pill
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [Color(0xFFFFD27A), Color(0xFFB8860B)],
+                              ),
+                              borderRadius: BorderRadius.circular(11),
                               boxShadow: [
                                 BoxShadow(
-                                  color: _kGold.withOpacity(0.2 + 0.15 * _pulse.value),
-                                  blurRadius: 10,
+                                  color: const Color(0xFFFFB300).withOpacity(0.30 + 0.12 * t),
+                                  blurRadius: 14,
+                                  spreadRadius: 0,
+                                ),
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.35),
+                                  blurRadius: 6,
+                                  offset: const Offset(0, 3),
                                 ),
                               ],
                             ),
-                            child: Text(
-                              L.current == AppLocale.tr
-                                  ? 'Katıl  →'
-                                  : 'Tevlî bibe  →',
-                              style: const TextStyle(
-                                color: _kGold,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  L.current == AppLocale.tr ? 'Katıl' : 'Tevlî bibe',
+                                  style: const TextStyle(
+                                    color: Color(0xFF2A1A00),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                    letterSpacing: 0.2,
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Icon(
+                                  Icons.arrow_forward_rounded,
+                                  size: 13,
+                                  color: Color(0xFF2A1A00),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -2015,6 +4144,7 @@ class _TurnuvaModuCardState extends State<_TurnuvaModuCard>
                 ),
               ],
             ),
+          ),
           ),
         );
       },
@@ -2043,7 +4173,7 @@ class _MiniBracket extends StatelessWidget {
               _MiniSlot(name: 'Roja',  filled: true),
               _MiniSlot(name: 'Dilan', filled: true),
               _MiniSlot(name: 'Baran', filled: true),
-              _MiniSlot(name: 'Sen',   filled: true, isMe: true),
+              _MiniSlot(name: L.you,  filled: true, isMe: true),
             ],
           ),
           // Bağlantı çizgileri
@@ -2292,10 +4422,14 @@ class _OyunlarimCardState extends State<_OyunlarimCard> {
 
             // Aktif (devam eden) oyun — memory'den
             if (hasActiveGame)
-              GestureDetector(
+              Material(
+                color: Colors.transparent,
+                child: InkWell(
                 onTap: store.activeController != null
                     ? () => widget.onResume(store.activeController)
                     : null,
+                splashColor: _kPrimary.withOpacity(0.10),
+                highlightColor: _kPrimary.withOpacity(0.05),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
                   decoration: BoxDecoration(
@@ -2335,6 +4469,7 @@ class _OyunlarimCardState extends State<_OyunlarimCard> {
                       ),
                     ],
                   ),
+                ),
                 ),
               ),
 
@@ -2396,6 +4531,94 @@ class _OyunlarimCardState extends State<_OyunlarimCard> {
             }),
             const SizedBox(height: 4),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+// ── Gelen davet banner'ı ─────────────────────────────────────────
+
+class _InviteBanner extends StatelessWidget {
+  final MultiplayerRoom invite;
+  final String myUid;
+  final VoidCallback onAccept;
+  final VoidCallback onDecline;
+
+  const _InviteBanner({
+    required this.invite,
+    required this.myUid,
+    required this.onAccept,
+    required this.onDecline,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF1B3040), Color(0xFF0F2030)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF64B5F6).withOpacity(0.45), width: 1.5),
+        boxShadow: [
+          BoxShadow(color: const Color(0xFF64B5F6).withOpacity(0.12), blurRadius: 14, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 40, height: 40,
+            decoration: BoxDecoration(
+              color: const Color(0xFF64B5F6).withOpacity(0.15),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFF64B5F6).withOpacity(0.3)),
+            ),
+            child: const Icon(Icons.sports_esports_rounded, color: Color(0xFF64B5F6), size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(invite.hostName,
+                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                Text(L.inviteFrom,
+                    style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 11)),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: () { HapticFeedback.mediumImpact(); onAccept(); },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+              decoration: BoxDecoration(
+                color: _kPrimary.withOpacity(0.18),
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(color: _kPrimary.withOpacity(0.5)),
+              ),
+              child: Text(L.accept,
+                  style: const TextStyle(color: _kPrimary, fontSize: 11, fontWeight: FontWeight.bold)),
+            ),
+          ),
+          const SizedBox(width: 6),
+          GestureDetector(
+            onTap: () { HapticFeedback.selectionClick(); onDecline(); },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.06),
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Text(L.decline,
+                  style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 11, fontWeight: FontWeight.w600)),
+            ),
+          ),
         ],
       ),
     );

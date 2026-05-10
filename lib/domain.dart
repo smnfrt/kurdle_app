@@ -1,3 +1,5 @@
+import 'package:kurdle_app/services/app_locale.dart';
+
 enum GameColor { tbd, absent, present, correct }
 
 enum Dialog { none, help, stats, settings }
@@ -11,14 +13,25 @@ class Settings {
   bool isHighContrast;
   KeyboardLayout keyboardLayout;
 
-  Settings(this.isDarkMode, this.isHardMode, this.isHighContrast, this.keyboardLayout);
+  /// Ferheng tanım dili tercihi (kmr ↔ tr). Default: tr.
+  AppLocale ferhengDefinitionLanguage;
+
+  Settings(
+    this.isDarkMode,
+    this.isHardMode,
+    this.isHighContrast,
+    this.keyboardLayout, {
+    this.ferhengDefinitionLanguage = AppLocale.tr,
+  });
 
   Settings.fromJson(Map<String, dynamic> json)
       : isDarkMode = json['isDarkMode'],
         isHardMode = json['isHardMode'],
         isHighContrast = json['isHighConstrat'] ?? false,
         keyboardLayout =
-            KeyboardLayout.values.byName(json['keyboardLayout'] ?? KeyboardLayout.qwerty.name);
+            KeyboardLayout.values.byName(json['keyboardLayout'] ?? KeyboardLayout.qwerty.name),
+        ferhengDefinitionLanguage = AppLocale.values.byName(
+            json['ferhengDefinitionLanguage'] ?? AppLocale.tr.name);
 
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = <String, dynamic>{};
@@ -26,6 +39,7 @@ class Settings {
     data['isHardMode'] = isHardMode;
     data['isHighContrast'] = isHighContrast;
     data['keyboardLayout'] = keyboardLayout.name;
+    data['ferhengDefinitionLanguage'] = ferhengDefinitionLanguage.name;
 
     return data;
   }

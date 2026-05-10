@@ -1,0 +1,21 @@
+{
+  "_version": "1.0.0",
+  "_note": "Stable category IDs. Labels are localized client-side in app_locale.dart. ID changes require migration.",
+  "categories": [
+    { "id": "animals",         "label_tr": "Hayvanlar",         "label_kmr": "Heywan" },
+    { "id": "body",            "label_tr": "Vücut",             "label_kmr": "Beden" },
+    { "id": "family",          "label_tr": "Aile",              "label_kmr": "Malbat" },
+    { "id": "food",            "label_tr": "Yemek",             "label_kmr": "Xwarin" },
+    { "id": "nature",          "label_tr": "Doğa",              "label_kmr": "Xweza" },
+    { "id": "time",            "label_tr": "Zaman",             "label_kmr": "Dem" },
+    { "id": "numbers",         "label_tr": "Sayılar",           "label_kmr": "Hejmar" },
+    { "id": "colors",          "label_tr": "Renkler",           "label_kmr": "Reng" },
+    { "id": "verbs_common",    "label_tr": "Sık Fiiller",       "label_kmr": "Lêkerên Berbelav" },
+    { "id": "clothing",        "label_tr": "Giyim",             "label_kmr": "Cil û Berg" },
+    { "id": "home",            "label_tr": "Ev",                "label_kmr": "Mal" },
+    { "id": "places",          "label_tr": "Yerler",            "label_kmr": "Cîh" },
+    { "id": "emotions",        "label_tr": "Duygular",          "label_kmr": "Hest" },
+    { "id": "professions",     "label_tr": "Meslekler",         "label_kmr": "Pîşe" },
+    { "id": "religion_culture","label_tr": "Din ve Kültür",     "label_kmr": "Ol û Çand" }
+  ]
+}

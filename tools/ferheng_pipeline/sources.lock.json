@@ -1,0 +1,27 @@
+{
+  "_comment": "Pin sources for reproducibility. Update via 'make refresh-sources' (manual review required).",
+  "kurdish_hunspell": {
+    "repo": "sinaahmadi/KurdishHunspell",
+    "ref": "main",
+    "commit_sha": "PINME",
+    "files": {
+      "ku_kmr.dic": "kmr/kmr-Latn.dic",
+      "ku_kmr.aff": "kmr/kmr-Latn.aff"
+    },
+    "license": "CC BY-SA 4.0",
+    "license_url": "https://creativecommons.org/licenses/by-sa/4.0/"
+  },
+  "kaikki_kurdish": {
+    "url": "https://kaikki.org/dictionary/Northern%20Kurdish/kaikki.org-dictionary-NorthernKurdish.jsonl",
+    "snapshot_date": "2026-05-06",
+    "sha256": "PINME",
+    "size_bytes_approx": 10671790,
+    "license": "CC BY-SA 4.0",
+    "attribution": "Wiktionary contributors (en.wiktionary.org Northern Kurdish pages)"
+  },
+  "legacy_meanings": {
+    "source_file": "../../lib/services/kurdish_meanings.dart",
+    "license": "Project-internal (curated)",
+    "note": "330 hand-curated Kurmanji→Turkish entries — preserved verbatim, takes precedence on TR conflicts."
+  }
+}

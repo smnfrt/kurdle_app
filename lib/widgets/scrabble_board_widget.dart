@@ -3,6 +3,7 @@ import 'package:kurdle_app/models/board_cell.dart';
 import 'package:kurdle_app/models/game_tile.dart';
 import 'package:kurdle_app/models/word_board.dart';
 import 'package:kurdle_app/services/scoring_service.dart';
+import 'package:kurdle_app/services/haptic_service.dart';
 
 // ── Dark-premium renk paleti ────────────────────────────────────
 const _kBoardFrame   = Color(0xFF080F18);
@@ -29,12 +30,16 @@ const _kPrimary      = Color(0xFF4CAF50);
 
 const _letterPts = kurdishLetterPoints;
 
-class ScrabbleBoardWidget extends StatelessWidget {
+class ScrabbleBoardWidget extends StatefulWidget {
   final WordBoard board;
   final void Function(int row, int col, GameTile tile)? onTileDrop;
   final void Function(int row, int col)? onCellTap;
   final void Function(int row, int col)? onEmptyCellTap;
   final double spacing;
+  /// Geliştirilen kelimenin hücrelerini altın rengiyle vurgular (ör. {'5:3','5:4'})
+  final Set<String> highlightedCells;
+  /// Çalınan kelimede yeni eklenen harflerin hücreleri — teal rengiyle vurgulanır
+  final Set<String> stolenNewCells;
 
   const ScrabbleBoardWidget({
     Key? key,
@@ -43,7 +48,32 @@ class ScrabbleBoardWidget extends StatelessWidget {
     this.onCellTap,
     this.onEmptyCellTap,
     this.spacing = 1.4,
+    this.highlightedCells = const {},
+    this.stolenNewCells   = const {},
   }) : super(key: key);
+
+  @override
+  State<ScrabbleBoardWidget> createState() => _ScrabbleBoardWidgetState();
+}
+
+class _ScrabbleBoardWidgetState extends State<ScrabbleBoardWidget>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ambient;
+
+  @override
+  void initState() {
+    super.initState();
+    _ambient = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2800),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _ambient.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -77,18 +107,23 @@ class ScrabbleBoardWidget extends StatelessWidget {
               itemCount: WordBoard.totalCells,
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: WordBoard.size,
-                mainAxisSpacing: spacing,
-                crossAxisSpacing: spacing,
+                mainAxisSpacing: widget.spacing,
+                crossAxisSpacing: widget.spacing,
               ),
               itemBuilder: (context, index) {
                 final row  = index ~/ WordBoard.size;
                 final col  = index %  WordBoard.size;
-                final cell = board.cellAt(row, col);
+                final cell = widget.board.cellAt(row, col);
+                final isHighlighted = widget.highlightedCells.contains('$row:$col');
+                final isNewStolen   = widget.stolenNewCells.contains('$row:$col');
                 return _CellView(
                   cell: cell,
-                  onDrop:     onTileDrop != null ? (t) => onTileDrop!(row, col, t) : null,
-                  onTap:      onCellTap != null ? () => onCellTap!(row, col) : null,
-                  onEmptyTap: onEmptyCellTap != null ? () => onEmptyCellTap!(row, col) : null,
+                  isHighlighted: isHighlighted,
+                  isNewStolen: isNewStolen,
+                  ambient: _ambient,
+                  onDrop:     widget.onTileDrop != null ? (t) => widget.onTileDrop!(row, col, t) : null,
+                  onTap:      widget.onCellTap != null ? () => widget.onCellTap!(row, col) : null,
+                  onEmptyTap: widget.onEmptyCellTap != null ? () => widget.onEmptyCellTap!(row, col) : null,
                 );
               },
             ),
@@ -103,11 +138,22 @@ class ScrabbleBoardWidget extends StatelessWidget {
 
 class _CellView extends StatelessWidget {
   final BoardCell cell;
+  final bool isHighlighted;
+  final bool isNewStolen;
+  final Animation<double>? ambient;
   final void Function(GameTile)? onDrop;
   final VoidCallback? onTap;
   final VoidCallback? onEmptyTap;
 
-  const _CellView({required this.cell, this.onDrop, this.onTap, this.onEmptyTap});
+  const _CellView({
+    required this.cell,
+    this.isHighlighted = false,
+    this.isNewStolen   = false,
+    this.ambient,
+    this.onDrop,
+    this.onTap,
+    this.onEmptyTap,
+  });
 
   Gradient? _bonusGradient() {
     switch (cell.bonusType) {
@@ -183,23 +229,52 @@ class _CellView extends StatelessWidget {
                 child: _TileContent(letter: cell.letter, pts: pts, isPending: true),
               )
             : Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: [_kTileLocA, _kTileLocB],
+                decoration: BoxDecoration(
+                  gradient: isHighlighted
+                      ? const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFFFFD54F), Color(0xFFFF8F00)],
+                        )
+                      : isNewStolen
+                          ? const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [Color(0xFF004D40), Color(0xFF00695C)],
+                            )
+                          : const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [_kTileLocA, _kTileLocB],
+                            ),
+                  borderRadius: const BorderRadius.all(Radius.circular(3)),
+                  border: Border.all(
+                    color: isHighlighted
+                        ? const Color(0xFFFFD700)
+                        : isNewStolen
+                            ? const Color(0xFF1DE9B6)
+                            : _kTileBorder,
+                    width: isHighlighted ? 1.8 : isNewStolen ? 1.6 : 1.0,
                   ),
-                  borderRadius: BorderRadius.all(Radius.circular(3)),
-                  border: Border.fromBorderSide(BorderSide(color: _kTileBorder, width: 1.0)),
-                  boxShadow: [
-                    BoxShadow(color: Color(0x73000000), blurRadius: 2, offset: Offset(1, 2)),
-                  ],
+                  boxShadow: isHighlighted
+                      ? const [
+                          BoxShadow(color: Color(0xCCFFD700), blurRadius: 8, spreadRadius: 1),
+                          BoxShadow(color: Color(0x73000000), blurRadius: 2, offset: Offset(1, 2)),
+                        ]
+                      : isNewStolen
+                          ? const [
+                              BoxShadow(color: Color(0x991DE9B6), blurRadius: 8, spreadRadius: 1),
+                              BoxShadow(color: Color(0x73000000), blurRadius: 2, offset: Offset(1, 2)),
+                            ]
+                          : const [
+                              BoxShadow(color: Color(0x73000000), blurRadius: 2, offset: Offset(1, 2)),
+                            ],
                 ),
                 child: _TileContent(letter: cell.letter, pts: pts, isPending: false),
               ),
       );
 
-      // Pending taş → sürüklenebilir
+      // Pending taş → sürüklenebilir + baskı animasyonu
       if (isPending && onTap != null) {
         final tile = GameTile(id: cell.tileId!, letter: cell.letter);
         tileWidget = Draggable<GameTile>(
@@ -207,7 +282,19 @@ class _CellView extends StatelessWidget {
           onDragStarted: onTap,
           feedback: RepaintBoundary(child: _DragFeedback(letter: cell.letter, points: pts)),
           childWhenDragging: Opacity(opacity: 0.15, child: tileWidget),
-          child: GestureDetector(onTap: onTap, child: tileWidget),
+          child: _PressScaleWrap(onTap: onTap, child: tileWidget),
+        );
+      }
+
+      // Pop animasyonu — sadece yeni eklenen pending taşlar için
+      if (isPending) {
+        return TweenAnimationBuilder<double>(
+          key: ValueKey('pop-${cell.tileId}'),
+          tween: Tween(begin: 0.0, end: 1.0),
+          duration: const Duration(milliseconds: 320),
+          curve: Curves.elasticOut,
+          builder: (_, v, child) => Transform.scale(scale: v, child: child!),
+          child: tileWidget,
         );
       }
 
@@ -220,44 +307,82 @@ class _CellView extends StatelessWidget {
     final label    = _bonusLabel();
     final hasBonus = grad != null;
 
-    // Sabit boş hücre (DragTarget yoksa)
+    // Sabit boş hücre (DragTarget yoksa) — bonus hücrelerde yumuşak ambient nefes alma
     Widget emptyCell = RepaintBoundary(
-      child: Container(
-        decoration: BoxDecoration(
-          gradient: grad,
-          color: grad == null ? _kCellNormal : null,
-          borderRadius: const BorderRadius.all(Radius.circular(3)),
-          border: Border.all(
-            color: hasBonus ? glow!.withValues(alpha: 0.45) : _kCellBorder.withValues(alpha: 0.7),
-            width: 0.6,
-          ),
-          boxShadow: hasBonus && glow != null
-              ? [BoxShadow(color: glow.withValues(alpha: 0.30), blurRadius: 4)]
-              : null,
-        ),
-        child: label.isNotEmpty
-            ? Center(
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Padding(
-                    padding: const EdgeInsets.all(1),
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: label == '★' ? 8 : 5.5,
-                        fontWeight: FontWeight.w800,
-                        color: label == '★'
-                            ? const Color(0xFFFFD700)
-                            : Colors.white.withValues(alpha: 0.9),
-                        height: 1,
-                        shadows: const [Shadow(color: Color(0x80000000), blurRadius: 2)],
-                      ),
+      child: hasBonus && glow != null && ambient != null
+          ? AnimatedBuilder(
+              animation: ambient!,
+              builder: (_, __) {
+                // 0.30 → 0.55 arası yavaş pulse
+                final t = ambient!.value;
+                final glowAlpha = 0.30 + 0.25 * t;
+                final blur = 3.5 + 2.5 * t;
+                final isStar = cell.bonusType == CellBonusType.start;
+                return Container(
+                  decoration: BoxDecoration(
+                    gradient: grad,
+                    borderRadius: const BorderRadius.all(Radius.circular(3)),
+                    border: Border.all(
+                      color: glow.withValues(alpha: 0.45 + 0.20 * t),
+                      width: isStar ? 0.8 : 0.6,
                     ),
+                    boxShadow: [
+                      BoxShadow(color: glow.withValues(alpha: glowAlpha), blurRadius: blur),
+                    ],
                   ),
+                  child: Stack(
+                    children: [
+                      // Üst-sol specular: hafif beyaz parlama (sabit)
+                      Positioned(
+                        top: 0, left: 0, right: 0,
+                        child: Container(
+                          height: 4,
+                          decoration: const BoxDecoration(
+                            borderRadius: BorderRadius.vertical(top: Radius.circular(3)),
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [Color(0x33FFFFFF), Colors.transparent],
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (label.isNotEmpty)
+                        Center(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Padding(
+                              padding: const EdgeInsets.all(1),
+                              child: Text(
+                                label,
+                                style: TextStyle(
+                                  fontSize: isStar ? 8 : 5.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: isStar
+                                      ? const Color(0xFFFFD700)
+                                      : Colors.white.withValues(alpha: 0.9),
+                                  height: 1,
+                                  shadows: const [Shadow(color: Color(0x80000000), blurRadius: 2)],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            )
+          : Container(
+              decoration: BoxDecoration(
+                color: _kCellNormal,
+                borderRadius: const BorderRadius.all(Radius.circular(3)),
+                border: Border.all(
+                  color: _kCellBorder.withValues(alpha: 0.7),
+                  width: 0.6,
                 ),
-              )
-            : null,
-      ),
+              ),
+            ),
     );
 
     if (onDrop != null) {
@@ -298,7 +423,10 @@ class _DroppableCellState extends State<_DroppableCell> {
   Widget build(BuildContext context) {
     return DragTarget<GameTile>(
       onWillAcceptWithDetails: (_) {
-        if (!_hot) setState(() => _hot = true);
+        if (!_hot) {
+          setState(() => _hot = true);
+          HapticService.instance.cellHover();
+        }
         return true;
       },
       onLeave: (_) {
@@ -306,21 +434,30 @@ class _DroppableCellState extends State<_DroppableCell> {
       },
       onAcceptWithDetails: (d) {
         setState(() => _hot = false);
+        HapticService.instance.tileDrop();
         widget.onDrop(d.data);
       },
       builder: (context, _, __) {
         return GestureDetector(
           onTap: widget.onEmptyTap,
           child: _hot
-              ? Container(
-                  decoration: BoxDecoration(
-                    borderRadius: const BorderRadius.all(Radius.circular(4)),
-                    border: Border.all(color: _kPrimary, width: 2.0),
-                    boxShadow: const [
-                      BoxShadow(color: Color(0x8C4CAF50), blurRadius: 8, spreadRadius: 1),
-                    ],
+              ? TweenAnimationBuilder<double>(
+                  key: const ValueKey('hot-ring'),
+                  tween: Tween(begin: 0.85, end: 1.0),
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeOutBack,
+                  builder: (_, v, ch) => Transform.scale(scale: v, child: ch),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: const BorderRadius.all(Radius.circular(5)),
+                      border: Border.all(color: _kPrimary, width: 2.2),
+                      boxShadow: const [
+                        BoxShadow(color: Color(0xAA4CAF50), blurRadius: 12, spreadRadius: 1.5),
+                        BoxShadow(color: Color(0x554CAF50), blurRadius: 22, spreadRadius: 4),
+                      ],
+                    ),
+                    child: widget.child,
                   ),
-                  child: widget.child,
                 )
               : widget.child,
         );
@@ -342,15 +479,35 @@ class _TileContent extends StatelessWidget {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // Işık efekti (sadece pending'de)
-        if (isPending)
+        // Üst specular — pending taşta parlak, kilitli taşta hafif
+        Positioned(
+          top: 0, left: 0, right: 0,
+          child: Container(
+            height: 3,
+            decoration: BoxDecoration(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+              gradient: LinearGradient(
+                colors: [
+                  Color(isPending ? 0x80FFFFFF : 0x40FFFFFF),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+        ),
+        // Kilitli taşta sol kenar yumuşak iç gölge (depth)
+        if (!isPending)
           Positioned(
-            top: 0, left: 0, right: 0,
+            left: 0, top: 0, bottom: 0,
             child: Container(
-              height: 3,
+              width: 2,
               decoration: const BoxDecoration(
-                borderRadius: BorderRadius.vertical(top: Radius.circular(3)),
-                gradient: LinearGradient(colors: [Color(0x80FFFFFF), Colors.transparent]),
+                borderRadius: BorderRadius.horizontal(left: Radius.circular(3)),
+                gradient: LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [Color(0x33000000), Colors.transparent],
+                ),
               ),
             ),
           ),
@@ -385,6 +542,37 @@ class _TileContent extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ── Baskı ölçek sarmalayıcı ──────────────────────────────────────
+
+class _PressScaleWrap extends StatefulWidget {
+  final VoidCallback? onTap;
+  final Widget child;
+  const _PressScaleWrap({required this.child, this.onTap});
+
+  @override
+  State<_PressScaleWrap> createState() => _PressScaleWrapState();
+}
+
+class _PressScaleWrapState extends State<_PressScaleWrap> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: widget.onTap,
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.88 : 1.0,
+        duration: const Duration(milliseconds: 70),
+        curve: Curves.easeOut,
+        child: widget.child,
+      ),
     );
   }
 }

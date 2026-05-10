@@ -1,18 +1,45 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:kurdle_app/services/app_locale.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AuthService {
   AuthService._();
   static final AuthService instance = AuthService._();
 
-  final _auth = FirebaseAuth.instance;
+  FirebaseAuth get _auth => FirebaseAuth.instance;
   final _google = GoogleSignIn();
+
+  String? _guestUid;
 
   // Mevcut oturum akışı — null ise giriş yapılmamış
   Stream<User?> get userStream => _auth.authStateChanges();
   User? get currentUser => _auth.currentUser;
   bool get isSignedIn => currentUser != null;
   bool get isAnonymous => currentUser?.isAnonymous ?? true;
+
+  // Firebase kullanıcısı yoksa kalıcı misafir UID kullan
+  String? get effectiveUid => currentUser?.uid ?? _guestUid;
+  String get effectiveDisplayName {
+    final n = currentUser?.displayName?.trim();
+    if (n != null && n.isNotEmpty) return n;
+    final firebaseUid = currentUser?.uid;
+    if (firebaseUid != null && firebaseUid.length >= 4) {
+      return L.guestName(firebaseUid.substring(firebaseUid.length - 4));
+    }
+    if (_guestUid != null) return L.guestName(_guestUid!.substring(_guestUid!.length - 4));
+    return L.guestBadge;
+  }
+
+  Future<void> initGuestUid() async {
+    if (_guestUid != null) return;
+    final prefs = await SharedPreferences.getInstance();
+    _guestUid = prefs.getString('guest_uid');
+    if (_guestUid == null) {
+      _guestUid = 'guest_${DateTime.now().millisecondsSinceEpoch}';
+      await prefs.setString('guest_uid', _guestUid!);
+    }
+  }
 
   // ── Anonim giriş ─────────────────────────────────────────────────
   // Uygulamayı ilk açan kullanıcılar otomatik anonim hesap alır.
@@ -41,14 +68,22 @@ class AuthService {
 
       // Anonim hesap varsa ona bağla, yoksa yeni hesap oluştur
       if (isAnonymous && currentUser != null) {
-        final linked = await currentUser!.linkWithCredential(credential);
-        return linked.user;
+        try {
+          final linked = await currentUser!.linkWithCredential(credential);
+          return linked.user;
+        } on FirebaseAuthException catch (e) {
+          if (e.code != 'credential-already-in-use' && e.code != 'email-already-in-use') {
+            rethrow;
+          }
+          // Hesap zaten var — anonim oturumu kapat, direkt giriş yap
+          await _auth.signOut();
+        }
       }
 
       final cred = await _auth.signInWithCredential(credential);
       return cred.user;
-    } on FirebaseAuthException catch (e) {
-      _log('signInWithGoogle', e.code);
+    } catch (e) {
+      _log('signInWithGoogle', e.toString());
       return null;
     }
   }

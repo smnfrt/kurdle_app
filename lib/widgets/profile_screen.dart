@@ -275,15 +275,30 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(name,
-                    style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                if (!isAnon) ...[
+                Flexible(
+                  child: Text(name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                ),
+                if (isAnon) ...[
                   const SizedBox(width: 8),
-                  GestureDetector(
-                    onTap: () => setState(() => _editing = true),
-                    child: Icon(Icons.edit_rounded, color: Colors.white.withOpacity(0.35), size: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.white.withOpacity(0.18)),
+                    ),
+                    child: const Text('Misafir',
+                        style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w600, letterSpacing: 0.3)),
                   ),
                 ],
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () => setState(() => _editing = true),
+                  child: Icon(Icons.edit_rounded, color: Colors.white.withOpacity(0.35), size: 16),
+                ),
               ],
             ),
 
@@ -334,13 +349,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ],
           ),
           const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(
-              value: progress,
-              backgroundColor: Colors.white.withOpacity(0.08),
-              valueColor: const AlwaysStoppedAnimation(_kGold),
-              minHeight: 8,
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0.0, end: progress),
+            duration: const Duration(milliseconds: 900),
+            curve: Curves.easeOutCubic,
+            builder: (_, value, __) => ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: value,
+                backgroundColor: Colors.white.withOpacity(0.08),
+                valueColor: const AlwaysStoppedAnimation(_kGold),
+                minHeight: 8,
+              ),
             ),
           ),
           const SizedBox(height: 8),

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:kurdle_app/domain.dart';
+import 'package:kurdle_app/services/app_locale.dart';
 import 'package:path_provider/path_provider.dart';
 
 class SettingsService {
@@ -11,7 +12,8 @@ class SettingsService {
     final jsonString = exists ? await File("${directory.path}/settings.json").readAsString() : '';
 
     if (jsonString.isEmpty) {
-      return Settings(true, false, false, KeyboardLayout.qwerty);
+      return Settings(true, false, false, KeyboardLayout.qwerty,
+          ferhengDefinitionLanguage: AppLocale.tr);
     }
     final map = json.decode(jsonString);
     return Settings.fromJson(map);

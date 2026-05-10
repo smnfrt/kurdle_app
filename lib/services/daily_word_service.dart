@@ -86,6 +86,51 @@ class DailyWordService {
     } catch (_) {}
   }
 
+  // Lokal oturum bayrağı (Firebase olmasa da replay engeller)
+  bool _playedTodayLocal = false;
+  void markPlayedLocally() => _playedTodayLocal = true;
+  bool get hasPlayedTodayLocal => _playedTodayLocal;
+
+  // Challenge sonucunu kaydet
+  Future<void> recordChallengeResult({
+    required int stagesCompleted,
+    required int totalScore,
+    required bool perfectRun,
+  }) async {
+    markPlayedLocally();
+    final uid = AuthService.instance.currentUser?.uid;
+    if (!FirebaseService.isAvailable) return;
+
+    final key = _todayKey();
+    final batch = _db.batch();
+
+    if (uid != null) {
+      final userDayRef = _db
+          .collection('users')
+          .doc(uid)
+          .collection('dailyPlays')
+          .doc(key);
+      batch.set(userDayRef, {
+        'played': true,
+        'challengeScore': totalScore,
+        'stagesCompleted': stagesCompleted,
+        'perfectRun': perfectRun,
+        'playedAt': FieldValue.serverTimestamp(),
+      });
+    }
+
+    final dayRef = _dayRef(key);
+    batch.set(dayRef, {
+      'challengePlays': FieldValue.increment(1),
+      'perfectRuns': FieldValue.increment(perfectRun ? 1 : 0),
+      'date': key,
+    }, SetOptions(merge: true));
+
+    try {
+      await batch.commit();
+    } catch (_) {}
+  }
+
   // Global istatistik: bugün kaç kişi oynadı, kazanma oranı
   Future<({int totalPlayed, int totalWon, Map<int, int> distribution})?>
       fetchTodayStats() async {

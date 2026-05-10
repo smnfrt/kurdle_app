@@ -1,3 +1,4 @@
+import 'package:characters/characters.dart';
 import 'package:kurdle_app/services/language_config.dart';
 
 // Kurmanji Latin alphabet letter points (frequency-based)
@@ -18,8 +19,8 @@ class ScoringService {
   int letterPoints(String letter) =>
       _points[letter.toUpperCase()] ?? 1;
 
-  int wordScore(String word) =>
-      word.toUpperCase().split('').fold(0, (sum, c) => sum + letterPoints(c));
+  int wordScore(String word) => word.toUpperCase().characters
+      .fold(0, (sum, c) => sum + letterPoints(c));
 
   /// Static access using current locale — used by GameTile, TileBuilder, etc.
   static int letterPointsCurrent(String letter) =>
@@ -37,7 +38,8 @@ class ScoringService {
 
   static int calculateScore(String word, int attemptIndex) {
     final pts = LanguageConfig.current.letterPoints;
-    final score = word.toUpperCase().split('').fold(0, (s, c) => s + (pts[c] ?? 1));
+    final score = word.toUpperCase().characters
+        .fold(0, (s, c) => s + (pts[c] ?? 1));
     return score * attemptMultiplier(attemptIndex);
   }
 }
