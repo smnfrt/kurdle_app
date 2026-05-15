@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:kurdle_app/domain.dart' show AiDifficulty;
 import 'package:kurdle_app/services/app_locale.dart';
-import 'dart:ui' as ui;
+import 'package:kurdle_app/services/settings_service.dart';
 import 'package:kurdle_app/controllers/board_touch_controller.dart';
 import 'package:kurdle_app/controllers/scrabble_game_controller.dart';
 import 'package:kurdle_app/models/game_tile.dart';
 import 'package:kurdle_app/models/word_suggestion.dart';
+import 'package:kurdle_app/services/ferheng_service.dart';
 import 'package:kurdle_app/services/game_store.dart';
-import 'package:kurdle_app/services/kurdish_meanings.dart';
 import 'package:kurdle_app/services/language_config.dart';
 import 'package:kurdle_app/services/wordlist_loader.dart';
-import 'package:kurdle_app/widgets/ferheng/word_detail_popup.dart';
 import 'package:kurdle_app/widgets/chat_screen.dart';
 import 'package:kurdle_app/services/sound_service.dart';
 import 'package:kurdle_app/widgets/letter_rack_widget.dart';
@@ -19,20 +19,28 @@ import 'package:kurdle_app/widgets/steal_banner_widget.dart';
 import 'package:kurdle_app/services/haptic_service.dart';
 
 // ── Design tokens ───────────────────────────────────────────────
-const _kBg         = Color(0xFFF5F0E8);
-const _kTopStart   = Color(0xFF1E2A3A);
-const _kTopEnd     = Color(0xFF2D3F52);
-const _kActive     = Color(0xFF4CAF50);
-const _kPrimary    = Color(0xFF4CAF50);
-const _kBottomBg   = Color(0xFF252525);
+const _kBgDark = Color(0xFF070D16);
+const _kBgLight = Color(0xFFF6F1E8);
+const _kTopStart = Color(0xFF1E2A3A);
+const _kActive = Color(0xFF4CAF50);
+const _kPrimary = Color(0xFF4CAF50);
+const _kBottomBg = Color(0xFF252525);
 const _kErrorColor = Color(0xFFFF6B6B);
+const _kInitialBoardZoom = 2.05;
 
 class ScrabbleGameScreen extends StatefulWidget {
   final ScrabbleGameController? existingController;
   final String? tournamentMatchId;
   final int? turnTimeLimitSeconds;
+  final AiDifficulty? aiDifficulty;
 
-  const ScrabbleGameScreen({Key? key, this.existingController, this.tournamentMatchId, this.turnTimeLimitSeconds}) : super(key: key);
+  const ScrabbleGameScreen({
+    Key? key,
+    this.existingController,
+    this.tournamentMatchId,
+    this.turnTimeLimitSeconds,
+    this.aiDifficulty,
+  }) : super(key: key);
 
   @override
   State<ScrabbleGameScreen> createState() => _ScrabbleGameScreenState();
@@ -46,17 +54,19 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
   GamePhase? _lastPhase;
 
   // ValueNotifier'lar ile sadece ilgili widget rebuild olur
-  final _boardNotifier  = ValueNotifier<int>(0);
-  final _rackNotifier   = ValueNotifier<int>(0);
-  final _scoreNotifier  = ValueNotifier<int>(0);
+  final _boardNotifier = ValueNotifier<int>(0);
+  final _rackNotifier = ValueNotifier<int>(0);
+  final _scoreNotifier = ValueNotifier<int>(0);
   VoidCallback? _controllerListener;
 
   final _zoomController = TransformationController();
   TapDownDetails? _doubleTapDetails;
   late final BoardTouchController _touchCtrl;
+  bool _initialBoardZoomApplied = false;
+  bool _initialBoardZoomScheduled = false;
 
   // Sohbet paneli
-  bool _hasUnread   = false;
+  bool _hasUnread = false;
 
   void _handleDoubleTap() {
     if (_touchCtrl.panEnabled) {
@@ -68,6 +78,83 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
     _zoomController.value = Matrix4.identity()
       ..translate(-pos.dx * (scale - 1), -pos.dy * (scale - 1))
       ..scale(scale);
+  }
+
+  void _scheduleInitialBoardZoom() {
+    if (_initialBoardZoomApplied ||
+        _initialBoardZoomScheduled ||
+        _touchCtrl.viewportSize == Size.zero) {
+      return;
+    }
+    _initialBoardZoomScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initialBoardZoomScheduled = false;
+      if (!mounted || _initialBoardZoomApplied) return;
+      _touchCtrl.zoomToBoardCenter(scale: _kInitialBoardZoom);
+      _initialBoardZoomApplied = true;
+    });
+  }
+
+  void _showWordMeanings(List<String> words) async {
+    final uniqueWords = <String>[
+      for (final word in words)
+        if (word.trim().isNotEmpty) word.trim()
+    ];
+    if (uniqueWords.isEmpty) return;
+    HapticFeedback.selectionClick();
+
+    final entries = ValueNotifier<List<_MeaningTabEntry>>(
+      uniqueWords
+          .map(
+              (word) => _MeaningTabEntry(word: word, meaning: L.meaningLoading))
+          .toList(growable: false),
+    );
+
+    var dialogOpen = true;
+    showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'word-meaning',
+      barrierColor: Colors.transparent,
+      transitionDuration: const Duration(milliseconds: 180),
+      pageBuilder: (dialogContext, _, __) => ValueListenableBuilder(
+        valueListenable: entries,
+        builder: (_, value, ___) => _WordMeaningBubble(
+          entries: value,
+          onDismiss: () =>
+              Navigator.of(dialogContext, rootNavigator: true).maybePop(),
+        ),
+      ),
+    ).whenComplete(() {
+      dialogOpen = false;
+      entries.dispose();
+    });
+
+    try {
+      final results = await Future.wait(uniqueWords.map(
+        (word) => FerhengService.instance.lookupMeaning(
+          word,
+          acceptedInGame: true,
+        ),
+      ));
+      if (!mounted || !dialogOpen) return;
+      entries.value = results.map(
+        (result) {
+          final text = result.displayGameMeaning().trim();
+          return _MeaningTabEntry(
+            word: result.displayWord,
+            meaning: text.isEmpty ? L.dictionaryEntryMissingMeaning : text,
+          );
+        },
+      ).toList(growable: false);
+    } catch (e) {
+      debugPrint('[dictionary_error] $e');
+      if (!mounted || !dialogOpen) return;
+      entries.value = uniqueWords
+          .map((word) =>
+              _MeaningTabEntry(word: word, meaning: L.dictionaryWordNotFound))
+          .toList(growable: false);
+    }
   }
 
   void _attachListener(ScrabbleGameController ctrl) {
@@ -84,7 +171,9 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
     _touchCtrl = BoardTouchController(
       transformCtrl: _zoomController,
       vsync: this,
-      onPanChanged: (enabled) { if (mounted) setState(() {}); },
+      onPanChanged: (enabled) {
+        if (mounted) setState(() {});
+      },
     );
     _zoomController.addListener(_touchCtrl.onTransformChanged);
     if (widget.existingController != null) {
@@ -100,11 +189,19 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
   Future<void> _loadGame() async {
     final config = LanguageConfig.current;
     final allWords = await WordlistLoader.loadAssets(config.wordAssets);
+    // Difficulty: caller override > kullanıcı ayarı > default normal
+    final settings = await SettingsService().load();
+    final resolvedDifficulty = widget.aiDifficulty ?? settings.aiDifficulty;
     GameStore.instance.createRecord();
     if (_controller != null && _controllerListener != null) {
       _controller!.removeListener(_controllerListener!);
     }
-    final newCtrl = ScrabbleGameController(allWords.toList(), config: config, turnTimeLimitSeconds: widget.turnTimeLimitSeconds);
+    final newCtrl = ScrabbleGameController(
+      allWords,
+      config: config,
+      turnTimeLimitSeconds: widget.turnTimeLimitSeconds,
+      aiDifficulty: resolvedDifficulty,
+    );
     setState(() {
       _controller = newCtrl;
       _lastPhase = null;
@@ -164,11 +261,12 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
           _showStealBanner(ctrl);
         }
 
-        if (ctrl.highlightedCells.isNotEmpty || ctrl.stolenNewCells.isNotEmpty) {
+        if (ctrl.highlightedCells.isNotEmpty ||
+            ctrl.stolenNewCells.isNotEmpty) {
           Future.delayed(const Duration(milliseconds: 3000), () {
             if (mounted) {
               ctrl.highlightedCells = {};
-              ctrl.stolenNewCells   = {};
+              ctrl.stolenNewCells = {};
               _boardNotifier.value++;
             }
           });
@@ -193,7 +291,7 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
     late OverlayEntry entry;
     entry = OverlayEntry(
       builder: (_) => StealBannerWidget(
-        result:    ctrl.lastStealResult!,
+        result: ctrl.lastStealResult!,
         onDismiss: () {
           if (entry.mounted) entry.remove();
         },
@@ -264,10 +362,12 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? _kBgDark : _kBgLight;
     if (_controller == null) {
-      return const Scaffold(
-        backgroundColor: _kBg,
-        body: Center(child: CircularProgressIndicator(color: _kPrimary)),
+      return Scaffold(
+        backgroundColor: bg,
+        body: const Center(child: CircularProgressIndicator(color: _kPrimary)),
       );
     }
 
@@ -291,64 +391,117 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
           ),
         ),
 
-        // Kelime önizleme
-        ValueListenableBuilder<int>(
-          valueListenable: _boardNotifier,
-          builder: (_, __, ___) => _WordPreviewBar(words: ctrl.pendingWords),
-        ),
-
         // Tahta — ekranın büyük bölümü
         Expanded(
-          child: LayoutBuilder(
-            builder: (_, constraints) {
-              _touchCtrl.viewportSize = constraints.biggest;
-              return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2),
-                child: GestureDetector(
-                  onDoubleTapDown: (d) => _doubleTapDetails = d,
-                  onDoubleTap: _handleDoubleTap,
-                  child: InteractiveViewer(
-                    transformationController: _zoomController,
-                    boundaryMargin: const EdgeInsets.all(double.infinity),
-                    minScale: 1.0,
-                    maxScale: 4.0,
-                    panEnabled: _touchCtrl.panEnabled,
-                    onInteractionStart: (_) => _touchCtrl.onGestureStart(),
-                    onInteractionEnd: (d) =>
-                        _touchCtrl.onGestureEnd(d.velocity.pixelsPerSecond),
-                    child: ValueListenableBuilder<int>(
-                      valueListenable: _boardNotifier,
-                      builder: (_, __, ___) => ScrabbleBoardWidget(
-                        board: ctrl.board,
-                        highlightedCells: ctrl.highlightedCells,
-                        stolenNewCells:   ctrl.stolenNewCells,
-                        onTileDrop: isPlayer
-                            ? (row, col, tile) {
-                                ctrl.placeTile(row, col, tile);
-                                HapticFeedback.selectionClick();
-                                SoundService.instance.play(SFX.tilePlace);
-                                if (_error.isNotEmpty || _selectedTile != null) {
-                                  setState(() { _error = ''; _selectedTile = null; });
-                                }
-                              }
-                            : null,
-                        onCellTap: isPlayer
-                            ? (row, col) => ctrl.recallTile(row, col)
-                            : null,
-                        onEmptyCellTap: isPlayer && _selectedTile != null
-                            ? (row, col) {
-                                ctrl.placeTile(row, col, _selectedTile!);
-                                HapticFeedback.selectionClick();
-                                SoundService.instance.play(SFX.tilePlace);
-                                setState(() { _error = ''; _selectedTile = null; });
-                              }
-                            : null,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: isDark
+                    ? const [Color(0xFF101824), Color(0xFF0C1420)]
+                    : const [Color(0xFF87969E), Color(0xFFE9F2E2)],
+                stops: const [0.0, 0.42],
+              ),
+            ),
+            child: LayoutBuilder(
+              builder: (_, constraints) {
+                final boardSide = constraints.maxWidth < constraints.maxHeight
+                    ? constraints.maxWidth
+                    : constraints.maxHeight;
+                final viewportHeight =
+                    _touchCtrl.panEnabled ? constraints.maxHeight : boardSide;
+                _touchCtrl.viewportSize = Size(boardSide, viewportHeight);
+                _touchCtrl.contentSize = Size(boardSide, boardSide);
+                _scheduleInitialBoardZoom();
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Align(
+                      alignment: _touchCtrl.panEnabled
+                          ? Alignment.topCenter
+                          : const Alignment(0, 0.72),
+                      child: SizedBox(
+                        width: boardSide,
+                        height: viewportHeight,
+                        child: GestureDetector(
+                          onDoubleTapDown: (d) => _doubleTapDetails = d,
+                          onDoubleTap: _handleDoubleTap,
+                          child: InteractiveViewer(
+                            transformationController: _zoomController,
+                            boundaryMargin:
+                                const EdgeInsets.all(double.infinity),
+                            minScale: 1.0,
+                            maxScale: 4.0,
+                            panEnabled: _touchCtrl.panEnabled,
+                            onInteractionStart: (_) =>
+                                _touchCtrl.onGestureStart(),
+                            onInteractionEnd: (d) => _touchCtrl
+                                .onGestureEnd(d.velocity.pixelsPerSecond),
+                            child: ValueListenableBuilder<int>(
+                              valueListenable: _boardNotifier,
+                              builder: (_, __, ___) => ScrabbleBoardWidget(
+                                board: ctrl.board,
+                                isDarkMode: isDark,
+                                highlightedCells: ctrl.highlightedCells,
+                                stolenNewCells: ctrl.stolenNewCells,
+                                lastMoveCells: ctrl.lastMoveCells,
+                                meaningWords: ctrl.lastMoveWords
+                                    .map((e) => (word: e.word, cells: e.cells))
+                                    .toList(growable: false),
+                                onMeaningTap: _showWordMeanings,
+                                onTileDrop: isPlayer
+                                    ? (row, col, tile) {
+                                        ctrl.placeTile(row, col, tile);
+                                        HapticFeedback.selectionClick();
+                                        SoundService.instance
+                                            .play(SFX.tilePlace);
+                                        if (_error.isNotEmpty ||
+                                            _selectedTile != null) {
+                                          setState(() {
+                                            _error = '';
+                                            _selectedTile = null;
+                                          });
+                                        }
+                                      }
+                                    : null,
+                                onCellTap: isPlayer
+                                    ? (row, col) => ctrl.recallTile(row, col)
+                                    : null,
+                                onEmptyCellTap:
+                                    isPlayer && _selectedTile != null
+                                        ? (row, col) {
+                                            ctrl.placeTile(
+                                                row, col, _selectedTile!);
+                                            HapticFeedback.selectionClick();
+                                            SoundService.instance
+                                                .play(SFX.tilePlace);
+                                            setState(() {
+                                              _error = '';
+                                              _selectedTile = null;
+                                            });
+                                          }
+                                        : null,
+                              ),
+                            ),
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-              );
-            },
+                    Positioned(
+                      top: 6,
+                      left: 10,
+                      right: 10,
+                      child: ValueListenableBuilder<int>(
+                        valueListenable: _boardNotifier,
+                        builder: (_, __, ___) =>
+                            _WordPreviewBar(words: ctrl.pendingWords),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
         ),
 
@@ -366,13 +519,17 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
             onMenuTap: _showGameMenu,
             onTileTap: isPlayer
                 ? (tile) => setState(() {
-                      _selectedTile = _selectedTile?.id == tile.id ? null : tile;
+                      _selectedTile =
+                          _selectedTile?.id == tile.id ? null : tile;
                     })
                 : null,
             onRecall: () {
               ctrl.recallAll();
               if (_error.isNotEmpty || _selectedTile != null) {
-                setState(() { _error = ''; _selectedTile = null; });
+                setState(() {
+                  _error = '';
+                  _selectedTile = null;
+                });
               }
             },
             onShuffle: ctrl.shuffleRack,
@@ -387,19 +544,36 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
             onRestart: _loadGame,
             isInStealMode: ctrl.isInStealMode,
             playerStealsLeft: ctrl.playerStealsLeft,
-            onStealToggle: isPlayer ? () => setState(() => ctrl.toggleStealMode()) : null,
+            onStealToggle:
+                isPlayer ? () => setState(() => ctrl.toggleStealMode()) : null,
           ),
         ),
       ],
     );
 
     return Scaffold(
-      backgroundColor: _kBg,
+      backgroundColor: bg,
       resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: isDark
+                    ? const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [_kBgDark, Color(0xFF111827)],
+                      )
+                    : const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [_kBgLight, Color(0xFFE9F2E2)],
+                      ),
+              ),
+            ),
+          ),
           mainContent,
-
         ],
       ),
     );
@@ -433,7 +607,8 @@ class _FullScreenChat extends StatelessWidget {
         backgroundColor: const Color(0xFF16213E),
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white70, size: 20),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded,
+              color: Colors.white70, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: Row(
@@ -441,7 +616,10 @@ class _FullScreenChat extends StatelessWidget {
             const Icon(Icons.chat_bubble_rounded, color: _kPrimary, size: 18),
             const SizedBox(width: 8),
             Text(L.chat,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16)),
           ],
         ),
       ),
@@ -477,11 +655,31 @@ class _TopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final top = MediaQuery.of(context).padding.top;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: EdgeInsets.fromLTRB(10, top + 4, 10, 6),
-      decoration: const BoxDecoration(
-        color: _kTopStart,
-        border: Border(bottom: BorderSide(color: Colors.white10)),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: isDark
+              ? const [Color(0xFF1E2A3A), Color(0xFF101824)]
+              : const [Color(0xFF52616A), Color(0xFF87969E)],
+        ),
+        border: Border(
+          bottom: BorderSide(
+            color: isDark
+                ? Colors.white10
+                : const Color(0xFF6E7D86).withOpacity(0.75),
+          ),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.18 : 0.12),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -496,12 +694,13 @@ class _TopBar extends StatelessWidget {
               child: const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 child: Icon(Icons.arrow_back_ios_new_rounded,
-                    color: Colors.white38, size: 18),
+                    color: Color(0xFFEAF0ED), size: 18),
               ),
             ),
 
           // Sol skor
-          Expanded(child: _ScoreCard(
+          Expanded(
+              child: _ScoreCard(
             label: L.current == AppLocale.tr ? 'Sen' : 'Ez',
             score: playerScore,
             isActive: phase == GamePhase.playerTurn,
@@ -517,12 +716,13 @@ class _TopBar extends StatelessWidget {
                 children: [
                   Text('$tilesLeft',
                       style: const TextStyle(
-                          color: Colors.white70,
+                          color: Color(0xFFF1F5F2),
                           fontWeight: FontWeight.bold,
                           fontSize: 15)),
                   const SizedBox(width: 2),
                   Text(L.remaining,
-                      style: const TextStyle(color: Colors.white30, fontSize: 9)),
+                      style: const TextStyle(
+                          color: Color(0xFFC9D2D0), fontSize: 9)),
                 ],
               ),
               const SizedBox(height: 3),
@@ -531,7 +731,8 @@ class _TopBar extends StatelessWidget {
           ),
 
           // Sağ skor
-          Expanded(child: _ScoreCard(
+          Expanded(
+              child: _ScoreCard(
             label: 'AI',
             score: aiScore,
             isActive: phase == GamePhase.aiTurn,
@@ -555,7 +756,8 @@ class _GlassChatBtn extends StatefulWidget {
   State<_GlassChatBtn> createState() => _GlassChatBtnState();
 }
 
-class _GlassChatBtnState extends State<_GlassChatBtn> with SingleTickerProviderStateMixin {
+class _GlassChatBtnState extends State<_GlassChatBtn>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _pulse;
   bool _pressed = false;
 
@@ -588,6 +790,7 @@ class _GlassChatBtnState extends State<_GlassChatBtn> with SingleTickerProviderS
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTap: widget.onTap,
       onTapDown: (_) => setState(() => _pressed = true),
@@ -605,21 +808,23 @@ class _GlassChatBtnState extends State<_GlassChatBtn> with SingleTickerProviderS
               clipBehavior: Clip.none,
               children: [
                 Container(
-                  width: 38, height: 38,
+                  width: 38,
+                  height: 38,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        Colors.white.withOpacity(0.10),
-                        Colors.white.withOpacity(0.04),
+                        Colors.white.withOpacity(isDark ? 0.10 : 0.18),
+                        Colors.white.withOpacity(isDark ? 0.04 : 0.08),
                       ],
                     ),
                     border: Border.all(
                       color: widget.hasUnread
-                          ? const Color(0xFFFF4444).withOpacity(0.55 + 0.25 * _pulse.value)
-                          : Colors.white.withOpacity(0.15),
+                          ? const Color(0xFFFF4444)
+                              .withOpacity(0.55 + 0.25 * _pulse.value)
+                          : Colors.white.withOpacity(isDark ? 0.15 : 0.28),
                       width: 1.2,
                     ),
                     boxShadow: [
@@ -632,17 +837,20 @@ class _GlassChatBtnState extends State<_GlassChatBtn> with SingleTickerProviderS
                     ],
                   ),
                   child: const Icon(Icons.chat_bubble_rounded,
-                      color: Colors.white70, size: 18),
+                      color: Color(0xFFF1F5F2), size: 18),
                 ),
                 if (widget.hasUnread)
                   Positioned(
-                    right: -2, top: -2,
+                    right: -2,
+                    top: -2,
                     child: Container(
-                      width: 12, height: 12,
+                      width: 12,
+                      height: 12,
                       decoration: BoxDecoration(
                         color: const Color(0xFFFF4444),
                         shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFF0F1923), width: 1.5),
+                        border: Border.all(
+                            color: const Color(0xFF0F1923), width: 1.5),
                       ),
                     ),
                   ),
@@ -663,18 +871,19 @@ class _EnhanceBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final label = L.current == AppLocale.tr ? 'Geliştirme' : 'Pêşkeftin';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: count > 0
             ? const Color(0xFFFFD700).withOpacity(0.15)
-            : Colors.white.withOpacity(0.05),
+            : Colors.white.withOpacity(isDark ? 0.05 : 0.10),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: count > 0
               ? const Color(0xFFFFD700).withOpacity(0.5)
-              : Colors.white12,
+              : Colors.white.withOpacity(isDark ? 0.12 : 0.22),
           width: 1,
         ),
       ),
@@ -684,9 +893,7 @@ class _EnhanceBadge extends StatelessWidget {
           Icon(
             Icons.auto_awesome_rounded,
             size: 10,
-            color: count > 0
-                ? const Color(0xFFFFD700)
-                : Colors.white24,
+            color: count > 0 ? const Color(0xFFFFD700) : Colors.white24,
           ),
           const SizedBox(width: 3),
           Text(
@@ -709,38 +916,68 @@ class _ScoreCard extends StatelessWidget {
   final bool isActive;
   final bool alignLeft;
 
-  const _ScoreCard({required this.label, required this.score, required this.isActive, required this.alignLeft});
+  const _ScoreCard(
+      {required this.label,
+      required this.score,
+      required this.isActive,
+      required this.alignLeft});
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final labelColor =
+        isActive ? const Color(0xFFF1F5F2) : const Color(0xFFC2CBC8);
+    final scoreColor = const Color(0xFFFFFFFF);
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: isActive ? _kActive.withOpacity(0.22) : Colors.white.withOpacity(0.06),
+        color: isActive
+            ? _kActive.withOpacity(isDark ? 0.22 : 0.26)
+            : Colors.white.withOpacity(isDark ? 0.06 : 0.12),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: isActive ? _kActive : Colors.transparent, width: 1.5),
+        border: Border.all(
+            color: isActive
+                ? _kActive
+                : Colors.white.withOpacity(isDark ? 0.0 : 0.12),
+            width: 1.5),
       ),
       child: Column(
-        crossAxisAlignment: alignLeft ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+        crossAxisAlignment:
+            alignLeft ? CrossAxisAlignment.start : CrossAxisAlignment.end,
         children: [
           Row(
-            mainAxisAlignment: alignLeft ? MainAxisAlignment.start : MainAxisAlignment.end,
+            mainAxisAlignment:
+                alignLeft ? MainAxisAlignment.start : MainAxisAlignment.end,
             children: [
               if (isActive && !alignLeft)
-                Container(width: 6, height: 6, margin: const EdgeInsets.only(right: 5),
-                    decoration: const BoxDecoration(color: _kActive, shape: BoxShape.circle)),
-              Text(label, style: TextStyle(color: isActive ? Colors.white70 : Colors.white38, fontSize: 11, fontWeight: FontWeight.w500)),
+                Container(
+                    width: 6,
+                    height: 6,
+                    margin: const EdgeInsets.only(right: 5),
+                    decoration: const BoxDecoration(
+                        color: _kActive, shape: BoxShape.circle)),
+              Text(label,
+                  style: TextStyle(
+                      color: labelColor,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500)),
               if (isActive && alignLeft)
-                Container(width: 6, height: 6, margin: const EdgeInsets.only(left: 5),
-                    decoration: const BoxDecoration(color: _kActive, shape: BoxShape.circle)),
+                Container(
+                    width: 6,
+                    height: 6,
+                    margin: const EdgeInsets.only(left: 5),
+                    decoration: const BoxDecoration(
+                        color: _kActive, shape: BoxShape.circle)),
             ],
           ),
           const SizedBox(height: 2),
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 350),
             transitionBuilder: (child, anim) => SlideTransition(
-              position: Tween<Offset>(begin: const Offset(0, -0.4), end: Offset.zero).animate(
+              position:
+                  Tween<Offset>(begin: const Offset(0, -0.4), end: Offset.zero)
+                      .animate(
                 CurvedAnimation(parent: anim, curve: Curves.easeOut),
               ),
               child: FadeTransition(opacity: anim, child: child),
@@ -748,7 +985,9 @@ class _ScoreCard extends StatelessWidget {
             child: Text(
               '$score',
               key: ValueKey(score),
-              style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.bold, height: 1),
+              style: const TextStyle(
+                      fontSize: 30, fontWeight: FontWeight.bold, height: 1)
+                  .copyWith(color: scoreColor),
             ),
           ),
         ],
@@ -798,7 +1037,7 @@ class _BottomPanel extends StatelessWidget {
     this.onStealToggle,
   });
 
-  static const _kSteal  = Color(0xFF00BFA5);
+  static const _kSteal = Color(0xFF00BFA5);
   static const _kStealActive = Color(0xFFFF6F00);
 
   @override
@@ -810,7 +1049,12 @@ class _BottomPanel extends StatelessWidget {
       decoration: BoxDecoration(
         color: _kBottomBg,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        boxShadow: [BoxShadow(color: Colors.black54, blurRadius: 20, offset: const Offset(0, -4))],
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black54,
+              blurRadius: 20,
+              offset: const Offset(0, -4))
+        ],
         border: isInStealMode
             ? Border.all(color: _kStealActive.withOpacity(0.7), width: 1.5)
             : null,
@@ -820,7 +1064,8 @@ class _BottomPanel extends StatelessWidget {
         children: [
           // Handle
           Container(
-            width: 36, height: 3,
+            width: 36,
+            height: 3,
             margin: const EdgeInsets.only(top: 8, bottom: 2),
             decoration: BoxDecoration(
                 color: isInStealMode
@@ -837,7 +1082,8 @@ class _BottomPanel extends StatelessWidget {
                     key: const ValueKey('steal_banner'),
                     width: double.infinity,
                     margin: const EdgeInsets.fromLTRB(12, 0, 12, 4),
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
                     decoration: BoxDecoration(
                       color: _kStealActive.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(10),
@@ -869,11 +1115,13 @@ class _BottomPanel extends StatelessWidget {
                     key: ValueKey(error),
                     padding: const EdgeInsets.fromLTRB(14, 4, 14, 0),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
                         color: _kErrorColor.withOpacity(0.10),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: _kErrorColor.withOpacity(0.30)),
+                        border:
+                            Border.all(color: _kErrorColor.withOpacity(0.30)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -1015,7 +1263,8 @@ class _ActionBtn extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(icon,
-                  color: enabled ? Colors.white60 : Colors.white.withOpacity(0.20),
+                  color:
+                      enabled ? Colors.white60 : Colors.white.withOpacity(0.20),
                   size: 18),
               const SizedBox(height: 3),
               Text(label,
@@ -1049,12 +1298,12 @@ class _StealBtn extends StatelessWidget {
     this.onTap,
   });
 
-  static const _kSteal       = Color(0xFF00BFA5);
+  static const _kSteal = Color(0xFF00BFA5);
   static const _kStealActive = Color(0xFFFF6F00);
 
   @override
   Widget build(BuildContext context) {
-    final color  = isActive ? _kStealActive : _kSteal;
+    final color = isActive ? _kStealActive : _kSteal;
     final dimmed = !isEnabled && !isActive;
 
     return Expanded(
@@ -1080,7 +1329,10 @@ class _StealBtn extends StatelessWidget {
               width: isActive ? 1.5 : 1.0,
             ),
             boxShadow: isActive
-                ? [BoxShadow(color: _kStealActive.withOpacity(0.25), blurRadius: 8)]
+                ? [
+                    BoxShadow(
+                        color: _kStealActive.withOpacity(0.25), blurRadius: 8)
+                  ]
                 : null,
           ),
           child: Column(
@@ -1096,9 +1348,7 @@ class _StealBtn extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: dimmed
-                      ? Colors.white.withOpacity(0.15)
-                      : color,
+                  color: dimmed ? Colors.white.withOpacity(0.15) : color,
                   fontSize: 9,
                   fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
                 ),
@@ -1118,116 +1368,102 @@ class _WordPreviewBar extends StatelessWidget {
 
   const _WordPreviewBar({required this.words});
 
-  void _showMeaning(BuildContext context, String word) {
-    final meaning = KurdishMeanings.meaning(word) ?? L.meaningNotFound;
-    HapticFeedback.selectionClick();
-
-    final overlay = Overlay.of(context);
-    late OverlayEntry entry;
-    entry = OverlayEntry(
-      builder: (_) => _WordMeaningBubble(
-        word: word,
-        meaning: meaning,
-        onDismiss: () => entry.remove(),
-      ),
-    );
-    overlay.insert(entry);
-    Future.delayed(const Duration(seconds: 3), () {
-      if (entry.mounted) entry.remove();
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    if (words.isEmpty) return const SizedBox.shrink();
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
+    final validWords = words.where((e) => e.valid).toList(growable: false);
+    final hasInvalid = words.any((e) => !e.valid);
+    final totalScore =
+        hasInvalid ? 0 : validWords.fold<int>(0, (sum, e) => sum + e.score);
+    final accent =
+        hasInvalid ? const Color(0xFFB71C1C) : const Color(0xFF2E7D32);
+
+    return SizedBox(
+      height: 36,
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      color: const Color(0xFFEDE8DF),
-      child: Wrap(
-        spacing: 6,
-        runSpacing: 4,
-        alignment: WrapAlignment.center,
-        children: words.map((e) {
-          final isValid = e.valid;
-          return GestureDetector(
-            onTap: isValid ? () => _showMeaning(context, e.word) : null,
-            onLongPress: isValid
-                ? () {
-                    HapticFeedback.lightImpact();
-                    WordDetailPopup.show(context, e.word);
-                  }
-                : null,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: accent.withOpacity(words.isEmpty ? 0.08 : 0.13),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: accent.withOpacity(0.45), width: 1),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  hasInvalid ? Icons.warning_amber_rounded : Icons.bolt_rounded,
+                  size: 13,
+                  color: accent,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '$totalScore ${L.points}',
+                  style: TextStyle(
+                    color: accent,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    height: 1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          for (final e in words) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
               decoration: BoxDecoration(
-                color: isValid
-                    ? const Color(0xFF4CAF50).withOpacity(0.12)
-                    : const Color(0xFFFF6B6B).withOpacity(0.12),
-                borderRadius: BorderRadius.circular(20),
+                color: (e.valid
+                        ? const Color(0xFF4CAF50)
+                        : const Color(0xFFFF6B6B))
+                    .withOpacity(0.10),
+                borderRadius: BorderRadius.circular(999),
                 border: Border.all(
-                  color: isValid ? const Color(0xFF4CAF50) : const Color(0xFFFF6B6B),
-                  width: 1.2,
+                  color: e.valid
+                      ? const Color(0xFF4CAF50).withOpacity(0.55)
+                      : const Color(0xFFFF6B6B).withOpacity(0.55),
                 ),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    isValid ? Icons.check_circle : Icons.cancel,
-                    size: 13,
-                    color: isValid ? const Color(0xFF2E7D32) : const Color(0xFFB71C1C),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    e.word,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: isValid ? const Color(0xFF2E7D32) : const Color(0xFFB71C1C),
-                    ),
-                  ),
-                  if (isValid) ...[
-                    const SizedBox(width: 4),
-                    Text(
-                      '+${e.score}',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF2E7D32),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(width: 5),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2E7D32).withOpacity(0.18),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(L.revealMeaning,
-                          style: const TextStyle(fontSize: 9, color: Color(0xFF2E7D32), fontWeight: FontWeight.w600)),
-                    ),
-                  ],
-                ],
+              child: Text(
+                e.valid ? '${e.word} +${e.score}' : e.word,
+                style: TextStyle(
+                  color: e.valid
+                      ? const Color(0xFF2E7D32)
+                      : const Color(0xFFB71C1C),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
-          );
-        }).toList(),
+          ],
+        ],
       ),
     );
   }
 }
 
-class _WordMeaningBubble extends StatefulWidget {
+class _MeaningTabEntry {
   final String word;
   final String meaning;
+
+  const _MeaningTabEntry({
+    required this.word,
+    required this.meaning,
+  });
+}
+
+class _WordMeaningBubble extends StatefulWidget {
+  final List<_MeaningTabEntry> entries;
   final VoidCallback onDismiss;
 
   const _WordMeaningBubble({
-    required this.word,
-    required this.meaning,
+    required this.entries,
     required this.onDismiss,
   });
 
@@ -1240,13 +1476,15 @@ class _WordMeaningBubbleState extends State<_WordMeaningBubble>
   late AnimationController _anim;
   late Animation<double> _scale;
   late Animation<double> _fade;
+  int _selectedIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 220));
+    _anim = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 220));
     _scale = CurvedAnimation(parent: _anim, curve: Curves.elasticOut);
-    _fade  = CurvedAnimation(parent: _anim, curve: Curves.easeIn);
+    _fade = CurvedAnimation(parent: _anim, curve: Curves.easeIn);
     _anim.forward();
   }
 
@@ -1258,10 +1496,12 @@ class _WordMeaningBubbleState extends State<_WordMeaningBubble>
 
   @override
   Widget build(BuildContext context) {
-    return Positioned(
-      top: MediaQuery.of(context).padding.top + 100,
-      left: 0,
-      right: 0,
+    final entries = widget.entries;
+    final selected = entries.isEmpty
+        ? const _MeaningTabEntry(word: '', meaning: '')
+        : entries[_selectedIndex.clamp(0, entries.length - 1)];
+
+    return SizedBox.expand(
       child: GestureDetector(
         onTap: widget.onDismiss,
         behavior: HitTestBehavior.translucent,
@@ -1272,62 +1512,148 @@ class _WordMeaningBubbleState extends State<_WordMeaningBubble>
               scale: _scale,
               child: Material(
                 color: Colors.transparent,
-                child: Container(
-                  constraints: const BoxConstraints(maxWidth: 280),
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E2A3A),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.5), width: 1.5),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.45),
-                        blurRadius: 20,
-                        offset: const Offset(0, 6),
-                      ),
-                      BoxShadow(
-                        color: const Color(0xFF4CAF50).withOpacity(0.15),
-                        blurRadius: 16,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        widget.word,
-                        style: const TextStyle(
-                          color: Color(0xFF4CAF50),
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 2,
+                child: GestureDetector(
+                  onTap: () {},
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 320),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1E2A3A),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                          color: const Color(0xFF4CAF50).withOpacity(0.5),
+                          width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.45),
+                          blurRadius: 20,
+                          offset: const Offset(0, 6),
                         ),
-                      ),
-                      const SizedBox(height: 6),
-                      Container(height: 1, color: Colors.white.withOpacity(0.08)),
-                      const SizedBox(height: 8),
-                      Text(
-                        widget.meaning,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 15,
-                          height: 1.4,
+                        BoxShadow(
+                          color: const Color(0xFF4CAF50).withOpacity(0.15),
+                          blurRadius: 16,
+                          spreadRadius: 2,
                         ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        L.current == AppLocale.tr
-                            ? 'Kürmanci • dokunarak kapat'
-                            : 'Kurmancî • destê xwe lê bide da bigire',
-                        style: TextStyle(color: Colors.white.withOpacity(0.25), fontSize: 10),
-                      ),
-                    ],
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              for (var i = 0; i < entries.length; i++) ...[
+                                _MeaningWordTab(
+                                  word: entries[i].word,
+                                  selected: i == _selectedIndex,
+                                  onTap: () {
+                                    HapticFeedback.selectionClick();
+                                    setState(() => _selectedIndex = i);
+                                  },
+                                ),
+                                if (i != entries.length - 1)
+                                  const SizedBox(width: 7),
+                              ],
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Container(
+                            height: 1, color: Colors.white.withOpacity(0.08)),
+                        const SizedBox(height: 10),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            selected.word,
+                            style: const TextStyle(
+                              color: Color(0xFF81C784),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 180),
+                          child: Align(
+                            key: ValueKey(
+                                '${selected.word}-${selected.meaning}'),
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              selected.meaning,
+                              textAlign: TextAlign.start,
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 15,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          L.current == AppLocale.tr
+                              ? 'Sekmeye dokun • dışarı dokunarak kapat'
+                              : 'Li peyvê bitikîne • derve bitikîne da bigire',
+                          style: TextStyle(
+                              color: Colors.white.withOpacity(0.25),
+                              fontSize: 10),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MeaningWordTab extends StatelessWidget {
+  final String word;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _MeaningWordTab({
+    required this.word,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected
+              ? const Color(0xFF4CAF50).withOpacity(0.22)
+              : Colors.white.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected
+                ? const Color(0xFF81C784)
+                : Colors.white.withOpacity(0.12),
+            width: 1,
+          ),
+        ),
+        child: Text(
+          word,
+          style: TextStyle(
+            color: selected ? const Color(0xFFE8F5E9) : Colors.white60,
+            fontSize: 13,
+            fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
+            letterSpacing: 0.6,
           ),
         ),
       ),
@@ -1342,7 +1668,10 @@ class _GameOverBanner extends StatelessWidget {
   final int aiScore;
   final VoidCallback onRestart;
 
-  const _GameOverBanner({required this.playerScore, required this.aiScore, required this.onRestart});
+  const _GameOverBanner(
+      {required this.playerScore,
+      required this.aiScore,
+      required this.onRestart});
 
   @override
   Widget build(BuildContext context) {
@@ -1363,20 +1692,25 @@ class _GameOverBanner extends StatelessWidget {
         children: [
           Text(
             won ? L.won : L.lost,
-            style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+            style: const TextStyle(
+                color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
-          Text('$playerScore - $aiScore', style: const TextStyle(color: Colors.white60, fontSize: 14)),
+          Text('$playerScore - $aiScore',
+              style: const TextStyle(color: Colors.white60, fontSize: 14)),
           const SizedBox(height: 12),
           ElevatedButton(
             onPressed: onRestart,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,
-              foregroundColor: won ? const Color(0xFF2E7D32) : const Color(0xFFB71C1C),
+              foregroundColor:
+                  won ? const Color(0xFF2E7D32) : const Color(0xFFB71C1C),
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 10),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
             ),
-            child: Text(L.newGameBtn, style: const TextStyle(fontWeight: FontWeight.bold)),
+            child: Text(L.newGameBtn,
+                style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -1430,12 +1764,17 @@ class _GameMenuSheetState extends State<_GameMenuSheet> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 40, height: 4,
-          decoration: BoxDecoration(color: Colors.white12, borderRadius: BorderRadius.circular(2)),
+          width: 40,
+          height: 4,
+          decoration: BoxDecoration(
+              color: Colors.white12, borderRadius: BorderRadius.circular(2)),
         ),
         const SizedBox(height: 20),
         Text(L.options,
-            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold)),
         const SizedBox(height: 20),
         _SheetOption(
           icon: Icons.skip_next_rounded,
@@ -1456,7 +1795,9 @@ class _GameMenuSheetState extends State<_GameMenuSheet> {
               ? '${L.tilesLeft}: ${widget.tilesLeft} — ${L.exchangeSub}'
               : L.noTilesInBag,
           enabled: widget.tilesLeft > 0,
-          onTap: widget.tilesLeft > 0 ? () => setState(() => _exchangeMode = true) : null,
+          onTap: widget.tilesLeft > 0
+              ? () => setState(() => _exchangeMode = true)
+              : null,
         ),
         const SizedBox(height: 10),
         _SheetOption(
@@ -1470,13 +1811,17 @@ class _GameMenuSheetState extends State<_GameMenuSheet> {
               context: sheetCtx,
               builder: (dialogCtx) => AlertDialog(
                 backgroundColor: const Color(0xFF1E2A3A),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                title: Text(L.resign, style: const TextStyle(color: Colors.white)),
-                content: Text(L.resignConfirm, style: const TextStyle(color: Colors.white60)),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+                title:
+                    Text(L.resign, style: const TextStyle(color: Colors.white)),
+                content: Text(L.resignConfirm,
+                    style: const TextStyle(color: Colors.white60)),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(dialogCtx),
-                    child: Text(L.cancel, style: const TextStyle(color: Colors.white38)),
+                    child: Text(L.cancel,
+                        style: const TextStyle(color: Colors.white38)),
                   ),
                   ElevatedButton(
                     onPressed: () {
@@ -1486,7 +1831,8 @@ class _GameMenuSheetState extends State<_GameMenuSheet> {
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFFFF6B6B),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
                     ),
                     child: Text(L.resign),
                   ),
@@ -1504,24 +1850,34 @@ class _GameMenuSheetState extends State<_GameMenuSheet> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Container(
-          width: 40, height: 4,
-          decoration: BoxDecoration(color: Colors.white12, borderRadius: BorderRadius.circular(2)),
+          width: 40,
+          height: 4,
+          decoration: BoxDecoration(
+              color: Colors.white12, borderRadius: BorderRadius.circular(2)),
         ),
         const SizedBox(height: 16),
         Row(
           children: [
             GestureDetector(
-              onTap: () => setState(() { _exchangeMode = false; _selected.clear(); }),
-              child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white54, size: 18),
+              onTap: () => setState(() {
+                _exchangeMode = false;
+                _selected.clear();
+              }),
+              child: const Icon(Icons.arrow_back_ios_new_rounded,
+                  color: Colors.white54, size: 18),
             ),
             const SizedBox(width: 12),
             Text(L.exchangeTitle,
-                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold)),
           ],
         ),
         const SizedBox(height: 6),
         Text(L.exchangeSub,
-            style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12)),
+            style:
+                TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12)),
         const SizedBox(height: 16),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1529,8 +1885,10 @@ class _GameMenuSheetState extends State<_GameMenuSheet> {
             final isSelected = _selected.contains(tile.id);
             return GestureDetector(
               onTap: () => setState(() {
-                if (isSelected) _selected.remove(tile.id);
-                else _selected.add(tile.id);
+                if (isSelected)
+                  _selected.remove(tile.id);
+                else
+                  _selected.add(tile.id);
               }),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 150),
@@ -1547,7 +1905,9 @@ class _GameMenuSheetState extends State<_GameMenuSheet> {
                   ),
                   borderRadius: BorderRadius.circular(7),
                   border: Border.all(
-                    color: isSelected ? const Color(0xFFFF8F00) : const Color(0xFFB8860B),
+                    color: isSelected
+                        ? const Color(0xFFFF8F00)
+                        : const Color(0xFFB8860B),
                     width: isSelected ? 2.5 : 1.2,
                   ),
                   boxShadow: [
@@ -1562,7 +1922,9 @@ class _GameMenuSheetState extends State<_GameMenuSheet> {
                 ),
                 child: Center(
                   child: Text(tile.letter,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold,
+                      style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
                           color: Color(0xFF3E2723))),
                 ),
               ),
@@ -1574,12 +1936,16 @@ class _GameMenuSheetState extends State<_GameMenuSheet> {
           children: [
             Expanded(
               child: OutlinedButton(
-                onPressed: () => setState(() { _exchangeMode = false; _selected.clear(); }),
+                onPressed: () => setState(() {
+                  _exchangeMode = false;
+                  _selected.clear();
+                }),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.white54,
                   side: const BorderSide(color: Colors.white24),
                   padding: const EdgeInsets.symmetric(vertical: 13),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
                 child: Text(L.cancel),
               ),
@@ -1588,16 +1954,21 @@ class _GameMenuSheetState extends State<_GameMenuSheet> {
             Expanded(
               flex: 2,
               child: ElevatedButton(
-                onPressed: _selected.isEmpty ? null : () {
-                  final tiles = widget.rack.where((t) => _selected.contains(t.id)).toList();
-                  widget.onExchange(tiles);
-                },
+                onPressed: _selected.isEmpty
+                    ? null
+                    : () {
+                        final tiles = widget.rack
+                            .where((t) => _selected.contains(t.id))
+                            .toList();
+                        widget.onExchange(tiles);
+                      },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFFFB74D),
                   foregroundColor: Colors.white,
                   disabledBackgroundColor: Colors.grey.shade800,
                   padding: const EdgeInsets.symmetric(vertical: 13),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                 ),
                 child: Text(
                   _selected.isEmpty ? L.selectTile : L.exchangeConfirm,
@@ -1642,42 +2013,44 @@ class _SheetOption extends StatelessWidget {
           opacity: enabled ? 1.0 : 0.4,
           duration: const Duration(milliseconds: 150),
           child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white.withOpacity(0.08)),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withOpacity(0.08)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: iconColor.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: iconColor, size: 22),
                 ),
-                child: Icon(icon, color: iconColor, size: 22),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title,
-                        style: TextStyle(
-                            color: enabled ? Colors.white : Colors.white54,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 2),
-                    Text(subtitle,
-                        style: const TextStyle(color: Colors.white38, fontSize: 11)),
-                  ],
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: TextStyle(
+                              color: enabled ? Colors.white : Colors.white54,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 2),
+                      Text(subtitle,
+                          style: const TextStyle(
+                              color: Colors.white38, fontSize: 11)),
+                    ],
+                  ),
                 ),
-              ),
-              Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.2), size: 20),
-            ],
-          ),
+                Icon(Icons.chevron_right_rounded,
+                    color: Colors.white.withOpacity(0.2), size: 20),
+              ],
+            ),
           ),
         ),
       ),
@@ -1711,18 +2084,20 @@ class _SuggestionSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 40, height: 4,
+            width: 40,
+            height: 4,
             decoration: BoxDecoration(
               color: Colors.white12,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
           const SizedBox(height: 20),
-          const Icon(Icons.lightbulb_rounded, color: Color(0xFFFFB74D), size: 32),
+          const Icon(Icons.lightbulb_rounded,
+              color: Color(0xFFFFB74D), size: 32),
           const SizedBox(height: 12),
           Text(
             L.didYouMean(suggestion.suggested),
-            textAlign: TextAlign.center,
+            textAlign: TextAlign.start,
             style: const TextStyle(
               color: Colors.white,
               fontSize: 18,
@@ -1807,7 +2182,8 @@ class _AiThinkingPillState extends State<_AiThinkingPill>
     return AnimatedBuilder(
       animation: _ctrl,
       builder: (_, __) {
-        final glow = 0.35 + 0.25 * (0.5 + 0.5 * (1 - (2 * _ctrl.value - 1).abs()));
+        final glow =
+            0.35 + 0.25 * (0.5 + 0.5 * (1 - (2 * _ctrl.value - 1).abs()));
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
@@ -1867,7 +2243,8 @@ class _AiDot extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
-      width: 4, height: 4,
+      width: 4,
+      height: 4,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: active

@@ -88,6 +88,7 @@ flutter:
     - assets/ferheng/wordlist.txt.gz
     - assets/ferheng/entries.ndjson.gz
     - assets/ferheng/legacy_meanings.json
+    - assets/ferheng/tr_meaning_overrides.json
     - assets/ferheng/categories.json
     - assets/ferheng/ATTRIBUTION.md
 

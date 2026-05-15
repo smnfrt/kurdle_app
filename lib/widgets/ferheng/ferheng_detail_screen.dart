@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:kurdle_app/controllers/ferheng_controller.dart';
+import 'package:kurdle_app/services/achievement_service.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/ferheng_service.dart';
 import 'package:kurdle_app/widgets/ferheng/ferheng_design.dart';
@@ -28,6 +29,7 @@ class _FerhengDetailScreenState extends State<FerhengDetailScreen> {
   void initState() {
     super.initState();
     widget.controller.openEntry(widget.word);
+    AchievementService.instance.onFerhengEntryViewed();
     _checkFavorite();
   }
 
@@ -91,7 +93,8 @@ class _FerhengDetailScreenState extends State<FerhengDetailScreen> {
                         size: 56, color: FerhengDesign.textFaint),
                     const SizedBox(height: 12),
                     Text(L.ferhengNoDefinition,
-                        style: FerhengDesign.bodyMd, textAlign: TextAlign.center),
+                        style: FerhengDesign.bodyMd,
+                        textAlign: TextAlign.center),
                   ],
                 ),
               ),

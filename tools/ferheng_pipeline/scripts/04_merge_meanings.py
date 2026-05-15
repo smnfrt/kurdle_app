@@ -32,6 +32,7 @@ from _common import (  # noqa: E402
 )
 
 LEGACY_DART_PATH = ROOT / ".." / ".." / "lib" / "services" / "kurdish_meanings.dart"
+TR_OVERRIDES_PATH = ROOT / ".." / ".." / "assets" / "ferheng" / "tr_meaning_overrides.json"
 
 # 'AV': 'su',   →  ('AV', 'su')
 LEGACY_RE = re.compile(r"'([^']+)'\s*:\s*'((?:[^'\\]|\\.)*)'")
@@ -53,6 +54,23 @@ def parse_legacy_dart(text: str) -> dict[str, str]:
     return out
 
 
+def parse_tr_overrides() -> dict[str, str]:
+    if not TR_OVERRIDES_PATH.exists():
+        return {}
+    raw = orjson.loads(TR_OVERRIDES_PATH.read_bytes())
+    entries = raw.get("entries") or {}
+    out: dict[str, str] = {}
+    for head_raw, value in entries.items():
+        head = normalize_headword(head_raw)
+        if isinstance(value, dict):
+            gloss = str(value.get("tr") or "").strip()
+        else:
+            gloss = str(value).strip()
+        if head and gloss and is_valid_kurmanji(head):
+            out[head] = gloss
+    return out
+
+
 def main() -> int:
     ensure_dirs()
     legacy_path = LEGACY_DART_PATH.resolve()
@@ -62,7 +80,10 @@ def main() -> int:
 
     legacy_text = legacy_path.read_text(encoding="utf-8")
     legacy = parse_legacy_dart(legacy_text)
+    tr_overrides = parse_tr_overrides()
+    legacy.update(tr_overrides)
     log(f"legacy entries: {len(legacy):,}")
+    log(f"tr overrides: {len(tr_overrides):,}")
 
     # Load kaikki entries indexed by normalized headword.
     kaikki_path = BUILD / "kaikki_kmr.jsonl"

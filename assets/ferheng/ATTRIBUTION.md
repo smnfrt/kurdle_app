@@ -26,6 +26,14 @@ Bu sözlük (ferheng) açık-kaynak verilerden derlenmiştir. Lisans gereği aş
 - **Lisans:** Proje içi.
 - **Kullanım:** Çevrimdışı fallback ve Türkçe tanımların curated tabanı.
 
+## 4. FreeDict Kurdish-Turkish Ferheng/FreeDict Dictionary
+
+- **Kaynak:** FreeDict `kur-tur` 0.1.2; ferheng.org kaynağından dönüştürülmüş Kürtçe-Türkçe sözlük.
+- **Yazar/Bakım:** Erdal Ronahi ve FreeDict katkıcıları.
+- **Lisans:** GNU General Public License v2.0 or later (GPL-2.0-or-later).
+- **Kullanım:** Eksik Türkçe anlamlar için çevrimdışı override tabanı (`assets/ferheng/tr_meaning_overrides.json`).
+- **Yerel kaynak:** `tools/ferheng_pipeline/raw/freedict-kur-tur-0.1.2/kur-tur/README` ve `COPYING`.
+
 ---
 
 ## Share-Alike Yükümlülüğü

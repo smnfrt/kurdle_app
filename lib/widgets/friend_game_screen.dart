@@ -8,8 +8,8 @@ import 'package:kurdle_app/models/game_tile.dart';
 import 'package:kurdle_app/models/word_board.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/board_layout_service.dart';
+import 'package:kurdle_app/services/ferheng_service.dart';
 import 'package:kurdle_app/services/game_score_service.dart';
-import 'package:kurdle_app/services/kurdish_meanings.dart';
 import 'package:kurdle_app/services/language_config.dart';
 import 'package:kurdle_app/services/multiplayer_service.dart';
 import 'package:kurdle_app/services/scoring_service.dart';
@@ -21,20 +21,22 @@ import 'package:kurdle_app/services/wordlist_loader.dart';
 import 'package:kurdle_app/widgets/letter_rack_widget.dart';
 import 'package:kurdle_app/widgets/scrabble_board_widget.dart';
 
-const _kBg       = Color(0xFF0D1520);
+const _kBg = Color(0xFF0D1520);
 const _kTopStart = Color(0xFF1E2A3A);
-const _kTopEnd   = Color(0xFF2D3F52);
-const _kCard     = Color(0xFF162030);
-const _kBorder   = Color(0xFF243650);
-const _kPrimary  = Color(0xFF4CAF50);
-const _kBlue     = Color(0xFF64B5F6);
-const _kError    = Color(0xFFFF6B6B);
+const _kTopEnd = Color(0xFF2D3F52);
+const _kCard = Color(0xFF162030);
+const _kBorder = Color(0xFF243650);
+const _kPrimary = Color(0xFF4CAF50);
+const _kBlue = Color(0xFF64B5F6);
+const _kError = Color(0xFFFF6B6B);
+const _kInitialBoardZoom = 2.05;
 
 class FriendGameScreen extends StatefulWidget {
   final String roomCode;
   final String myUid;
 
-  const FriendGameScreen({Key? key, required this.roomCode, required this.myUid})
+  const FriendGameScreen(
+      {Key? key, required this.roomCode, required this.myUid})
       : super(key: key);
 
   @override
@@ -64,6 +66,8 @@ class _FriendGameScreenState extends State<FriendGameScreen>
   final _zoomController = TransformationController();
   TapDownDetails? _doubleTapDetails;
   late final BoardTouchController _touchCtrl;
+  bool _initialBoardZoomApplied = false;
+  bool _initialBoardZoomScheduled = false;
 
   // ── Steal ─────────────────────────────────────────────────────────
   bool _isInStealMode = false;
@@ -93,7 +97,9 @@ class _FriendGameScreenState extends State<FriendGameScreen>
     _touchCtrl = BoardTouchController(
       transformCtrl: _zoomController,
       vsync: this,
-      onPanChanged: (enabled) { if (mounted) setState(() {}); },
+      onPanChanged: (enabled) {
+        if (mounted) setState(() {});
+      },
     );
     _zoomController.addListener(_touchCtrl.onTransformChanged);
     _turnBannerCtrl = AnimationController(
@@ -153,14 +159,108 @@ class _FriendGameScreenState extends State<FriendGameScreen>
       ..scale(scale);
   }
 
+  void _scheduleInitialBoardZoom() {
+    if (_initialBoardZoomApplied ||
+        _initialBoardZoomScheduled ||
+        _touchCtrl.viewportSize == Size.zero) {
+      return;
+    }
+    _initialBoardZoomScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initialBoardZoomScheduled = false;
+      if (!mounted || _initialBoardZoomApplied) return;
+      _touchCtrl.zoomToBoardCenter(scale: _kInitialBoardZoom);
+      _initialBoardZoomApplied = true;
+    });
+  }
+
   // ── Pending word preview ──────────────────────────────────────────
 
   void _computePendingWords() {
     if (_scorer == null || _validator == null) return;
     final words = _scorer!.calculateNewWords(_localBoard);
     _pendingWords = words
-        .map((w) => (word: w.word, score: w.score, valid: _validator!.isValid(w.word)))
+        .map((w) =>
+            (word: w.word, score: w.score, valid: _validator!.isValid(w.word)))
         .toList();
+  }
+
+  List<Map<String, dynamic>> _serializeMoveWords(List<PlacedWord> words) {
+    return words
+        .where((w) => w.cells.length >= 2)
+        .map((w) => {
+              'word': w.word,
+              'cells': w.cells.map((c) => '${c.row}:${c.column}').toList(),
+            })
+        .toList(growable: false);
+  }
+
+  List<String> _moveWordCells(List<Map<String, dynamic>> words) {
+    return words
+        .expand((w) => List<String>.from(w['cells'] ?? const []))
+        .toSet()
+        .toList(growable: false);
+  }
+
+  List<BoardMeaningWord> _meaningWordsFromRoom(MultiplayerRoom room) {
+    return room.lastMoveWords
+        .map((w) => (
+              word: (w['word'] as String? ?? '').toUpperCase(),
+              cells: List<String>.from(w['cells'] ?? const []).toSet(),
+            ))
+        .where((w) => w.word.isNotEmpty && w.cells.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  void _showWordMeanings(List<String> words) async {
+    final uniqueWords = <String>[
+      for (final word in words)
+        if (word.trim().isNotEmpty) word.trim()
+    ];
+    if (uniqueWords.isEmpty) return;
+    HapticFeedback.selectionClick();
+
+    final meaning = ValueNotifier<String>(L.meaningLoading);
+    var dialogOpen = true;
+    showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'word-meaning',
+      barrierColor: Colors.transparent,
+      transitionDuration: const Duration(milliseconds: 180),
+      pageBuilder: (dialogContext, _, __) => ValueListenableBuilder<String>(
+        valueListenable: meaning,
+        builder: (_, value, ___) => _WordMeaningBubble(
+          word: uniqueWords.join(', '),
+          meaning: value,
+          onDismiss: () =>
+              Navigator.of(dialogContext, rootNavigator: true).maybePop(),
+        ),
+      ),
+    ).whenComplete(() {
+      dialogOpen = false;
+      meaning.dispose();
+    });
+
+    try {
+      final results = await Future.wait(uniqueWords.map(
+        (word) => FerhengService.instance.lookupMeaning(
+          word,
+          acceptedInGame: true,
+        ),
+      ));
+      if (!mounted || !dialogOpen) return;
+      meaning.value = results.map((result) {
+        final text = result.displayGameMeaning().trim();
+        return '${result.displayWord}: ${text.isEmpty ? L.dictionaryEntryMissingMeaning : text}';
+      }).join('\n\n');
+    } catch (e) {
+      debugPrint('[dictionary_error] $e');
+      if (!mounted || !dialogOpen) return;
+      meaning.value = uniqueWords
+          .map((word) => '$word: ${L.dictionaryWordNotFound}')
+          .join('\n\n');
+    }
   }
 
   // ── Init ─────────────────────────────────────────────────────────
@@ -193,7 +293,9 @@ class _FriendGameScreenState extends State<FriendGameScreen>
       _syncFromRoom(room);
       // Sıra bana geldi: banner + ses
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _showTurnBanner(L.current == AppLocale.tr ? 'Sıra sende!' : 'Nöbet te!');
+        if (mounted)
+          _showTurnBanner(
+              L.current == AppLocale.tr ? 'Sıra sende!' : 'Nöbet te!');
       });
       HapticFeedback.mediumImpact();
     } else if (prev == null) {
@@ -232,8 +334,7 @@ class _FriendGameScreenState extends State<FriendGameScreen>
   void _onTileTap(GameTile tile) {
     if (!_isMyTurn || _submitting) return;
     HapticFeedback.selectionClick();
-    setState(() =>
-      _selectedTile = _selectedTile?.id == tile.id ? null : tile);
+    setState(() => _selectedTile = _selectedTile?.id == tile.id ? null : tile);
   }
 
   void _onCellTap(int row, int col) {
@@ -285,9 +386,8 @@ class _FriendGameScreenState extends State<FriendGameScreen>
 
   void _recallAll() {
     final pending = _localBoard.pendingCells;
-    final recalled = pending
-        .map((c) => GameTile(id: c.tileId!, letter: c.letter))
-        .toList();
+    final recalled =
+        pending.map((c) => GameTile(id: c.tileId!, letter: c.letter)).toList();
     setState(() {
       _localBoard = _localBoard.clearPending();
       _myRack.addAll(recalled);
@@ -309,10 +409,8 @@ class _FriendGameScreenState extends State<FriendGameScreen>
 
   StealResult? _detectSteal(List<PlacedWord> words) {
     for (final word in words) {
-      final lockedLetters = word.cells
-          .where((c) => c.isLocked)
-          .map((c) => c.letter)
-          .join();
+      final lockedLetters =
+          word.cells.where((c) => c.isLocked).map((c) => c.letter).join();
       if (lockedLetters.isEmpty) continue;
       final steal = _stealSvc.canSteal(
         lockedLetters,
@@ -398,9 +496,15 @@ class _FriendGameScreenState extends State<FriendGameScreen>
             moveScore: -penalty,
           );
         } catch (e) {
-          if (mounted) setState(() => _error = 'Hata: ${e.toString().split(']').last.trim()}');
+          if (mounted)
+            setState(
+                () => _error = 'Hata: ${e.toString().split(']').last.trim()}');
         }
-        if (mounted) setState(() { _submitting = false; _error = 'Çalma başarısız! -$penalty puan.'; });
+        if (mounted)
+          setState(() {
+            _submitting = false;
+            _error = 'Çalma başarısız! -$penalty puan.';
+          });
         return;
       }
       // Başarılı çalma — devam et (steal.bonusScore eklenir aşağıda)
@@ -414,7 +518,10 @@ class _FriendGameScreenState extends State<FriendGameScreen>
       }
     }
 
-    setState(() { _submitting = true; _error = ''; });
+    setState(() {
+      _submitting = true;
+      _error = '';
+    });
 
     try {
       final room = _room!;
@@ -434,6 +541,8 @@ class _FriendGameScreenState extends State<FriendGameScreen>
 
       final myCurrentScore = isHost ? room.hostScore : room.guestScore;
       final myNewScore = myCurrentScore + score;
+      final lastMoveWords = _serializeMoveWords(words);
+      final lastMoveCells = _moveWordCells(lastMoveWords);
 
       // Commit board
       final newBoard = _localBoard.commitPending();
@@ -475,6 +584,8 @@ class _FriendGameScreenState extends State<FriendGameScreen>
         winner: winner,
         myNewStealsLeft: newStealsLeft,
         moveScore: score,
+        lastMoveWords: lastMoveWords,
+        lastMoveCells: lastMoveCells,
       );
       if (mounted) {
         setState(() {
@@ -500,7 +611,8 @@ class _FriendGameScreenState extends State<FriendGameScreen>
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _error = 'Hata: ${e.toString().split(']').last.trim()}');
+      if (mounted)
+        setState(() => _error = 'Hata: ${e.toString().split(']').last.trim()}');
     }
 
     if (mounted) setState(() => _submitting = false);
@@ -524,7 +636,8 @@ class _FriendGameScreenState extends State<FriendGameScreen>
         guestScore: room.guestScore,
       );
     } catch (e) {
-      if (mounted) setState(() => _error = 'Hata: ${e.toString().split(']').last.trim()}');
+      if (mounted)
+        setState(() => _error = 'Hata: ${e.toString().split(']').last.trim()}');
     }
     if (mounted) setState(() => _submitting = false);
   }
@@ -589,7 +702,8 @@ class _FriendGameScreenState extends State<FriendGameScreen>
     } else {
       final rows = pending.map((c) => c.row).toList()..sort();
       for (var i = rows.first; i <= rows.last; i++) {
-        if (!_localBoard.cellAt(i, pending.first.column).hasLetter) return false;
+        if (!_localBoard.cellAt(i, pending.first.column).hasLetter)
+          return false;
       }
     }
     return true;
@@ -628,273 +742,309 @@ class _FriendGameScreenState extends State<FriendGameScreen>
     final myTurn = _isMyTurn;
 
     return Scaffold(
-        backgroundColor: _kBg,
-        body: Stack(
-          children: [
-            // Ambient sahne arka planı: dikey gradient + radial vignette
-            const Positioned.fill(
+      backgroundColor: _kBg,
+      body: Stack(
+        children: [
+          // Ambient sahne arka planı: dikey gradient + radial vignette
+          const Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0xFF0E1827), Color(0xFF060A12)],
+                ),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: IgnorePointer(
               child: DecoratedBox(
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [Color(0xFF0E1827), Color(0xFF060A12)],
+                  gradient: RadialGradient(
+                    center: Alignment.topCenter,
+                    radius: 1.2,
+                    colors: [
+                      const Color(0xFF4CAF50).withOpacity(0.06),
+                      Colors.transparent,
+                    ],
                   ),
                 ),
               ),
             ),
-            Positioned.fill(
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      center: Alignment.topCenter,
-                      radius: 1.2,
-                      colors: [
-                        const Color(0xFF4CAF50).withOpacity(0.06),
-                        Colors.transparent,
-                      ],
+          ),
+          SafeArea(
+            child: Stack(
+              children: [
+                Column(
+                  children: [
+                    _Header(
+                      myName: myName,
+                      oppName: oppName,
+                      myScore: myScore,
+                      oppScore: oppScore,
+                      isMyTurn: myTurn,
+                      bagCount: room.bagLetters.length,
+                      roomCode: widget.roomCode,
+                      onBack: () {
+                        Navigator.pop(context);
+                        homeOpenMyGamesTick.value++;
+                      },
+                      onForfeit: () async {
+                        final leave = await _confirmLeave();
+                        if (!leave || !mounted) return;
+                        await MultiplayerService.instance
+                            .leaveRoom(widget.roomCode, widget.myUid);
+                        if (mounted) Navigator.pop(context);
+                      },
                     ),
-                  ),
-                ),
-              ),
-            ),
-            SafeArea(
-              child: Stack(
-            children: [
-              Column(
-            children: [
-              _Header(
-                myName: myName,
-                oppName: oppName,
-                myScore: myScore,
-                oppScore: oppScore,
-                isMyTurn: myTurn,
-                bagCount: room.bagLetters.length,
-                roomCode: widget.roomCode,
-                onBack: () {
-                  Navigator.pop(context);
-                  homeOpenMyGamesTick.value++;
-                },
-                onForfeit: () async {
-                  final leave = await _confirmLeave();
-                  if (!leave || !mounted) return;
-                  await MultiplayerService.instance
-                      .leaveRoom(widget.roomCode, widget.myUid);
-                  if (mounted) Navigator.pop(context);
-                },
-              ),
-              // Kelime önizleme
-              _WordPreviewBar(words: _pendingWords),
-              // Board — zoom/pan destekli, kare alan
-              Expanded(
-                child: LayoutBuilder(
-                  builder: (ctx, constraints) {
-                    final size = (constraints.maxWidth < constraints.maxHeight
-                            ? constraints.maxWidth
-                            : constraints.maxHeight) - 4;
-                    _touchCtrl.viewportSize = Size(size, size);
-                    return Center(
-                      child: SizedBox(
-                        width: size,
-                        height: size,
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 360),
-                          curve: Curves.easeOut,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: myTurn
-                                ? [
-                                    BoxShadow(
-                                      color: const Color(0xFF4CAF50).withOpacity(0.22),
-                                      blurRadius: 26,
-                                      spreadRadius: 1.5,
+                    // Board — zoom/pan destekli, kare alan
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (ctx, constraints) {
+                          final size =
+                              (constraints.maxWidth < constraints.maxHeight
+                                  ? constraints.maxWidth
+                                  : constraints.maxHeight);
+                          _touchCtrl.viewportSize = Size(size, size);
+                          _scheduleInitialBoardZoom();
+                          return Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Align(
+                                alignment: const Alignment(0, 0.72),
+                                child: SizedBox(
+                                  width: size,
+                                  height: size,
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 360),
+                                    curve: Curves.easeOut,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(16),
+                                      boxShadow: myTurn
+                                          ? [
+                                              BoxShadow(
+                                                color: const Color(0xFF4CAF50)
+                                                    .withOpacity(0.22),
+                                                blurRadius: 26,
+                                                spreadRadius: 1.5,
+                                              ),
+                                            ]
+                                          : const [],
                                     ),
-                                  ]
-                                : const [],
-                          ),
-                          child: GestureDetector(
-                            onDoubleTapDown: (d) => _doubleTapDetails = d,
-                            onDoubleTap: _handleDoubleTap,
-                            child: InteractiveViewer(
-                              transformationController: _zoomController,
-                              boundaryMargin: const EdgeInsets.all(double.infinity),
-                              minScale: 1.0,
-                              maxScale: 4.0,
-                              panEnabled: _touchCtrl.panEnabled,
-                              onInteractionStart: (_) => _touchCtrl.onGestureStart(),
-                              onInteractionEnd: (d) =>
-                                  _touchCtrl.onGestureEnd(d.velocity.pixelsPerSecond),
-                              child: ScrabbleBoardWidget(
-                                board: _localBoard,
-                                onTileDrop: myTurn ? _onTileDrop : null,
-                                onCellTap: myTurn ? _onCellTap : null,
+                                    child: GestureDetector(
+                                      onDoubleTapDown: (d) =>
+                                          _doubleTapDetails = d,
+                                      onDoubleTap: _handleDoubleTap,
+                                      child: InteractiveViewer(
+                                        transformationController:
+                                            _zoomController,
+                                        boundaryMargin: const EdgeInsets.all(
+                                            double.infinity),
+                                        minScale: 1.0,
+                                        maxScale: 4.0,
+                                        panEnabled: _touchCtrl.panEnabled,
+                                        onInteractionStart: (_) =>
+                                            _touchCtrl.onGestureStart(),
+                                        onInteractionEnd: (d) =>
+                                            _touchCtrl.onGestureEnd(
+                                                d.velocity.pixelsPerSecond),
+                                        child: ScrabbleBoardWidget(
+                                          board: _localBoard,
+                                          lastMoveCells:
+                                              room.lastMoveCells.toSet(),
+                                          meaningWords:
+                                              _meaningWordsFromRoom(room),
+                                          onMeaningTap: _showWordMeanings,
+                                          onTileDrop:
+                                              myTurn ? _onTileDrop : null,
+                                          onCellTap: myTurn ? _onCellTap : null,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ),
+                              Positioned(
+                                top: 6,
+                                left: 10,
+                                right: 10,
+                                child: _WordPreviewBar(words: _pendingWords),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                    // Error
+                    if (_error.isNotEmpty)
+                      _ErrorShake(
+                        key: ValueKey(_errorTick),
+                        controller: _errorShakeCtrl!,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 4),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: _kError.withOpacity(0.10),
+                              borderRadius: BorderRadius.circular(10),
+                              border:
+                                  Border.all(color: _kError.withOpacity(0.45)),
+                            ),
+                            child: Text(
+                              _error,
+                              style:
+                                  const TextStyle(color: _kError, fontSize: 13),
+                              textAlign: TextAlign.start,
                             ),
                           ),
                         ),
                       ),
-                    );
-                  },
-                ),
-              ),
-              // Error
-              if (_error.isNotEmpty)
-                _ErrorShake(
-                  key: ValueKey(_errorTick),
-                  controller: _errorShakeCtrl!,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: _kError.withOpacity(0.10),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: _kError.withOpacity(0.45)),
+                    // Turn indicator
+                    if (!myTurn)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 8),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: _kBlue),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              '$oppName ${L.opponentTurnSuffix}',
+                              style:
+                                  const TextStyle(color: _kBlue, fontSize: 13),
+                            ),
+                          ],
+                        ),
                       ),
-                      child: Text(
-                        _error,
-                        style: const TextStyle(color: _kError, fontSize: 13),
-                        textAlign: TextAlign.center,
+                    // Rack
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 2, 10, 2),
+                      child: LetterRackWidget(
+                        tiles: _myRack,
+                        enabled: myTurn && !_submitting,
+                        selectedTileId: _selectedTile?.id,
+                        onTileTap: _onTileTap,
                       ),
                     ),
+                    // Action buttons
+                    if (myTurn)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 2, 10, 10),
+                        child: Column(
+                          children: [
+                            // Küçük eylem butonları
+                            Row(
+                              children: [
+                                _SmallBtn(
+                                  label: L.recall,
+                                  icon: Icons.undo_rounded,
+                                  onTap: _submitting ? null : _recallAll,
+                                ),
+                                const SizedBox(width: 8),
+                                _SmallBtn(
+                                  label: L.passTurn,
+                                  icon: Icons.skip_next_rounded,
+                                  onTap: _submitting ? null : _pass,
+                                ),
+                                const SizedBox(width: 8),
+                                _SmallBtn(
+                                  label: _isInStealMode
+                                      ? '⚡ ${L.steal}'
+                                      : '🎯 ${L.steal} ($_myStealsLeft)',
+                                  icon: Icons.auto_awesome_rounded,
+                                  active: _isInStealMode,
+                                  disabled: _myStealsLeft <= 0,
+                                  onTap: (_submitting || _myStealsLeft <= 0)
+                                      ? null
+                                      : () {
+                                          setState(() {
+                                            _isInStealMode = !_isInStealMode;
+                                            if (!_isInStealMode) _recallAll();
+                                          });
+                                          HapticFeedback.mediumImpact();
+                                        },
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            // Oyna butonu — premium gradient + glow
+                            _PlayBtn(
+                              loading: _submitting,
+                              steal: _isInStealMode,
+                              label: L.play,
+                              onTap: _submitting ? null : _submit,
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      const SizedBox(height: 16),
+                  ],
+                ),
+                // Turn banner overlay
+                if (_turnBannerText.isNotEmpty)
+                  _TurnBanner(
+                    controller: _turnBannerCtrl!,
+                    text: _turnBannerText,
                   ),
-                ),
-              // Turn indicator
-              if (!myTurn)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const SizedBox(
-                        width: 14, height: 14,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: _kBlue),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        '$oppName ${L.opponentTurnSuffix}',
-                        style: const TextStyle(color: _kBlue, fontSize: 13),
-                      ),
-                    ],
+                // Skor celebration burst (streak büyütür)
+                if (_celebrateTick > 0)
+                  _CelebrationBurst(
+                    key: ValueKey('celeb-$_celebrateTick'),
+                    score: _celebrateScore,
+                    streak: _streak,
                   ),
-                ),
-              // Rack
-              Padding(
-                padding: const EdgeInsets.fromLTRB(10, 2, 10, 2),
-                child: LetterRackWidget(
-                  tiles: _myRack,
-                  enabled: myTurn && !_submitting,
-                  selectedTileId: _selectedTile?.id,
-                  onTileTap: _onTileTap,
-                ),
-              ),
-              // Action buttons
-              if (myTurn)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 2, 10, 10),
-                  child: Column(
-                    children: [
-                      // Küçük eylem butonları
-                      Row(
-                        children: [
-                          _SmallBtn(
-                            label: L.recall,
-                            icon: Icons.undo_rounded,
-                            onTap: _submitting ? null : _recallAll,
-                          ),
-                          const SizedBox(width: 8),
-                          _SmallBtn(
-                            label: L.passTurn,
-                            icon: Icons.skip_next_rounded,
-                            onTap: _submitting ? null : _pass,
-                          ),
-                          const SizedBox(width: 8),
-                          _SmallBtn(
-                            label: _isInStealMode
-                                ? '⚡ ${L.steal}'
-                                : '🎯 ${L.steal} ($_myStealsLeft)',
-                            icon: Icons.auto_awesome_rounded,
-                            active: _isInStealMode,
-                            disabled: _myStealsLeft <= 0,
-                            onTap: (_submitting || _myStealsLeft <= 0) ? null : () {
-                              setState(() {
-                                _isInStealMode = !_isInStealMode;
-                                if (!_isInStealMode) _recallAll();
-                              });
-                              HapticFeedback.mediumImpact();
-                            },
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      // Oyna butonu — premium gradient + glow
-                      _PlayBtn(
-                        loading: _submitting,
-                        steal: _isInStealMode,
-                        label: L.play,
-                        onTap: _submitting ? null : _submit,
-                      ),
-                    ],
+                // Streak banner — kombo başladığında görünen "x2 / x3 ..."
+                if (_streakBannerTick > 0)
+                  _StreakBanner(
+                    key: ValueKey('streak-$_streakBannerTick'),
+                    streak: _streak,
                   ),
-                )
-              else
-                const SizedBox(height: 16),
-            ],
-          ),
-              // Turn banner overlay
-              if (_turnBannerText.isNotEmpty)
-                _TurnBanner(
-                  controller: _turnBannerCtrl!,
-                  text: _turnBannerText,
-                ),
-              // Skor celebration burst (streak büyütür)
-              if (_celebrateTick > 0)
-                _CelebrationBurst(
-                  key: ValueKey('celeb-$_celebrateTick'),
-                  score: _celebrateScore,
-                  streak: _streak,
-                ),
-              // Streak banner — kombo başladığında görünen "x2 / x3 ..."
-              if (_streakBannerTick > 0)
-                _StreakBanner(
-                  key: ValueKey('streak-$_streakBannerTick'),
-                  streak: _streak,
-                ),
-            ],
-          ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
     );
   }
 
   Future<bool> _confirmLeave() async {
     if (_room?.status == 'finished') return true;
     return await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: _kCard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Oyundan çık?', style: TextStyle(color: Colors.white)),
-        content: const Text(
-          'Oyundan ayrılırsanız rakibiniz kazanır.',
-          style: TextStyle(color: Colors.white54),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(L.cancel, style: const TextStyle(color: Colors.white54)),
+          context: context,
+          builder: (_) => AlertDialog(
+            backgroundColor: _kCard,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text('Oyundan çık?',
+                style: TextStyle(color: Colors.white)),
+            content: const Text(
+              'Oyundan ayrılırsanız rakibiniz kazanır.',
+              style: TextStyle(color: Colors.white54),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(L.cancel,
+                    style: const TextStyle(color: Colors.white54)),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Çık',
+                    style: TextStyle(color: Colors.redAccent)),
+              ),
+            ],
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Çık', style: TextStyle(color: Colors.redAccent)),
-          ),
-        ],
-      ),
-    ) ?? false;
+        ) ??
+        false;
   }
 }
 
@@ -1052,7 +1202,11 @@ class _IconBtn extends StatelessWidget {
   final Color color;
   final VoidCallback onTap;
   final String? tooltip;
-  const _IconBtn({required this.icon, required this.color, required this.onTap, this.tooltip});
+  const _IconBtn(
+      {required this.icon,
+      required this.color,
+      required this.onTap,
+      this.tooltip});
 
   @override
   Widget build(BuildContext context) {
@@ -1063,7 +1217,8 @@ class _IconBtn extends StatelessWidget {
         customBorder: const CircleBorder(),
         onTap: onTap,
         child: SizedBox(
-          width: 36, height: 36,
+          width: 36,
+          height: 36,
           child: Icon(icon, color: color, size: 18),
         ),
       ),
@@ -1089,7 +1244,8 @@ class _BagChip extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.inventory_2_rounded, color: Colors.white.withOpacity(0.45), size: 14),
+          Icon(Icons.inventory_2_rounded,
+              color: Colors.white.withOpacity(0.45), size: 14),
           const SizedBox(height: 2),
           Text('$count',
               style: const TextStyle(
@@ -1134,7 +1290,8 @@ class _PlayerCard extends StatelessWidget {
       builder: (_, __) {
         final glow = isActive ? (0.35 + 0.25 * pulse.value) : 0.0;
         return Container(
-          width: 38, height: 38,
+          width: 38,
+          height: 38,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             gradient: LinearGradient(
@@ -1142,11 +1299,15 @@ class _PlayerCard extends StatelessWidget {
               end: Alignment.bottomRight,
               colors: isActive
                   ? const [Color(0xFF4CAF50), Color(0xFF1B5E20)]
-                  : [Colors.white.withOpacity(0.08), Colors.white.withOpacity(0.04)],
+                  : [
+                      Colors.white.withOpacity(0.08),
+                      Colors.white.withOpacity(0.04)
+                    ],
             ),
             border: Border.all(
               color: isActive
-                  ? const Color(0xFF4CAF50).withOpacity(0.55 + 0.25 * pulse.value)
+                  ? const Color(0xFF4CAF50)
+                      .withOpacity(0.55 + 0.25 * pulse.value)
                   : Colors.white.withOpacity(0.10),
               width: 1.5,
             ),
@@ -1174,9 +1335,11 @@ class _PlayerCard extends StatelessWidget {
     );
 
     final onlineDot = Positioned(
-      right: 0, bottom: 0,
+      right: 0,
+      bottom: 0,
       child: Container(
-        width: 10, height: 10,
+        width: 10,
+        height: 10,
         decoration: BoxDecoration(
           color: isActive ? const Color(0xFF4CAF50) : const Color(0xFF6F8197),
           shape: BoxShape.circle,
@@ -1186,7 +1349,8 @@ class _PlayerCard extends StatelessWidget {
     );
 
     final avatarStack = SizedBox(
-      width: 42, height: 42,
+      width: 42,
+      height: 42,
       child: Stack(clipBehavior: Clip.none, children: [
         Center(child: avatar),
         onlineDot,
@@ -1194,7 +1358,8 @@ class _PlayerCard extends StatelessWidget {
     );
 
     final textBlock = Column(
-      crossAxisAlignment: alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      crossAxisAlignment:
+          alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       children: [
         Text(
           name,
@@ -1223,7 +1388,11 @@ class _PlayerCard extends StatelessWidget {
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.2,
                   shadows: isActive
-                      ? [Shadow(color: const Color(0xFF4CAF50).withOpacity(0.45), blurRadius: 8)]
+                      ? [
+                          Shadow(
+                              color: const Color(0xFF4CAF50).withOpacity(0.45),
+                              blurRadius: 8)
+                        ]
                       : null,
                 ),
               ),
@@ -1262,7 +1431,8 @@ class _FloatingDelta extends StatefulWidget {
   State<_FloatingDelta> createState() => _FloatingDeltaState();
 }
 
-class _FloatingDeltaState extends State<_FloatingDelta> with SingleTickerProviderStateMixin {
+class _FloatingDeltaState extends State<_FloatingDelta>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
 
   @override
@@ -1291,7 +1461,8 @@ class _FloatingDeltaState extends State<_FloatingDelta> with SingleTickerProvide
         final scale = 0.85 + 0.30 * (v < 0.25 ? v / 0.25 : 1.0);
         final opacity = v < 0.85 ? 1.0 : (1 - (v - 0.85) / 0.15);
         final positive = widget.delta > 0;
-        final color = positive ? const Color(0xFFFFD54F) : const Color(0xFFEF9A9A);
+        final color =
+            positive ? const Color(0xFFFFD54F) : const Color(0xFFEF9A9A);
         final sign = positive ? '+' : '';
         return Transform.translate(
           offset: Offset(0, dy),
@@ -1306,7 +1477,10 @@ class _FloatingDeltaState extends State<_FloatingDelta> with SingleTickerProvide
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: color.withOpacity(0.55)),
                   boxShadow: [
-                    BoxShadow(color: color.withOpacity(0.25), blurRadius: 10, spreadRadius: 0.5),
+                    BoxShadow(
+                        color: color.withOpacity(0.25),
+                        blurRadius: 10,
+                        spreadRadius: 0.5),
                   ],
                 ),
                 child: Text(
@@ -1389,7 +1563,8 @@ class _SmallBtnState extends State<_SmallBtn> {
             decoration: BoxDecoration(
               color: bg,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: border, width: widget.active ? 1.5 : 1.0),
+              border:
+                  Border.all(color: border, width: widget.active ? 1.5 : 1.0),
               boxShadow: widget.active
                   ? [
                       BoxShadow(
@@ -1412,7 +1587,8 @@ class _SmallBtnState extends State<_SmallBtn> {
                   style: TextStyle(
                     color: fg,
                     fontSize: 9.5,
-                    fontWeight: widget.active ? FontWeight.w700 : FontWeight.w500,
+                    fontWeight:
+                        widget.active ? FontWeight.w700 : FontWeight.w500,
                     letterSpacing: 0.2,
                   ),
                 ),
@@ -1455,7 +1631,8 @@ class _ActionBtn extends StatelessWidget {
         child: loading
             ? const Center(
                 child: SizedBox(
-                  width: 18, height: 18,
+                  width: 18,
+                  height: 18,
                   child: CircularProgressIndicator(
                       color: Colors.white, strokeWidth: 2.5),
                 ),
@@ -1484,97 +1661,73 @@ class _WordPreviewBar extends StatelessWidget {
 
   const _WordPreviewBar({required this.words});
 
-  void _showMeaning(BuildContext context, String word) {
-    final meaning = KurdishMeanings.meaning(word) ?? L.meaningNotFound;
-    HapticFeedback.selectionClick();
-
-    final overlay = Overlay.of(context);
-    late OverlayEntry entry;
-    entry = OverlayEntry(
-      builder: (_) => _WordMeaningBubble(
-        word: word,
-        meaning: meaning,
-        onDismiss: () => entry.remove(),
-      ),
-    );
-    overlay.insert(entry);
-    Future.delayed(const Duration(seconds: 3), () {
-      if (entry.mounted) entry.remove();
-    });
-  }
-
   @override
   Widget build(BuildContext context) {
-    if (words.isEmpty) return const SizedBox.shrink();
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
+    final validWords = words.where((e) => e.valid).toList(growable: false);
+    final hasInvalid = words.any((e) => !e.valid);
+    final totalScore =
+        hasInvalid ? 0 : validWords.fold<int>(0, (sum, e) => sum + e.score);
+    final accent = hasInvalid ? _kError : _kPrimary;
+
+    return SizedBox(
+      height: 36,
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      color: _kCard,
-      child: Wrap(
-        spacing: 6,
-        runSpacing: 4,
-        alignment: WrapAlignment.center,
-        children: words.map((e) {
-          final isValid = e.valid;
-          return GestureDetector(
-            onTap: isValid ? () => _showMeaning(context, e.word) : null,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: accent.withOpacity(words.isEmpty ? 0.08 : 0.14),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: accent.withOpacity(0.55), width: 1),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  hasInvalid ? Icons.warning_amber_rounded : Icons.bolt_rounded,
+                  size: 13,
+                  color: accent,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '$totalScore ${L.points}',
+                  style: TextStyle(
+                    color: accent,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    height: 1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          for (final e in words) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
               decoration: BoxDecoration(
-                color: isValid
-                    ? _kPrimary.withOpacity(0.12)
-                    : _kError.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(20),
+                color: (e.valid ? _kPrimary : _kError).withOpacity(0.12),
+                borderRadius: BorderRadius.circular(999),
                 border: Border.all(
-                  color: isValid ? _kPrimary : _kError,
-                  width: 1.2,
+                  color: (e.valid ? _kPrimary : _kError).withOpacity(0.6),
                 ),
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    isValid ? Icons.check_circle : Icons.cancel,
-                    size: 13,
-                    color: isValid ? const Color(0xFF4CAF50) : const Color(0xFFFF6B6B),
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    e.word,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: isValid ? const Color(0xFF4CAF50) : const Color(0xFFFF6B6B),
-                    ),
-                  ),
-                  if (isValid) ...[
-                    const SizedBox(width: 4),
-                    Text(
-                      '+${e.score}',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF4CAF50),
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(width: 5),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF4CAF50).withOpacity(0.18),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(L.revealMeaning,
-                          style: const TextStyle(fontSize: 9, color: Color(0xFF4CAF50), fontWeight: FontWeight.w600)),
-                    ),
-                  ],
-                ],
+              child: Text(
+                e.valid ? '${e.word} +${e.score}' : e.word,
+                style: TextStyle(
+                  color: e.valid ? _kPrimary : _kError,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
             ),
-          );
-        }).toList(),
+          ],
+        ],
       ),
     );
   }
@@ -1604,9 +1757,10 @@ class _WordMeaningBubbleState extends State<_WordMeaningBubble>
   @override
   void initState() {
     super.initState();
-    _anim = AnimationController(vsync: this, duration: const Duration(milliseconds: 220));
+    _anim = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 220));
     _scale = CurvedAnimation(parent: _anim, curve: Curves.elasticOut);
-    _fade  = CurvedAnimation(parent: _anim, curve: Curves.easeIn);
+    _fade = CurvedAnimation(parent: _anim, curve: Curves.easeIn);
     _anim.forward();
   }
 
@@ -1618,10 +1772,7 @@ class _WordMeaningBubbleState extends State<_WordMeaningBubble>
 
   @override
   Widget build(BuildContext context) {
-    return Positioned(
-      top: MediaQuery.of(context).padding.top + 100,
-      left: 0,
-      right: 0,
+    return SizedBox.expand(
       child: GestureDetector(
         onTap: widget.onDismiss,
         behavior: HitTestBehavior.translucent,
@@ -1634,11 +1785,13 @@ class _WordMeaningBubbleState extends State<_WordMeaningBubble>
                 color: Colors.transparent,
                 child: Container(
                   constraints: const BoxConstraints(maxWidth: 280),
-                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                   decoration: BoxDecoration(
                     color: _kTopStart,
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: _kPrimary.withOpacity(0.5), width: 1.5),
+                    border: Border.all(
+                        color: _kPrimary.withOpacity(0.5), width: 1.5),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.45),
@@ -1665,11 +1818,12 @@ class _WordMeaningBubbleState extends State<_WordMeaningBubble>
                         ),
                       ),
                       const SizedBox(height: 6),
-                      Container(height: 1, color: Colors.white.withOpacity(0.08)),
+                      Container(
+                          height: 1, color: Colors.white.withOpacity(0.08)),
                       const SizedBox(height: 8),
                       Text(
                         widget.meaning,
-                        textAlign: TextAlign.center,
+                        textAlign: TextAlign.start,
                         style: const TextStyle(
                           color: Colors.white70,
                           fontSize: 15,
@@ -1681,7 +1835,9 @@ class _WordMeaningBubbleState extends State<_WordMeaningBubble>
                         L.current == AppLocale.tr
                             ? 'Kürmanci • dokunarak kapat'
                             : 'Kurmancî • destê xwe lê bide da bigire',
-                        style: TextStyle(color: Colors.white.withOpacity(0.25), fontSize: 10),
+                        style: TextStyle(
+                            color: Colors.white.withOpacity(0.25),
+                            fontSize: 10),
                       ),
                     ],
                   ),
@@ -1702,13 +1858,18 @@ class _PlayBtn extends StatefulWidget {
   final bool steal;
   final String label;
   final VoidCallback? onTap;
-  const _PlayBtn({required this.loading, required this.steal, required this.label, this.onTap});
+  const _PlayBtn(
+      {required this.loading,
+      required this.steal,
+      required this.label,
+      this.onTap});
 
   @override
   State<_PlayBtn> createState() => _PlayBtnState();
 }
 
-class _PlayBtnState extends State<_PlayBtn> with SingleTickerProviderStateMixin {
+class _PlayBtnState extends State<_PlayBtn>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _shimmer;
   bool _pressed = false;
 
@@ -1755,7 +1916,8 @@ class _PlayBtnState extends State<_PlayBtn> with SingleTickerProviderStateMixin 
               padding: const EdgeInsets.symmetric(vertical: 15),
               decoration: BoxDecoration(
                 gradient: disabled
-                    ? const LinearGradient(colors: [Color(0xFF2A3445), Color(0xFF1B2330)])
+                    ? const LinearGradient(
+                        colors: [Color(0xFF2A3445), Color(0xFF1B2330)])
                     : LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
@@ -1763,7 +1925,9 @@ class _PlayBtnState extends State<_PlayBtn> with SingleTickerProviderStateMixin 
                       ),
                 borderRadius: BorderRadius.circular(14),
                 border: Border.all(
-                  color: disabled ? Colors.white12 : Colors.white.withOpacity(0.18),
+                  color: disabled
+                      ? Colors.white12
+                      : Colors.white.withOpacity(0.18),
                   width: 1,
                 ),
                 boxShadow: disabled
@@ -1820,11 +1984,15 @@ class _PlayBtnState extends State<_PlayBtn> with SingleTickerProviderStateMixin 
                       children: [
                         widget.loading
                             ? const SizedBox(
-                                width: 18, height: 18,
-                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 2),
                               )
                             : Icon(
-                                stealMode ? Icons.bolt_rounded : Icons.send_rounded,
+                                stealMode
+                                    ? Icons.bolt_rounded
+                                    : Icons.send_rounded,
                                 color: disabled ? Colors.white24 : Colors.white,
                                 size: 19,
                               ),
@@ -1839,7 +2007,10 @@ class _PlayBtnState extends State<_PlayBtn> with SingleTickerProviderStateMixin 
                             shadows: disabled
                                 ? null
                                 : [
-                                    Shadow(color: Colors.black.withOpacity(0.35), blurRadius: 4, offset: const Offset(0, 1)),
+                                    Shadow(
+                                        color: Colors.black.withOpacity(0.35),
+                                        blurRadius: 4,
+                                        offset: const Offset(0, 1)),
                                   ],
                           ),
                         ),
@@ -1882,8 +2053,7 @@ class _CelebrationBurstState extends State<_CelebrationBurst>
     final rng = math.Random();
     // Streak büyüdükçe parçacık sayısı katlanır: 1× → 1.5× → 2×
     final streakBoost = math.min(widget.streak, 4);
-    final n = (16 + math.min(widget.score, 20).toInt()) +
-        (streakBoost * 8);
+    final n = (16 + math.min(widget.score, 20).toInt()) + (streakBoost * 8);
     _particles = List.generate(n, (_) {
       final angle = -math.pi + rng.nextDouble() * math.pi; // upward fan
       final speed = 90 + rng.nextDouble() * 130;
@@ -1906,7 +2076,9 @@ class _CelebrationBurstState extends State<_CelebrationBurst>
   @override
   Widget build(BuildContext context) {
     return Positioned(
-      top: 30, left: 0, right: 0,
+      top: 30,
+      left: 0,
+      right: 0,
       child: IgnorePointer(
         child: SizedBox(
           height: 220,
@@ -1933,7 +2105,12 @@ class _Particle {
   final double size;
   final double hueShift;
   final double delay;
-  _Particle({required this.angle, required this.speed, required this.size, required this.hueShift, required this.delay});
+  _Particle(
+      {required this.angle,
+      required this.speed,
+      required this.size,
+      required this.hueShift,
+      required this.delay});
 }
 
 class _ParticlePainter extends CustomPainter {
@@ -1950,7 +2127,8 @@ class _ParticlePainter extends CustomPainter {
       // Easeout for outward motion
       final ease = 1 - math.pow(1 - t, 2).toDouble();
       final dx = math.cos(p.angle) * p.speed * ease;
-      final dy = math.sin(p.angle) * p.speed * ease + 110 * t * t; // gravity pull
+      final dy =
+          math.sin(p.angle) * p.speed * ease + 110 * t * t; // gravity pull
       final pos = origin + Offset(dx, dy);
       // Color: amber → orange → fade
       final hueT = p.hueShift;
@@ -2020,10 +2198,12 @@ class _StreakBannerState extends State<_StreakBanner>
             animation: _ctrl,
             builder: (_, __) {
               final v = _ctrl.value;
-              final entry = Curves.easeOutBack.transform(v.clamp(0.0, 0.45) / 0.45);
+              final entry =
+                  Curves.easeOutBack.transform(v.clamp(0.0, 0.45) / 0.45);
               final opacity = v < 0.75 ? 1.0 : 1.0 - (v - 0.75) / 0.25;
               final scale = 0.7 + 0.3 * entry;
-              final dy = -16 * (1 - entry) + (v > 0.75 ? -20 * (v - 0.75) / 0.25 : 0);
+              final dy =
+                  -16 * (1 - entry) + (v > 0.75 ? -20 * (v - 0.75) / 0.25 : 0);
               return Opacity(
                 opacity: opacity.clamp(0.0, 1.0),
                 child: Transform.translate(
@@ -2031,7 +2211,8 @@ class _StreakBannerState extends State<_StreakBanner>
                   child: Transform.scale(
                     scale: scale,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 18, vertical: 9),
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,
@@ -2041,10 +2222,13 @@ class _StreakBannerState extends State<_StreakBanner>
                               : const [Color(0xFFFFB300), Color(0xFFE65100)],
                         ),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colors.white.withOpacity(0.25), width: 1),
+                        border: Border.all(
+                            color: Colors.white.withOpacity(0.25), width: 1),
                         boxShadow: [
                           BoxShadow(
-                            color: (fire ? const Color(0xFFFF6F00) : const Color(0xFFFFB300))
+                            color: (fire
+                                    ? const Color(0xFFFF6F00)
+                                    : const Color(0xFFFFB300))
                                 .withOpacity(0.55),
                             blurRadius: 24,
                             spreadRadius: 2,
@@ -2060,7 +2244,9 @@ class _StreakBannerState extends State<_StreakBanner>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(
-                            fire ? Icons.local_fire_department_rounded : Icons.bolt_rounded,
+                            fire
+                                ? Icons.local_fire_department_rounded
+                                : Icons.bolt_rounded,
                             color: Colors.white,
                             size: 20,
                           ),
@@ -2103,14 +2289,16 @@ class _TurnBanner extends StatelessWidget {
           animation: controller,
           builder: (_, __) {
             final v = controller.value;
-            final scale = 0.85 + 0.15 * Curves.easeOutBack.transform(v.clamp(0.0, 1.0));
+            final scale =
+                0.85 + 0.15 * Curves.easeOutBack.transform(v.clamp(0.0, 1.0));
             return Center(
               child: Opacity(
                 opacity: (v < 0.85 ? v / 0.85 : 1.0).clamp(0.0, 1.0),
                 child: Transform.scale(
                   scale: scale,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 22, vertical: 12),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                         begin: Alignment.topLeft,
@@ -2118,7 +2306,8 @@ class _TurnBanner extends StatelessWidget {
                         colors: [Color(0xFF1B5E20), Color(0xFF4CAF50)],
                       ),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white.withOpacity(0.18), width: 1),
+                      border: Border.all(
+                          color: Colors.white.withOpacity(0.18), width: 1),
                       boxShadow: [
                         BoxShadow(
                           color: const Color(0xFF4CAF50).withOpacity(0.55),
@@ -2135,7 +2324,8 @@ class _TurnBanner extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.bolt_rounded, color: Colors.white, size: 20),
+                        const Icon(Icons.bolt_rounded,
+                            color: Colors.white, size: 20),
                         const SizedBox(width: 8),
                         Text(
                           text,
@@ -2189,7 +2379,8 @@ class _ScoreRow extends StatelessWidget {
   final int score;
   final bool highlight;
 
-  const _ScoreRow({required this.label, required this.score, required this.highlight});
+  const _ScoreRow(
+      {required this.label, required this.score, required this.highlight});
 
   @override
   Widget build(BuildContext context) {
@@ -2198,7 +2389,8 @@ class _ScoreRow extends StatelessWidget {
       children: [
         Text(label,
             style: TextStyle(
-                color: highlight ? Colors.white : Colors.white54, fontSize: 15)),
+                color: highlight ? Colors.white : Colors.white54,
+                fontSize: 15)),
         Text('$score ${L.points}',
             style: TextStyle(
                 color: highlight ? _kPrimary : Colors.white38,
@@ -2289,7 +2481,9 @@ class _GameOverCard extends StatelessWidget {
               children: [
                 // Top gradient accent bar
                 Positioned(
-                  top: 0, left: 0, right: 0,
+                  top: 0,
+                  left: 0,
+                  right: 0,
                   child: Container(
                     height: 110,
                     decoration: BoxDecoration(
@@ -2339,7 +2533,9 @@ class _GameOverCard extends StatelessWidget {
                           fontWeight: FontWeight.w900,
                           letterSpacing: -0.4,
                           shadows: [
-                            Shadow(color: accent.withOpacity(0.45), blurRadius: 14),
+                            Shadow(
+                                color: accent.withOpacity(0.45),
+                                blurRadius: 14),
                           ],
                         ),
                       ),
@@ -2383,7 +2579,9 @@ class _GameOverCard extends StatelessWidget {
                           child: Text(
                             L.current == AppLocale.tr ? 'Tamam' : 'Baş e',
                             style: const TextStyle(
-                                fontSize: 15, fontWeight: FontWeight.w800, letterSpacing: 0.3),
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.3),
                           ),
                         ),
                       ),
@@ -2438,7 +2636,8 @@ class _ScoreCompareRow extends StatelessWidget {
             children: [
               if (highlight)
                 Container(
-                  width: 6, height: 6,
+                  width: 6,
+                  height: 6,
                   margin: const EdgeInsets.only(right: 9),
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,

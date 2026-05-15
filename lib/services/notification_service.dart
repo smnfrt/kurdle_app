@@ -112,6 +112,11 @@ class NotificationService {
     } catch (e) {
       debugPrint('scheduleDailyReminder skipped: $e');
     }
+    try {
+      await scheduleStreakEveningReminder();
+    } catch (e) {
+      debugPrint('scheduleStreakEveningReminder skipped: $e');
+    }
   }
 
   // Her gün saat 09:00'da "Günün kelimesi hazır!" bildirimi
@@ -158,6 +163,57 @@ class NotificationService {
         matchDateTimeComponents: DateTimeComponents.time,
       );
     }
+  }
+
+  /// Her akşam saat 19:00'da streak hatırlatma. Kullanıcı bugün oynamadıysa
+  /// "Streak'in tehlikede!" bildirimi. matchDateTimeComponents.time ile
+  /// idempotent günlük tekrar.
+  Future<void> scheduleStreakEveningReminder() async {
+    final now = tz.TZDateTime.now(tz.local);
+    var scheduled =
+        tz.TZDateTime(tz.local, now.year, now.month, now.day, 19, 0);
+    if (scheduled.isBefore(now)) {
+      scheduled = scheduled.add(const Duration(days: 1));
+    }
+    final details = NotificationDetails(
+      android: AndroidNotificationDetails(
+        _channelId,
+        _channelName,
+        importance: Importance.high,
+        priority: Priority.high,
+      ),
+    );
+    try {
+      await _local.zonedSchedule(
+        1,
+        'Peyvok 🔥',
+        'Streak\'ini koru — bugün bir oyun oyna!',
+        scheduled,
+        details,
+        androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: DateTimeComponents.time,
+      );
+    } catch (_) {
+      await _local.zonedSchedule(
+        1,
+        'Peyvok 🔥',
+        'Streak\'ini koru — bugün bir oyun oyna!',
+        scheduled,
+        details,
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
+        matchDateTimeComponents: DateTimeComponents.time,
+      );
+    }
+  }
+
+  /// Bugün için planlı streak hatırlatmasını iptal eder (kullanıcı bugün
+  /// oynadıysa hatırlatma rahatsız etmesin).
+  Future<void> cancelTodayStreakReminder() async {
+    await _local.cancel(1);
   }
 
   // Turnuva başlamadan 30 dakika önce bildirim gönder

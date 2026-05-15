@@ -3,10 +3,14 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
-import 'package:flutter/foundation.dart' show compute;
+import 'package:flutter/foundation.dart' show compute, debugPrint;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:kurdle_app/models/ferheng_entry.dart';
+import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/ferheng_repository.dart';
+import 'package:kurdle_app/services/language_config.dart';
+import 'package:kurdle_app/services/word_normalizer.dart';
+import 'package:kurdle_app/services/wordlist_loader.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Bundled (offline) ferheng servisi.
@@ -23,6 +27,8 @@ class FerhengService {
 
   static const String _entriesAsset = 'assets/ferheng/entries.ndjson.gz';
   static const String _legacyAsset = 'assets/ferheng/legacy_meanings.json';
+  static const String _trOverridesAsset =
+      'assets/ferheng/tr_meaning_overrides.json';
   static const String _categoriesAsset = 'assets/ferheng/categories.json';
 
   static const String _prefRecentSearchesKey = 'ferheng_recent_searches';
@@ -34,28 +40,38 @@ class FerhengService {
   Map<String, FerhengEntry> _byId = const {};
   Map<String, List<String>> _byPrefix = const {}; // 1-4 char prefix → ids
   Map<String, List<String>> _byCategory = const {}; // category id → ids
+  Map<String, String> _relatedToId = const {}; // çekimli form → başlık id
   List<String> _sortedIds = const []; // alfabetik gezinme için
 
   Map<String, String>? _legacy;
+  Map<String, String>? _trOverrides;
+  Set<String>? _playableWords;
+  Future<Set<String>>? _playableWordsFuture;
   List<Map<String, String>>? _categories;
   FerhengMeta? _meta;
   bool _initialized = false;
-  bool _initInProgress = false;
+  Future<void>? _initFuture;
 
   /// Açılışta çağrılır. Idempotent.
   Future<void> init() async {
-    if (_initialized || _initInProgress) return;
-    _initInProgress = true;
-    try {
-      await _loadLegacyBundle();
-      await _loadCategoriesBundle();
-      await _loadEntriesBundle();
-      // Meta best-effort — başarısızsa offline mod.
-      unawaited(_refreshMeta());
-      _initialized = true;
-    } finally {
-      _initInProgress = false;
-    }
+    if (_initialized) return;
+    final inFlight = _initFuture;
+    if (inFlight != null) return inFlight;
+    final future = _init();
+    _initFuture = future;
+    return future.whenComplete(() {
+      _initFuture = null;
+    });
+  }
+
+  Future<void> _init() async {
+    await _loadLegacyBundle();
+    await _loadTrOverridesBundle();
+    await _loadCategoriesBundle();
+    await _loadEntriesBundle();
+    // Meta best-effort — başarısızsa offline mod.
+    unawaited(_refreshMeta());
+    _initialized = true;
   }
 
   // ── Bundle yükleme ──────────────────────────────────────────────
@@ -67,6 +83,7 @@ class FerhengService {
     _byId = result.byId;
     _byPrefix = result.byPrefix;
     _byCategory = result.byCategory;
+    _relatedToId = result.relatedToId;
     _sortedIds = result.sortedIds;
   }
 
@@ -80,6 +97,21 @@ class FerhengService {
       );
     } catch (_) {
       _legacy = const {};
+    }
+  }
+
+  Future<void> _loadTrOverridesBundle() async {
+    try {
+      final raw = await rootBundle.loadString(_trOverridesAsset);
+      final decoded = json.decode(raw) as Map<String, dynamic>;
+      final entries = (decoded['entries'] as Map<String, dynamic>? ?? const {});
+      _trOverrides = entries.map((k, v) {
+        final value = v is Map ? (v['tr'] ?? '').toString() : v.toString();
+        return MapEntry(_normalize(k), value.trim());
+      })
+        ..removeWhere((_, v) => v.isEmpty);
+    } catch (_) {
+      _trOverrides = const {};
     }
   }
 
@@ -106,38 +138,71 @@ class FerhengService {
 
   // ── Lookup ──────────────────────────────────────────────────────
 
-  String _normalize(String word) => word.trim().toUpperCase();
+  String _normalize(String word) => WordNormalizer.normalize(word);
 
   Future<FerhengEntry?> getEntry(String word) async {
+    await init();
     final id = _normalize(word);
-    return _byId[id];
+    return _byId[id] ?? _entryForRelatedForm(id) ?? _entryForInflectedForm(id);
   }
 
   /// `getEntry` + legacy TR fallback. Bundle'da tüm entry'ler var olduğundan
   /// fallback nadiren gerekir; legacy 318 entry curated TR sağlar.
   Future<FerhengEntry?> getOrFallback(String word) async {
+    await init();
     final id = _normalize(word);
     final entry = _byId[id];
+    final relatedEntry = entry == null ? _entryForRelatedForm(id) : null;
+    if (relatedEntry != null) return relatedEntry;
+    final overrideTr = _trOverrides?[id];
+    if (overrideTr != null &&
+        overrideTr.isNotEmpty &&
+        (entry == null || entry.definitionsTr.isEmpty)) {
+      return _entryWithTurkishOverride(entry, word, id, overrideTr);
+    }
     if (entry != null && entry.hasAnyDefinition) return entry;
+    final inflectedEntry = entry == null ? _entryForInflectedForm(id) : null;
+    if (inflectedEntry != null) return inflectedEntry;
     final legacyTr = _legacy?[id];
     if (legacyTr != null && legacyTr.isNotEmpty) {
-      // Legacy TR ile augmented entry üret.
-      return FerhengEntry(
-        headword: entry?.headword ?? word,
-        normalized: id,
-        pos: entry?.pos ?? const [],
-        ipa: entry?.ipa ?? '',
-        definitionsKmr: entry?.definitionsKmr ?? const [],
-        definitionsTr: [FerhengDefinition(gloss: legacyTr)],
-        related: entry?.related ?? const [],
-        categories: entry?.categories ?? const [],
-        source: 'legacy',
-      );
+      return _entryWithTurkishOverride(entry, word, id, legacyTr);
+    }
+    if (entry == null && await isPlayableWord(id)) {
+      return _playableOnlyEntry(id);
     }
     return entry; // null veya tanımsız boş entry
   }
 
-  Future<List<FerhengEntry>> searchPrefix(String prefix, {int limit = 20}) async {
+  Future<DictionaryMeaningResult> lookupMeaning(
+    String word, {
+    bool acceptedInGame = false,
+  }) async {
+    final id = _normalize(word);
+    await init();
+    final hasDictionaryEntry = _byId.containsKey(id);
+    final hasRelatedEntry = _relatedToId.containsKey(id);
+    final hasOverrideEntry = _trOverrides?[id]?.isNotEmpty == true;
+    final hasInflectedEntry = _entryForInflectedForm(id) != null;
+    final entry = await getOrFallback(id);
+    if (!hasDictionaryEntry &&
+        !hasRelatedEntry &&
+        !hasOverrideEntry &&
+        !hasInflectedEntry &&
+        acceptedInGame) {
+      debugPrint(
+          '[dictionary_miss] playable word not in dictionary: $word -> $id');
+    }
+    return DictionaryMeaningResult(
+      query: word,
+      normalized: id,
+      entry: entry,
+      acceptedInGame: acceptedInGame,
+    );
+  }
+
+  Future<List<FerhengEntry>> searchPrefix(String prefix,
+      {int limit = 20}) async {
+    await init();
     final p = _normalize(prefix);
     if (p.isEmpty) return const [];
     final indexKey = p.length > 4 ? p.substring(0, 4) : p;
@@ -155,8 +220,187 @@ class FerhengService {
     return out;
   }
 
+  Future<List<FerhengEntry>> search(String query, {int limit = 20}) async {
+    await init();
+    final q = _normalize(query);
+    if (q.isEmpty) return const [];
+
+    final out = <FerhengEntry>[];
+    final seen = <String>{};
+
+    void add(FerhengEntry? entry) {
+      if (entry == null || seen.contains(entry.normalized)) return;
+      out.add(entry);
+      seen.add(entry.normalized);
+    }
+
+    final exact = await getOrFallback(q);
+    if (exact != null) {
+      add(exact);
+    } else if (await isPlayableWord(q)) {
+      add(_playableOnlyEntry(q));
+    }
+
+    final prefixMatches = await searchPrefix(q, limit: limit);
+    for (final entry in prefixMatches) {
+      add(entry);
+      if (out.length >= limit) return out;
+    }
+
+    for (final id in _sortedIds) {
+      if (out.length >= limit) break;
+      if (!id.contains(q)) continue;
+      add(_byId[id]);
+    }
+
+    return out;
+  }
+
+  Future<bool> isPlayableWord(String word) async {
+    final id = _normalize(word);
+    if (id.isEmpty) return false;
+    final words = await _loadPlayableWords();
+    return words.contains(id);
+  }
+
+  Future<Set<String>> _loadPlayableWords() async {
+    final cached = _playableWords;
+    if (cached != null) return cached;
+    final inFlight = _playableWordsFuture;
+    if (inFlight != null) return inFlight;
+
+    final future = WordlistLoader.loadAssets(LanguageConfig.kurdish.wordAssets)
+        .then((words) =>
+            words.map(_normalize).where((w) => w.isNotEmpty).toSet());
+    _playableWordsFuture = future;
+    try {
+      _playableWords = await future;
+      return _playableWords!;
+    } finally {
+      _playableWordsFuture = null;
+    }
+  }
+
+  FerhengEntry _playableOnlyEntry(String word) {
+    final id = _normalize(word);
+    return FerhengEntry(
+      headword: id,
+      normalized: id,
+      source: 'playable-wordlist',
+      isPlayable: true,
+    );
+  }
+
+  FerhengEntry? _entryForRelatedForm(String word) {
+    final id = _normalize(word);
+    final baseId = _relatedToId[id];
+    if (baseId == null) return null;
+    final base = _byId[baseId];
+    if (base == null) return null;
+    final overrideTr = _trOverrides?[base.normalized] ?? _trOverrides?[id];
+    if (overrideTr != null &&
+        overrideTr.isNotEmpty &&
+        base.definitionsTr.isEmpty) {
+      return _entryWithTurkishOverride(base, id, base.normalized, overrideTr)
+          .asRelatedLookup(id);
+    }
+    return base.asRelatedLookup(id);
+  }
+
+  FerhengEntry? _entryForInflectedForm(String word) {
+    final id = _normalize(word);
+    for (final baseId in _inflectionBaseCandidates(id)) {
+      final base = _byId[baseId];
+      final overrideTr = _trOverrides?[baseId] ?? _legacy?[baseId];
+      if (base != null) {
+        if (overrideTr != null &&
+            overrideTr.isNotEmpty &&
+            base.definitionsTr.isEmpty) {
+          return _entryWithTurkishOverride(
+                  base, baseId, base.normalized, overrideTr)
+              .asRelatedLookup(id);
+        }
+        if (base.hasAnyDefinition) return base.asRelatedLookup(id);
+      }
+      if (overrideTr != null && overrideTr.isNotEmpty) {
+        return _entryWithTurkishOverride(null, baseId, baseId, overrideTr)
+            .asRelatedLookup(id);
+      }
+    }
+    return null;
+  }
+
+  Iterable<String> _inflectionBaseCandidates(String id) sync* {
+    const suffixes = [
+      'TIRÎNAN',
+      'TIRÎNEKE',
+      'TIRÎNEKÊ',
+      'TIRÎNEK',
+      'TIRÎNA',
+      'TIRÎN',
+      'TIRAN',
+      'TIREKE',
+      'TIREKÊ',
+      'TIREK',
+      'TIRA',
+      'TIRÊN',
+      'TIRÊ',
+      'TIRÎ',
+      'TIR',
+      'INAN',
+      'INE',
+      'INO',
+      'IN',
+      'EKE',
+      'EKÊ',
+      'EKÎ',
+      'EK',
+      'ÊN',
+      'AN',
+      'A',
+      'E',
+      'Ê',
+      'Î',
+      'O',
+    ];
+    final seen = <String>{};
+    for (final suffix in suffixes) {
+      if (!id.endsWith(suffix) || id.length <= suffix.length + 2) continue;
+      final candidate = id.substring(0, id.length - suffix.length);
+      if (seen.add(candidate)) yield candidate;
+    }
+  }
+
+  FerhengEntry _entryWithTurkishOverride(
+    FerhengEntry? entry,
+    String word,
+    String id,
+    String trGloss,
+  ) {
+    return FerhengEntry(
+      headword: entry?.headword ?? word,
+      normalized: id,
+      prefixes: entry?.prefixes ?? const [],
+      dialect: entry?.dialect ?? 'kmr',
+      pos: entry?.pos ?? const [],
+      ipa: entry?.ipa ?? '',
+      definitionsKmr: entry?.definitionsKmr ?? const [],
+      definitionsTr: [FerhengDefinition(gloss: trGloss)],
+      etymology: entry?.etymology ?? '',
+      categories: entry?.categories ?? const [],
+      related: entry?.related ?? const [],
+      audioUrl: entry?.audioUrl,
+      source: entry == null ? 'tr_override' : '${entry.source}+tr_override',
+      sourceUrl: entry?.sourceUrl ?? '',
+      license: entry?.license ?? 'CC BY-SA 4.0 + project-curated',
+      version: entry?.version ?? 1,
+      isPlayable: entry?.isPlayable ?? true,
+    );
+  }
+
   Future<List<FerhengEntry>> byLetter(String letter, {int limit = 50}) async {
-    final letterUp = letter.toUpperCase();
+    await init();
+    final letterUp = _normalize(letter);
     final ids = _byPrefix[letterUp] ?? const [];
     return ids
         .take(limit)
@@ -165,7 +409,9 @@ class FerhengService {
         .toList(growable: false);
   }
 
-  Future<List<FerhengEntry>> byCategory(String categoryId, {int limit = 50}) async {
+  Future<List<FerhengEntry>> byCategory(String categoryId,
+      {int limit = 50}) async {
+    await init();
     final ids = _byCategory[categoryId] ?? const [];
     return ids
         .take(limit)
@@ -257,6 +503,86 @@ class FerhengService {
   }
 }
 
+class DictionaryMeaningResult {
+  final String query;
+  final String normalized;
+  final FerhengEntry? entry;
+  final bool acceptedInGame;
+
+  const DictionaryMeaningResult({
+    required this.query,
+    required this.normalized,
+    required this.entry,
+    this.acceptedInGame = false,
+  });
+
+  bool get found => entry != null;
+  String get displayWord =>
+      entry?.headword.isNotEmpty == true ? entry!.headword : normalized;
+
+  String displayMeaning(AppLocale locale) {
+    final e = entry;
+    if (e == null) return L.dictionaryWordNotFound;
+    return e.displayMeaning(locale);
+  }
+
+  String displayGameMeaning() {
+    final e = entry;
+    if (e == null) {
+      return acceptedInGame
+          ? L.playableWordMissingMeaning
+          : L.dictionaryWordNotFound;
+    }
+
+    final tr =
+        e.definitionsTr.isNotEmpty ? e.definitionsTr.first.gloss.trim() : '';
+    final kmr =
+        e.definitionsKmr.isNotEmpty ? e.definitionsKmr.first.gloss.trim() : '';
+    if (tr.isEmpty && kmr.isEmpty) {
+      return e.source == 'playable-wordlist'
+          ? L.playableWordMissingMeaning
+          : L.dictionaryEntryMissingMeaning;
+    }
+
+    final lines = <String>[];
+    if (tr.isNotEmpty) {
+      lines.add('Türkçe: $tr');
+    } else {
+      lines.add(L.missingTurkishMeaning);
+    }
+    if (kmr.isNotEmpty) {
+      lines.add('Kürtçe: $kmr');
+    }
+    return lines.join('\n');
+  }
+}
+
+extension _RelatedLookupEntry on FerhengEntry {
+  FerhengEntry asRelatedLookup(String surfaceForm) {
+    final form = WordNormalizer.normalize(surfaceForm);
+    if (form.isEmpty || form == normalized) return this;
+    return FerhengEntry(
+      headword: form,
+      normalized: form,
+      prefixes: prefixes,
+      dialect: dialect,
+      pos: pos,
+      ipa: ipa,
+      definitionsKmr: definitionsKmr,
+      definitionsTr: definitionsTr,
+      etymology: etymology,
+      categories: categories,
+      related: [normalized, ...related],
+      audioUrl: audioUrl,
+      source: '$source+related:$normalized',
+      sourceUrl: sourceUrl,
+      license: license,
+      version: version,
+      isPlayable: isPlayable,
+    );
+  }
+}
+
 /// Top-level (compute() requirement). Gzip decompress + NDJSON parse + index.
 _ParsedBundle _parseEntriesBundle(Uint8List bytes) {
   final decoded = GZipDecoder().decodeBytes(bytes);
@@ -265,12 +591,13 @@ _ParsedBundle _parseEntriesBundle(Uint8List bytes) {
   final byId = <String, FerhengEntry>{};
   final byPrefix = <String, List<String>>{};
   final byCategory = <String, List<String>>{};
+  final relatedToId = <String, String>{};
 
   for (final line in const LineSplitter().convert(text)) {
     if (line.isEmpty) continue;
     final map = json.decode(line) as Map<String, dynamic>;
     final entry = FerhengEntry.fromJson(map);
-    final id = entry.normalized;
+    final id = WordNormalizer.normalize(entry.normalized);
     if (id.isEmpty) continue;
     byId[id] = entry;
     for (final p in entry.prefixes) {
@@ -278,6 +605,13 @@ _ParsedBundle _parseEntriesBundle(Uint8List bytes) {
     }
     for (final c in entry.categories) {
       (byCategory[c] ??= <String>[]).add(id);
+    }
+    for (final related in entry.related) {
+      final relatedId = WordNormalizer.normalize(related);
+      if (relatedId.isEmpty || relatedId == id || byId.containsKey(relatedId)) {
+        continue;
+      }
+      relatedToId.putIfAbsent(relatedId, () => id);
     }
   }
 
@@ -294,6 +628,7 @@ _ParsedBundle _parseEntriesBundle(Uint8List bytes) {
     byId: byId,
     byPrefix: byPrefix,
     byCategory: byCategory,
+    relatedToId: relatedToId,
     sortedIds: sortedIds,
   );
 }
@@ -302,11 +637,13 @@ class _ParsedBundle {
   final Map<String, FerhengEntry> byId;
   final Map<String, List<String>> byPrefix;
   final Map<String, List<String>> byCategory;
+  final Map<String, String> relatedToId;
   final List<String> sortedIds;
   const _ParsedBundle({
     required this.byId,
     required this.byPrefix,
     required this.byCategory,
+    required this.relatedToId,
     required this.sortedIds,
   });
 }

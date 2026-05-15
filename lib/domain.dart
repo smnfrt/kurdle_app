@@ -5,41 +5,61 @@ enum GameColor { tbd, absent, present, correct }
 enum Dialog { none, help, stats, settings }
 
 enum TurnResult { unset, successful, unsuccessful, partial }
+
 enum KeyboardLayout { qwerty, dvorak }
+
+enum AiDifficulty { easy, normal, hard }
 
 class Settings {
   bool isDarkMode;
   bool isHardMode;
   bool isHighContrast;
+  bool soundEnabled;
+  bool hapticEnabled;
   KeyboardLayout keyboardLayout;
 
   /// Ferheng tanım dili tercihi (kmr ↔ tr). Default: tr.
   AppLocale ferhengDefinitionLanguage;
+
+  /// Scrabble AI rakip zorluk seviyesi. Default: normal.
+  AiDifficulty aiDifficulty;
 
   Settings(
     this.isDarkMode,
     this.isHardMode,
     this.isHighContrast,
     this.keyboardLayout, {
+    this.soundEnabled = true,
+    this.hapticEnabled = true,
     this.ferhengDefinitionLanguage = AppLocale.tr,
+    this.aiDifficulty = AiDifficulty.normal,
   });
 
   Settings.fromJson(Map<String, dynamic> json)
-      : isDarkMode = json['isDarkMode'],
-        isHardMode = json['isHardMode'],
-        isHighContrast = json['isHighConstrat'] ?? false,
-        keyboardLayout =
-            KeyboardLayout.values.byName(json['keyboardLayout'] ?? KeyboardLayout.qwerty.name),
-        ferhengDefinitionLanguage = AppLocale.values.byName(
-            json['ferhengDefinitionLanguage'] ?? AppLocale.tr.name);
+      : isDarkMode = json['isDarkMode'] as bool? ?? true,
+        isHardMode = json['isHardMode'] as bool? ?? false,
+        isHighContrast =
+            (json['isHighContrast'] ?? json['isHighConstrat']) as bool? ??
+                false,
+        soundEnabled = json['soundEnabled'] as bool? ?? true,
+        hapticEnabled = json['hapticEnabled'] as bool? ?? true,
+        keyboardLayout = KeyboardLayout.values
+            .byName(json['keyboardLayout'] ?? KeyboardLayout.qwerty.name),
+        ferhengDefinitionLanguage = AppLocale.values
+            .byName(json['ferhengDefinitionLanguage'] ?? AppLocale.tr.name),
+        aiDifficulty = AiDifficulty.values
+            .byName(json['aiDifficulty'] ?? AiDifficulty.normal.name);
 
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = <String, dynamic>{};
     data['isDarkMode'] = isDarkMode;
     data['isHardMode'] = isHardMode;
     data['isHighContrast'] = isHighContrast;
+    data['soundEnabled'] = soundEnabled;
+    data['hapticEnabled'] = hapticEnabled;
     data['keyboardLayout'] = keyboardLayout.name;
     data['ferhengDefinitionLanguage'] = ferhengDefinitionLanguage.name;
+    data['aiDifficulty'] = aiDifficulty.name;
 
     return data;
   }
@@ -54,7 +74,10 @@ class Letter {
   static const empty = '';
 
   Letter(
-      {this.index = 0, this.value = Letter.empty, this.color = GameColor.tbd, this.isKey = false});
+      {this.index = 0,
+      this.value = Letter.empty,
+      this.color = GameColor.tbd,
+      this.isKey = false});
 
   String get semanticsLabel {
     if (isKey) {
@@ -149,8 +172,17 @@ class Context {
   int currentIndex;
   DateTime? lastPlayed;
 
-  Context(this.board, this.keys, this.answer, this.guess, this.attempt, this.turnResult,
-      this.remainingTries, this.message, this.currentIndex, this.lastPlayed);
+  Context(
+      this.board,
+      this.keys,
+      this.answer,
+      this.guess,
+      this.attempt,
+      this.turnResult,
+      this.remainingTries,
+      this.message,
+      this.currentIndex,
+      this.lastPlayed);
 
   factory Context.fromJson(Map<String, dynamic> json) {
     var isPrevious = json['board'] is List;
@@ -186,10 +218,11 @@ class Context {
     int remainingTries = json['remainingTries'];
     String message = json['message'];
     int currentIndex = json['currentIndex'];
-    DateTime? lastPlayed = json['lastPlayed'] != null ? DateTime.parse(json['lastPlayed']) : null;
+    DateTime? lastPlayed =
+        json['lastPlayed'] != null ? DateTime.parse(json['lastPlayed']) : null;
 
-    return Context(board, keys, answer, guess, attempt, turnResult, remainingTries, message,
-        currentIndex, lastPlayed);
+    return Context(board, keys, answer, guess, attempt, turnResult,
+        remainingTries, message, currentIndex, lastPlayed);
   }
 
   Map<String, dynamic> toJson() {
@@ -219,8 +252,9 @@ class Stats {
   int totalScore;
   int highScore;
 
-  Stats(this.won, this.lost, this.streak, this.guessDistribution, this.lastGuess, this.lastBoard,
-      this.gameNumber, {this.totalScore = 0, this.highScore = 0});
+  Stats(this.won, this.lost, this.streak, this.guessDistribution,
+      this.lastGuess, this.lastBoard, this.gameNumber,
+      {this.totalScore = 0, this.highScore = 0});
 
   Stats.fromJson(Map<String, dynamic> json)
       : won = json['won'],

@@ -59,7 +59,7 @@ class FerhengController extends ChangeNotifier {
 
   Future<void> _runSearch(String query) async {
     try {
-      final results = await _service.searchPrefix(query);
+      final results = await _service.search(query);
       // Yarış koşulu: kullanıcı sorguyu değiştirdiyse sonucu yutma.
       if (_query != query) return;
       _searchResults = results;
@@ -91,8 +91,7 @@ class FerhengController extends ChangeNotifier {
     try {
       final entry = await _service.getOrFallback(word);
       _currentEntry = entry;
-      _status =
-          entry == null ? FerhengStatus.error : FerhengStatus.loaded;
+      _status = entry == null ? FerhengStatus.error : FerhengStatus.loaded;
       _errorMessage = entry == null ? 'noDefinition' : null;
       // Kullanıcı bu kelimeyi gerçekten açtı — recent'e yaz.
       if (entry != null) {

@@ -1,11 +1,15 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:kurdle_app/domain.dart' show AiDifficulty;
+import 'package:kurdle_app/models/board_cell.dart';
 import 'package:kurdle_app/models/game_tile.dart';
 import 'package:kurdle_app/models/word_board.dart';
 import 'package:kurdle_app/models/word_enhancement.dart';
 import 'package:kurdle_app/models/word_suggestion.dart';
 import 'package:kurdle_app/services/ai_service.dart';
 import 'package:kurdle_app/services/app_locale.dart';
+import 'package:kurdle_app/services/achievement_service.dart';
+import 'package:kurdle_app/services/daily_streak_service.dart';
 import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/board_layout_service.dart';
 import 'package:kurdle_app/services/firebase_service.dart';
@@ -23,11 +27,11 @@ class ScrabbleGameController extends ChangeNotifier {
   static const int rackSize = 7;
 
   // ── Geliştirme sabitleri ─────────────────────────────────────────
-  static const int    maxEnhancesPerGame  = 2;
-  static const int    maxEnhancesPerWord  = 2;
-  static const double enhanceBonusRate    = 0.5;
-  static const int    bonusPerAddedLetter = 10;
-  static const double reclaimBonusRate    = 0.25;
+  static const int maxEnhancesPerGame = 2;
+  static const int maxEnhancesPerWord = 2;
+  static const double enhanceBonusRate = 0.5;
+  static const int bonusPerAddedLetter = 10;
+  static const double reclaimBonusRate = 0.25;
 
   WordBoard board;
   final TileBagService _bag;
@@ -39,25 +43,27 @@ class ScrabbleGameController extends ChangeNotifier {
   List<GameTile> aiRack = [];
 
   int playerScore = 0;
-  int aiScore     = 0;
+  int aiScore = 0;
 
   int playerPassCount = 0;
-  int totalPassCount  = 0;
+  int totalPassCount = 0;
   static const int maxPlayerPasses = 4;
-  static const int maxTotalPasses  = 5;
+  static const int maxTotalPasses = 5;
 
-  GamePhase phase   = GamePhase.playerTurn;
-  String    message = '';
+  GamePhase phase = GamePhase.playerTurn;
+  String message = '';
 
   final DateTime _startedAt = DateTime.now();
 
   // ── Geliştirme durumu ────────────────────────────────────────────
   final List<PlacedWordRecord> _wordHistory = [];
-  int  _turnNumber              = 0;
-  int  playerEnhanceCount       = 0;
-  bool _playerEnhancedLastTurn  = false;
-  Set<String> highlightedCells  = {};
-  bool turnForfeited            = false;
+  int _turnNumber = 0;
+  int playerEnhanceCount = 0;
+  bool _playerEnhancedLastTurn = false;
+  Set<String> highlightedCells = {};
+  Set<String> lastMoveCells = {};
+  List<({String word, Set<String> cells})> lastMoveWords = const [];
+  bool turnForfeited = false;
   WordSuggestion? lastSuggestion;
 
   // ── Çalma durumu ─────────────────────────────────────────────────
@@ -81,39 +87,54 @@ class ScrabbleGameController extends ChangeNotifier {
   Set<String> stolenNewCells = {};
 
   // ── Süre sınırı ─────────────────────────────────────────────────
-  int? turnTimeLimitSeconds;        // null = süresiz
+  int? turnTimeLimitSeconds; // null = süresiz
   DateTime? _turnStartedAt;
   Timer? _countdownTimer;
-  int turnSecondsLeft = 0;          // UI için geri sayım
+  int turnSecondsLeft = 0; // UI için geri sayım
 
   int get playerEnhancesLeft => maxEnhancesPerGame - playerEnhanceCount;
-  int get tilesLeft          => _bag.remaining;
+  int get tilesLeft => _bag.remaining;
 
   List<({String word, int score, bool valid})> _cachedPendingWords = const [];
-  List<({String word, int score, bool valid})> get pendingWords => _cachedPendingWords;
+  List<({String word, int score, bool valid})> get pendingWords =>
+      _cachedPendingWords;
 
   void _refreshPendingWords() {
     if (board.pendingCells.isEmpty) {
       _cachedPendingWords = const [];
       return;
     }
-    _cachedPendingWords = _scorer.calculateNewWords(board)
-        .map((w) => (word: w.word, score: w.score, valid: _validator.isValid(w.word)))
+    _cachedPendingWords = _scorer
+        .calculateNewWords(board)
+        .map((w) =>
+            (word: w.word, score: w.score, valid: _validator.isValid(w.word)))
         .toList();
   }
 
-  ScrabbleGameController(List<String> wordList, {LanguageConfig? config, this.turnTimeLimitSeconds})
-      : board = BoardLayoutService.createClassicLayout(),
-        _bag  = TileBagService((config ?? LanguageConfig.current).tileBag),
+  /// AI rakip zorluk seviyesi. Settings'ten gelir; constructor override eder.
+  AiDifficulty aiDifficulty;
+
+  ScrabbleGameController(
+    List<String> wordList, {
+    LanguageConfig? config,
+    this.turnTimeLimitSeconds,
+    this.aiDifficulty = AiDifficulty.normal,
+  })  : board = BoardLayoutService.createClassicLayout(),
+        _bag = TileBagService((config ?? LanguageConfig.current).tileBag),
         _validator = WordValidatorService(wordList),
-        _scorer    = GameScoreService(
+        _scorer = GameScoreService(
           ScoringService((config ?? LanguageConfig.current).letterPoints),
         ) {
     _ai = AiService(_validator, _scorer);
     playerRack = _bag.drawMany(rackSize);
-    aiRack     = _bag.drawMany(rackSize);
+    aiRack = _bag.drawMany(rackSize);
     _ensureRackPlayable(playerRack);
     _startTurnTimer();
+    // Günlük "her gün oynama" streak'ini işaretle (fire-and-forget).
+    DailyStreakService.instance.markPlayedToday().then((streak) {
+      AchievementService.instance.onGameStarted();
+      AchievementService.instance.onStreakChanged(streak.current);
+    });
   }
 
   void _startTurnTimer() {
@@ -123,7 +144,10 @@ class ScrabbleGameController extends ChangeNotifier {
     _turnStartedAt = DateTime.now();
     turnSecondsLeft = limit;
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (phase == GamePhase.gameOver) { _countdownTimer?.cancel(); return; }
+      if (phase == GamePhase.gameOver) {
+        _countdownTimer?.cancel();
+        return;
+      }
       final elapsed = DateTime.now().difference(_turnStartedAt!).inSeconds;
       turnSecondsLeft = (limit - elapsed).clamp(0, limit);
       notifyListeners();
@@ -217,7 +241,7 @@ class ScrabbleGameController extends ChangeNotifier {
     playerPassCount++;
     totalPassCount++;
     if (totalPassCount >= maxTotalPasses) {
-      phase   = GamePhase.gameOver;
+      phase = GamePhase.gameOver;
       message = L.gameEndedByPasses;
       notifyListeners();
       return null;
@@ -249,7 +273,7 @@ class ScrabbleGameController extends ChangeNotifier {
 
   void resign() {
     recallAll();
-    phase   = GamePhase.gameOver;
+    phase = GamePhase.gameOver;
     message = L.resign;
     notifyListeners();
     _onGameOver();
@@ -293,6 +317,8 @@ class ScrabbleGameController extends ChangeNotifier {
         lastSuggestion = null;
         recallAll();
         highlightedCells = {};
+        lastMoveCells = {};
+        lastMoveWords = const [];
         message = L.turnForfeitedMsg;
         notifyListeners();
         _doAiTurn();
@@ -303,10 +329,10 @@ class ScrabbleGameController extends ChangeNotifier {
       return L.invalidWords(invalid.map((w) => w.word).join(', '));
     }
 
-    lastSuggestion  = null;
+    lastSuggestion = null;
     lastStealResult = null;
     lastFailedSteal = null;
-    stolenNewCells  = {};
+    stolenNewCells = {};
 
     int earned = GameScoreService.totalScore(words);
 
@@ -334,9 +360,8 @@ class ScrabbleGameController extends ChangeNotifier {
         playerStealsLeft--;
         lastStealResult = steal;
         earned += steal.bonusScore;
-        stolenNewCells = extWord != null
-            ? _cellsForIndices(extWord, steal.newIndices)
-            : {};
+        stolenNewCells =
+            extWord != null ? _cellsForIndices(extWord, steal.newIndices) : {};
         if (enhanceTarget != null) {
           playerEnhanceCount++;
           _playerEnhancedLastTurn = true;
@@ -381,9 +406,14 @@ class ScrabbleGameController extends ChangeNotifier {
       message = '+$earned ${L.points}!';
     }
 
+    final placedCellKeys = pending.map((c) => '${c.row}:${c.column}').toSet();
+
     playerScore += earned;
+    AchievementService.instance.onWordPlayed(earned);
     board = board.commitPending();
-    _recordWords(words, owner: 0, enhanceTarget: enhanceTarget, enhancerOwner: 0);
+    _setLastMoveFromPlacedCells(placedCellKeys, fallbackWords: words);
+    _recordWords(words,
+        owner: 0, enhanceTarget: enhanceTarget, enhancerOwner: 0);
     _refillRack(playerRack);
     _ensureRackPlayable(playerRack);
     _turnNumber++;
@@ -408,15 +438,19 @@ class ScrabbleGameController extends ChangeNotifier {
     notifyListeners();
 
     Future.delayed(const Duration(milliseconds: 800), () {
-      final move = _ai.findBestMove(board, aiRack);
+      final move = _ai.findBestMove(board, aiRack, difficulty: aiDifficulty);
       if (move != null) {
         for (final p in move.placements) {
           board = board.placePending(p.row, p.col, p.tile.letter, p.tile.id);
           aiRack.removeWhere((t) => t.id == p.tile.id);
         }
         final aiWords = _scorer.calculateNewWords(board);
+        final placedCellKeys = board.pendingCells
+            .map((cell) => '${cell.row}:${cell.column}')
+            .toSet();
         aiScore += move.score;
         board = board.commitPending();
+        _setLastMoveFromPlacedCells(placedCellKeys, fallbackWords: aiWords);
         _recordWords(aiWords, owner: 1, enhanceTarget: null, enhancerOwner: 1);
         _refillRack(aiRack);
       } else {
@@ -427,7 +461,7 @@ class ScrabbleGameController extends ChangeNotifier {
       _refreshPendingWords();
 
       if (totalPassCount >= maxTotalPasses) {
-        phase   = GamePhase.gameOver;
+        phase = GamePhase.gameOver;
         message = L.gameEndedByPasses;
       } else {
         phase = _bag.isEmpty && playerRack.isEmpty
@@ -435,8 +469,11 @@ class ScrabbleGameController extends ChangeNotifier {
             : GamePhase.playerTurn;
       }
       notifyListeners();
-      if (phase == GamePhase.gameOver) _onGameOver();
-      else _startTurnTimer();
+      if (phase == GamePhase.gameOver) {
+        _onGameOver();
+      } else {
+        _startTurnTimer();
+      }
     });
   }
 
@@ -450,16 +487,16 @@ class ScrabbleGameController extends ChangeNotifier {
     for (final newWord in words) {
       if (newWord.cells.length < 2) continue;
       final hasPending = newWord.cells.any((c) => c.isPending);
-      final hasLocked  = newWord.cells.any((c) => c.isLocked);
+      final hasLocked = newWord.cells.any((c) => c.isLocked);
       if (!hasPending || !hasLocked) continue;
 
-      final isH       = newWord.cells.first.row == newWord.cells.last.row;
-      final fixedLine = isH ? newWord.cells.first.row : newWord.cells.first.column;
-      final positions = newWord.cells
-          .map((c) => isH ? c.column : c.row)
-          .toList()..sort();
+      final isH = newWord.cells.first.row == newWord.cells.last.row;
+      final fixedLine =
+          isH ? newWord.cells.first.row : newWord.cells.first.column;
+      final positions =
+          newWord.cells.map((c) => isH ? c.column : c.row).toList()..sort();
       final newStart = positions.first;
-      final newEnd   = positions.last;
+      final newEnd = positions.last;
 
       for (final record in _wordHistory) {
         if (record.owner == enhancerOwner) continue;
@@ -481,13 +518,13 @@ class ScrabbleGameController extends ChangeNotifier {
     PlacedWordRecord target, {
     required int enhancerOwner,
   }) {
-    final count        = enhancerOwner == 0 ? playerEnhanceCount : 0;
-    final lastTurn     = enhancerOwner == 0 ? _playerEnhancedLastTurn : false;
+    final count = enhancerOwner == 0 ? playerEnhanceCount : 0;
+    final lastTurn = enhancerOwner == 0 ? _playerEnhancedLastTurn : false;
 
     if (count >= maxEnhancesPerGame) return L.noEnhanceLeft;
-    if (lastTurn)                    return L.consecutiveEnhanceBlocked;
+    if (lastTurn) return L.consecutiveEnhanceBlocked;
     if (target.enhanceCount >= maxEnhancesPerWord) return L.wordMaxEnhanced;
-    if (_turnNumber - target.turnPlaced <= 1)      return L.wordProtected;
+    if (_turnNumber - target.turnPlaced <= 1) return L.wordProtected;
 
     return null;
   }
@@ -495,7 +532,8 @@ class ScrabbleGameController extends ChangeNotifier {
   // ── Çalma yardımcıları ────────────────────────────────────────────
 
   /// [words] içinden [target]'ı genişleten `PlacedWord`'ü döndürür.
-  PlacedWord? _getExtendingWord(List<PlacedWord> words, PlacedWordRecord target) {
+  PlacedWord? _getExtendingWord(
+      List<PlacedWord> words, PlacedWordRecord target) {
     final isH = target.isHorizontal;
     for (final w in words) {
       if (w.cells.length < 2) continue;
@@ -503,14 +541,16 @@ class ScrabbleGameController extends ChangeNotifier {
       if (wIsH != isH) continue;
       final fixedLine = isH ? w.cells.first.row : w.cells.first.column;
       if (fixedLine != target.fixedLine) continue;
-      final positions =
-          w.cells.map((c) => isH ? c.column : c.row).toList()..sort();
+      final positions = w.cells.map((c) => isH ? c.column : c.row).toList()
+        ..sort();
       if (target.isExtendedBy(
         horizontal: isH,
         line: fixedLine,
         newStart: positions.first,
         newEnd: positions.last,
-      )) return w;
+      )) {
+        return w;
+      }
     }
     return null;
   }
@@ -542,7 +582,8 @@ class ScrabbleGameController extends ChangeNotifier {
       if (wIsH != isH) continue;
       final fixedLine = isH ? w.cells.first.row : w.cells.first.column;
       if (fixedLine != target.fixedLine) continue;
-      final positions = w.cells.map((c) => isH ? c.column : c.row).toList()..sort();
+      final positions = w.cells.map((c) => isH ? c.column : c.row).toList()
+        ..sort();
       if (target.isExtendedBy(
         horizontal: isH,
         line: fixedLine,
@@ -576,11 +617,12 @@ class ScrabbleGameController extends ChangeNotifier {
   }) {
     for (final w in words) {
       if (w.cells.length < 2) continue;
-      final isH       = w.cells.first.row == w.cells.last.row;
+      final isH = w.cells.first.row == w.cells.last.row;
       final fixedLine = isH ? w.cells.first.row : w.cells.first.column;
-      final positions = w.cells.map((c) => isH ? c.column : c.row).toList()..sort();
-      final startPos  = positions.first;
-      final endPos    = positions.last;
+      final positions = w.cells.map((c) => isH ? c.column : c.row).toList()
+        ..sort();
+      final startPos = positions.first;
+      final endPos = positions.last;
 
       // Bu kelimenin kapsamını içeren eski kaydı bul ve çıkar
       PlacedWordRecord? extended;
@@ -597,30 +639,144 @@ class ScrabbleGameController extends ChangeNotifier {
         return false;
       });
 
-      final isEnhancement = extended != null && identical(extended, enhanceTarget);
+      final isEnhancement =
+          extended != null && identical(extended, enhanceTarget);
 
       _wordHistory.add(PlacedWordRecord(
-        word:          w.word,
-        isHorizontal:  isH,
-        fixedLine:     fixedLine,
-        startPos:      startPos,
-        endPos:        endPos,
+        word: w.word,
+        isHorizontal: isH,
+        fixedLine: fixedLine,
+        startPos: startPos,
+        endPos: endPos,
         originalScore: w.score,
         originalOwner: extended?.originalOwner ?? owner,
-        owner:         owner,
-        turnPlaced:    _turnNumber,
-        enhanceCount:  isEnhancement
+        owner: owner,
+        turnPlaced: _turnNumber,
+        enhanceCount: isEnhancement
             ? (extended!.enhanceCount + 1)
             : (extended?.enhanceCount ?? 0),
-        lastEnhancedBy: isEnhancement ? enhancerOwner : extended?.lastEnhancedBy,
+        lastEnhancedBy:
+            isEnhancement ? enhancerOwner : extended?.lastEnhancedBy,
       ));
 
       // Geliştirilen hücreler için vurgulama (oyuncu için)
       if (isEnhancement && enhancerOwner == 0) {
-        highlightedCells =
-            w.cells.map((c) => '${c.row}:${c.column}').toSet();
+        highlightedCells = w.cells.map((c) => '${c.row}:${c.column}').toSet();
       }
     }
+  }
+
+  void _setLastMove(List<PlacedWord> words) {
+    final wordRecords = words
+        .where((w) => w.cells.length >= 2)
+        .map((w) => (
+              word: w.word,
+              cells: w.cells.map((c) => '${c.row}:${c.column}').toSet(),
+            ))
+        .toList(growable: false);
+
+    lastMoveWords = wordRecords;
+    lastMoveCells = {
+      for (final record in wordRecords) ...record.cells,
+    };
+  }
+
+  void _setLastMoveFromPlacedCells(
+    Set<String> placedCellKeys, {
+    required List<PlacedWord> fallbackWords,
+  }) {
+    final wordRecords = <({String word, Set<String> cells})>[];
+    final seen = <String>{};
+
+    void addWord(List<BoardCell> cells, bool horizontal) {
+      if (cells.length < 2) return;
+      final cellKeys = cells.map((c) => '${c.row}:${c.column}').toSet();
+      if (!cellKeys.any(placedCellKeys.contains)) return;
+      final word = cells.map((c) => c.letter).join();
+      final key =
+          '${horizontal ? 'H' : 'V'}:${cells.first.row}:${cells.first.column}:$word';
+      if (!seen.add(key)) return;
+      wordRecords.add((word: word, cells: cellKeys));
+    }
+
+    for (final key in placedCellKeys) {
+      final parts = key.split(':');
+      if (parts.length != 2) continue;
+      final row = int.tryParse(parts[0]);
+      final col = int.tryParse(parts[1]);
+      if (row == null || col == null) continue;
+      if (row < 0 ||
+          row >= WordBoard.size ||
+          col < 0 ||
+          col >= WordBoard.size) {
+        continue;
+      }
+      addWord(_collectWordCells(row, col, horizontal: true), true);
+      addWord(_collectWordCells(row, col, horizontal: false), false);
+    }
+
+    wordRecords.sort((a, b) {
+      final aStart = _wordStart(a.cells);
+      final bStart = _wordStart(b.cells);
+      final rowCompare = aStart.row.compareTo(bStart.row);
+      if (rowCompare != 0) return rowCompare;
+      return aStart.col.compareTo(bStart.col);
+    });
+
+    if (wordRecords.isEmpty) {
+      _setLastMove(fallbackWords);
+      return;
+    }
+    lastMoveWords = wordRecords;
+    lastMoveCells = {
+      for (final record in wordRecords) ...record.cells,
+    };
+  }
+
+  List<BoardCell> _collectWordCells(
+    int row,
+    int col, {
+    required bool horizontal,
+  }) {
+    var r = row;
+    var c = col;
+    while (horizontal ? c > 0 : r > 0) {
+      final previous =
+          board.cellAt(horizontal ? r : r - 1, horizontal ? c - 1 : c);
+      if (!previous.hasLetter) break;
+      if (horizontal) {
+        c--;
+      } else {
+        r--;
+      }
+    }
+
+    final cells = <BoardCell>[];
+    while (r < WordBoard.size && c < WordBoard.size) {
+      final cell = board.cellAt(r, c);
+      if (!cell.hasLetter) break;
+      cells.add(cell);
+      if (horizontal) {
+        c++;
+      } else {
+        r++;
+      }
+    }
+    return cells;
+  }
+
+  ({int row, int col}) _wordStart(Set<String> cells) {
+    final points = cells.map((key) {
+      final parts = key.split(':');
+      return (
+        row: int.tryParse(parts.first) ?? WordBoard.centerIndex,
+        col: int.tryParse(parts.last) ?? WordBoard.centerIndex,
+      );
+    }).toList();
+    return points.reduce((a, b) {
+      if (a.row != b.row) return a.row < b.row ? a : b;
+      return a.col <= b.col ? a : b;
+    });
   }
 
   // ─── Yardımcılar ─────────────────────────────────────────────────
@@ -631,7 +787,9 @@ class ScrabbleGameController extends ChangeNotifier {
       for (final d in dirs) {
         final r = cell.row + d.$1;
         final c = cell.column + d.$2;
-        if (r < 0 || r >= WordBoard.size || c < 0 || c >= WordBoard.size) continue;
+        if (r < 0 || r >= WordBoard.size || c < 0 || c >= WordBoard.size) {
+          continue;
+        }
         if (board.cellAt(r, c).isLocked) return true;
       }
     }
@@ -739,31 +897,37 @@ class ScrabbleGameController extends ChangeNotifier {
   }
 
   /// Verilen rack ile (tahta anchorları dahil) en az 1 geçerli kelime
-  /// oluşturulabilir mi? Üst-tahmin: anchorlar erişilebilir kabul edilir.
+  /// oluşturulabilir mi? Erken-çıkış `canFormAny` kullanır (findFormable'ın
+  /// ~100x hızlı versiyonu). Kısa kelimelerle sınırlandırılır (3-5 harf):
+  /// "rack tıkanmamış mı" kontrolü için 7-harf joker aramaya gerek yok.
   bool _canMakeAnyWord(List<GameTile> rack) {
     final rackChars = rack.map((t) => t.letter).toList();
-    // 1) Sadece rack — min 3 harfli kelime ara (2-harfli "ez/tu" çok trivial)
-    if (_validator.findFormable(rackChars, minLength: 3).isNotEmpty) {
+    const minLen = 3;
+    const maxLen = 5;
+
+    // 1) Sadece rack
+    if (_validator.canFormAny(rackChars,
+        minLength: minLen, maxLength: maxLen)) {
       return true;
     }
     // 2) Rack + tahtadaki her benzersiz harf (1 anchor combo)
     final boardChars = <String>{};
     for (final cell in board.cells) {
       final l = cell.letter;
-      if (l != null && l.isNotEmpty) boardChars.add(l);
+      if (l.isNotEmpty) boardChars.add(l);
     }
     for (final ch in boardChars) {
-      if (_validator.findFormable([...rackChars, ch], minLength: 3).isNotEmpty) {
+      if (_validator.canFormAny([...rackChars, ch],
+          minLength: minLen, maxLength: maxLen)) {
         return true;
       }
     }
-    // 3) Rack + 2 anchor (geç fallback — tahta dolu durumlar için)
+    // 3) Rack + 2 anchor — tahta dolu durumlar için son çare
     final chars = boardChars.toList();
     for (var a = 0; a < chars.length; a++) {
       for (var b = a; b < chars.length; b++) {
-        if (_validator
-            .findFormable([...rackChars, chars[a], chars[b]], minLength: 3)
-            .isNotEmpty) {
+        if (_validator.canFormAny([...rackChars, chars[a], chars[b]],
+            minLength: minLen, maxLength: maxLen)) {
           return true;
         }
       }
@@ -773,13 +937,16 @@ class ScrabbleGameController extends ChangeNotifier {
 
   void _onGameOver() {
     _countdownTimer?.cancel();
+    if (playerScore > aiScore) {
+      AchievementService.instance.onGameWon();
+    }
     final uid = AuthService.instance.currentUser?.uid;
     if (uid == null || !FirebaseService.isAvailable) return;
     FirestoreService.instance.saveGameResult(
-      uid:             uid,
-      playerScore:     playerScore,
-      aiScore:         aiScore,
-      won:             playerScore > aiScore,
+      uid: uid,
+      playerScore: playerScore,
+      aiScore: aiScore,
+      won: playerScore > aiScore,
       durationSeconds: DateTime.now().difference(_startedAt).inSeconds,
     );
   }

@@ -54,8 +54,7 @@ class _FerhengHomeScreenState extends State<FerhengHomeScreen> {
 
   void _open(String word) {
     Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) =>
-          FerhengDetailScreen(word: word, controller: _controller),
+      builder: (_) => FerhengDetailScreen(word: word, controller: _controller),
     ));
   }
 
@@ -73,65 +72,79 @@ class _FerhengHomeScreenState extends State<FerhengHomeScreen> {
             tooltip: L.ferhengFavorites,
             icon: const Icon(Icons.bookmark_rounded),
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) =>
-                  FerhengFavoritesScreen(controller: _controller),
+              builder: (_) => FerhengFavoritesScreen(controller: _controller),
             )),
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _SearchBar(controller: _controller),
-          const SizedBox(height: 16),
-          _WotdCard(entry: _wotd, loading: _wotdLoading, onTap: _open),
-          const SizedBox(height: 20),
-          _SectionTitle(L.current == AppLocale.tr
-              ? 'Alfabe ile gez'
-              : 'Bi alfabe geriyê'),
-          const SizedBox(height: 8),
-          _AlphabetGrid(onLetterTap: (letter) {
-            Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => FerhengLetterScreen(
-                letter: letter,
-                controller: _controller,
-              ),
-            ));
-          }),
-          const SizedBox(height: 20),
-          _LearnShortcut(onTap: () {
-            Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) =>
-                  FerhengLearningScreen(controller: _controller),
-            ));
-          }),
-          if (_recent.isNotEmpty) ...[
-            const SizedBox(height: 20),
-            _SectionTitle(L.ferhengRecent),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _recent
-                  .map((w) => ActionChip(
-                        label: Text(w),
-                        backgroundColor: FerhengDesign.surface,
-                        labelStyle:
-                            const TextStyle(color: FerhengDesign.textPrimary),
-                        side: BorderSide.none,
-                        onPressed: () => _open(w),
-                      ))
-                  .toList(),
+      body: CustomScrollView(
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+            sliver: SliverList.list(
+              children: [
+                _SearchBar(controller: _controller),
+                const SizedBox(height: 16),
+                _WotdCard(entry: _wotd, loading: _wotdLoading, onTap: _open),
+                const SizedBox(height: 20),
+                _SectionTitle(L.current == AppLocale.tr
+                    ? 'Alfabe ile gez'
+                    : 'Bi alfabe geriyê'),
+                const SizedBox(height: 8),
+              ],
             ),
-          ],
-          const SizedBox(height: 24),
-          Text(
-            L.ferhengAttribution,
-            style: FerhengDesign.caption.copyWith(
-                color: FerhengDesign.textFaint),
-            textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 8),
+          SliverPadding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            sliver: _AlphabetSliverGrid(onLetterTap: (letter) {
+              Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => FerhengLetterScreen(
+                  letter: letter,
+                  controller: _controller,
+                ),
+              ));
+            }),
+          ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+            sliver: SliverList.list(
+              children: [
+                _LearnShortcut(onTap: () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) =>
+                        FerhengLearningScreen(controller: _controller),
+                  ));
+                }),
+                if (_recent.isNotEmpty) ...[
+                  const SizedBox(height: 20),
+                  _SectionTitle(L.ferhengRecent),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: _recent
+                        .map((w) => ActionChip(
+                              label: Text(w),
+                              backgroundColor: FerhengDesign.surface,
+                              labelStyle: const TextStyle(
+                                  color: FerhengDesign.textPrimary),
+                              side: BorderSide.none,
+                              onPressed: () => _open(w),
+                            ))
+                        .toList(),
+                  ),
+                ],
+                const SizedBox(height: 24),
+                Text(
+                  L.ferhengAttribution,
+                  style: FerhengDesign.caption
+                      .copyWith(color: FerhengDesign.textFaint),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -223,15 +236,13 @@ class _WotdCard extends StatelessWidget {
                       onTap: () => onTap(entry!.normalized),
                       child: Text(
                         entry!.headword,
-                        style: FerhengDesign.titleLg
-                            .copyWith(fontSize: 32),
+                        style: FerhengDesign.titleLg.copyWith(fontSize: 32),
                       ),
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      entry!.displayGloss(L.current),
-                      style: FerhengDesign.bodyMd
-                          .copyWith(color: Colors.white),
+                      entry!.displayMeaning(L.current),
+                      style: FerhengDesign.bodyMd.copyWith(color: Colors.white),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -241,24 +252,26 @@ class _WotdCard extends StatelessWidget {
   }
 }
 
-class _AlphabetGrid extends StatelessWidget {
+class _AlphabetSliverGrid extends StatelessWidget {
   final ValueChanged<String> onLetterTap;
-  const _AlphabetGrid({required this.onLetterTap});
+  const _AlphabetSliverGrid({required this.onLetterTap});
 
   @override
   Widget build(BuildContext context) {
-    return GridView.count(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisCount: 7,
-      crossAxisSpacing: 8,
-      mainAxisSpacing: 8,
-      children: kKurmanjiAlphabet
-          .map((letter) => _LetterButton(
-                letter: letter,
-                onTap: () => onLetterTap(letter),
-              ))
-          .toList(),
+    return SliverGrid.builder(
+      itemCount: kKurmanjiAlphabet.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 7,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+      ),
+      itemBuilder: (_, index) {
+        final letter = kKurmanjiAlphabet[index];
+        return _LetterButton(
+          letter: letter,
+          onTap: () => onLetterTap(letter),
+        );
+      },
     );
   }
 }
@@ -311,8 +324,7 @@ class _LearnShortcut extends StatelessWidget {
                   color: FerhengDesign.primary, size: 24),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(L.ferhengLearn,
-                    style: FerhengDesign.titleMd),
+                child: Text(L.ferhengLearn, style: FerhengDesign.titleMd),
               ),
               const Icon(Icons.chevron_right_rounded,
                   color: FerhengDesign.textFaint),

@@ -9,11 +9,16 @@ class SettingsService {
   Future<Settings> load() async {
     final directory = await getApplicationDocumentsDirectory();
     final exists = await File("${directory.path}/settings.json").exists();
-    final jsonString = exists ? await File("${directory.path}/settings.json").readAsString() : '';
+    final jsonString = exists
+        ? await File("${directory.path}/settings.json").readAsString()
+        : '';
 
     if (jsonString.isEmpty) {
       return Settings(true, false, false, KeyboardLayout.qwerty,
-          ferhengDefinitionLanguage: AppLocale.tr);
+          soundEnabled: true,
+          hapticEnabled: true,
+          ferhengDefinitionLanguage: AppLocale.tr,
+          aiDifficulty: AiDifficulty.normal);
     }
     final map = json.decode(jsonString);
     return Settings.fromJson(map);
@@ -21,6 +26,7 @@ class SettingsService {
 
   Future<void> save(Settings settings) async {
     final directory = await getApplicationDocumentsDirectory();
-    await File("${directory.path}/settings.json").writeAsString(json.encode(settings.toJson()));
+    await File("${directory.path}/settings.json")
+        .writeAsString(json.encode(settings.toJson()));
   }
 }

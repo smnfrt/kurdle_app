@@ -28,6 +28,8 @@ class MultiplayerRoom {
   final int guestStealsLeft;
   final int? lastMoveScore;
   final String? lastMoveBy; // 'host' | 'guest'
+  final List<Map<String, dynamic>> lastMoveWords;
+  final List<String> lastMoveCells;
 
   const MultiplayerRoom({
     required this.roomCode,
@@ -50,6 +52,8 @@ class MultiplayerRoom {
     this.guestStealsLeft = 2,
     this.lastMoveScore,
     this.lastMoveBy,
+    this.lastMoveWords = const [],
+    this.lastMoveCells = const [],
   });
 
   factory MultiplayerRoom.fromDoc(DocumentSnapshot doc) {
@@ -75,6 +79,8 @@ class MultiplayerRoom {
       guestStealsLeft: d['guestStealsLeft'] ?? 2,
       lastMoveScore: d['lastMoveScore'] as int?,
       lastMoveBy: d['lastMoveBy'] as String?,
+      lastMoveWords: List<Map<String, dynamic>>.from(d['lastMoveWords'] ?? []),
+      lastMoveCells: List<String>.from(d['lastMoveCells'] ?? []),
     );
   }
 
@@ -91,7 +97,9 @@ class MultiplayerRoom {
   }
 
   static List<GameTile> toRack(List<String> letters) {
-    return letters.asMap().entries
+    return letters
+        .asMap()
+        .entries
         .map((e) => GameTile(id: 'rack_${e.key}_${e.value}', letter: e.value))
         .toList();
   }
@@ -155,7 +163,8 @@ class MultiplayerService {
     return code;
   }
 
-  Future<String?> joinRoom(String rawCode, String uid, String displayName) async {
+  Future<String?> joinRoom(
+      String rawCode, String uid, String displayName) async {
     final code = rawCode.toUpperCase().trim();
     try {
       await _db.runTransaction((tx) async {
@@ -164,7 +173,8 @@ class MultiplayerService {
         if (!snap.exists) throw Exception('Oda bulunamadı');
         final d = snap.data() as Map<String, dynamic>;
         final status = d['status'] as String? ?? '';
-        if (!status.startsWith('waiting')) throw Exception('Oda dolu veya oyun bitti');
+        if (!status.startsWith('waiting'))
+          throw Exception('Oda dolu veya oyun bitti');
         if (d['hostUid'] == uid) throw Exception('Kendi odana katılamazsın');
         tx.update(ref, {
           'guestUid': uid,
@@ -198,7 +208,7 @@ class MultiplayerService {
   Future<String> _createRandomRoom(String uid, String displayName) async {
     final config = LanguageConfig.current;
     final bag = TileBagService(config.tileBag);
-    final hostRack  = bag.drawMany(7).map((t) => t.letter).toList();
+    final hostRack = bag.drawMany(7).map((t) => t.letter).toList();
     final guestRack = bag.drawMany(7).map((t) => t.letter).toList();
     final bagLetters = <String>[];
     while (bag.remaining > 0) {
@@ -214,24 +224,24 @@ class MultiplayerService {
     }
 
     await _rooms.doc(code).set({
-      'hostUid':          uid,
-      'hostName':         displayName,
-      'guestUid':         null,
-      'guestName':        null,
-      'status':           'waiting_random',
-      'currentTurnUid':   uid,
-      'hostScore':        0,
-      'guestScore':       0,
-      'hostRack':         hostRack,
-      'guestRack':        guestRack,
-      'bagLetters':       bagLetters,
-      'boardState':       [],
-      'winner':           null,
-      'passCount':        0,
-      'hostStealsLeft':   2,
-      'guestStealsLeft':  2,
-      'createdAt':        FieldValue.serverTimestamp(),
-      'lastMoveAt':       FieldValue.serverTimestamp(),
+      'hostUid': uid,
+      'hostName': displayName,
+      'guestUid': null,
+      'guestName': null,
+      'status': 'waiting_random',
+      'currentTurnUid': uid,
+      'hostScore': 0,
+      'guestScore': 0,
+      'hostRack': hostRack,
+      'guestRack': guestRack,
+      'bagLetters': bagLetters,
+      'boardState': [],
+      'winner': null,
+      'passCount': 0,
+      'hostStealsLeft': 2,
+      'guestStealsLeft': 2,
+      'createdAt': FieldValue.serverTimestamp(),
+      'lastMoveAt': FieldValue.serverTimestamp(),
     });
 
     return code;
@@ -254,7 +264,7 @@ class MultiplayerService {
       String uid, String displayName, String inviteeUid) async {
     final config = LanguageConfig.current;
     final bag = TileBagService(config.tileBag);
-    final hostRack  = bag.drawMany(7).map((t) => t.letter).toList();
+    final hostRack = bag.drawMany(7).map((t) => t.letter).toList();
     final guestRack = bag.drawMany(7).map((t) => t.letter).toList();
     final bagLetters = <String>[];
     while (bag.remaining > 0) {
@@ -270,25 +280,25 @@ class MultiplayerService {
     }
 
     await _rooms.doc(code).set({
-      'hostUid':          uid,
-      'hostName':         displayName,
-      'guestUid':         null,
-      'guestName':        null,
-      'status':           'waiting_invite',
-      'inviteeUid':       inviteeUid,
-      'currentTurnUid':   uid,
-      'hostScore':        0,
-      'guestScore':       0,
-      'hostRack':         hostRack,
-      'guestRack':        guestRack,
-      'bagLetters':       bagLetters,
-      'boardState':       [],
-      'winner':           null,
-      'passCount':        0,
-      'hostStealsLeft':   2,
-      'guestStealsLeft':  2,
-      'createdAt':        FieldValue.serverTimestamp(),
-      'lastMoveAt':       FieldValue.serverTimestamp(),
+      'hostUid': uid,
+      'hostName': displayName,
+      'guestUid': null,
+      'guestName': null,
+      'status': 'waiting_invite',
+      'inviteeUid': inviteeUid,
+      'currentTurnUid': uid,
+      'hostScore': 0,
+      'guestScore': 0,
+      'hostRack': hostRack,
+      'guestRack': guestRack,
+      'bagLetters': bagLetters,
+      'boardState': [],
+      'winner': null,
+      'passCount': 0,
+      'hostStealsLeft': 2,
+      'guestStealsLeft': 2,
+      'createdAt': FieldValue.serverTimestamp(),
+      'lastMoveAt': FieldValue.serverTimestamp(),
     });
 
     return code;
@@ -296,10 +306,8 @@ class MultiplayerService {
 
   /// Benim için bekleyen davetleri gerçek zamanlı izler.
   Stream<List<MultiplayerRoom>> inviteStream(String myUid) {
-    return _rooms
-        .where('inviteeUid', isEqualTo: myUid)
-        .snapshots()
-        .map((snap) => snap.docs
+    return _rooms.where('inviteeUid', isEqualTo: myUid).snapshots().map(
+        (snap) => snap.docs
             .map((d) => MultiplayerRoom.fromDoc(d))
             .where((r) => r.status == 'waiting_invite')
             .toList());
@@ -367,6 +375,8 @@ class MultiplayerService {
     required String? winner,
     int? myNewStealsLeft,
     int? moveScore,
+    List<Map<String, dynamic>> lastMoveWords = const [],
+    List<String> lastMoveCells = const [],
   }) async {
     final update = <String, dynamic>{
       'boardState': newBoardState,
@@ -376,6 +386,8 @@ class MultiplayerService {
       'lastMoveAt': FieldValue.serverTimestamp(),
       'lastMoveScore': moveScore,
       'lastMoveBy': isHost ? 'host' : 'guest',
+      'lastMoveWords': lastMoveWords,
+      'lastMoveCells': lastMoveCells,
     };
     if (isHost) {
       update['hostScore'] = myScore;
@@ -405,6 +417,8 @@ class MultiplayerService {
       'currentTurnUid': nextTurnUid,
       'passCount': newCount,
       'lastMoveAt': FieldValue.serverTimestamp(),
+      'lastMoveWords': [],
+      'lastMoveCells': [],
     };
     if (newCount >= 4) {
       update['status'] = 'finished';

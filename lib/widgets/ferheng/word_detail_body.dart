@@ -24,8 +24,8 @@ class WordDetailBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final defs = entry.definitionsFor(language);
-    final fallback = entry.definitionsFor(
-        language == AppLocale.tr ? AppLocale.ku : AppLocale.tr);
+    final fallback = entry
+        .definitionsFor(language == AppLocale.tr ? AppLocale.ku : AppLocale.tr);
     final visibleDefs = defs.isNotEmpty ? defs : fallback;
     final usingFallback = defs.isEmpty && fallback.isNotEmpty;
 
@@ -52,7 +52,7 @@ class WordDetailBody extends StatelessWidget {
         ] else
           const SizedBox(height: 4),
         if (visibleDefs.isEmpty)
-          Text(L.ferhengNoDefinition, style: FerhengDesign.bodyMd)
+          Text(entry.displayMeaning(language), style: FerhengDesign.bodyMd)
         else
           ..._buildDefinitions(visibleDefs, usingFallback, language),
         if (entry.etymology.isNotEmpty) ...[
@@ -114,8 +114,8 @@ class WordDetailBody extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 8),
           child: Text(
             lang == AppLocale.tr
-                ? '(Türkçe tanım yok — Kürtçe gösteriliyor)'
-                : '(Wateya Kurmancî tune — Tirkî tê nîşandan)',
+                ? '(${L.missingTurkishMeaning} — Kürtçe gösteriliyor)'
+                : '(${L.missingKurdishMeaning} — Tirkî tê nîşandan)',
             style: FerhengDesign.caption.copyWith(
               color: FerhengDesign.textFaint,
               fontStyle: FontStyle.italic,
@@ -184,7 +184,9 @@ class _Header extends StatelessWidget {
             tooltip: isFavorite ? L.ferhengRemovedFav : L.ferhengAddedFav,
             onPressed: onFavoriteToggle,
             icon: Icon(
-              isFavorite ? Icons.bookmark_rounded : Icons.bookmark_border_rounded,
+              isFavorite
+                  ? Icons.bookmark_rounded
+                  : Icons.bookmark_border_rounded,
               color: FerhengDesign.primary,
             ),
           ),
@@ -355,7 +357,8 @@ class _AttributionFooter extends StatelessWidget {
         children: [
           Text(
             L.ferhengAttribution,
-            style: FerhengDesign.caption.copyWith(color: FerhengDesign.textFaint),
+            style:
+                FerhengDesign.caption.copyWith(color: FerhengDesign.textFaint),
           ),
           if (entry.sourceUrl.isNotEmpty) ...[
             const SizedBox(height: 4),

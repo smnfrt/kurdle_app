@@ -6,9 +6,13 @@ import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/firebase_service.dart';
 import 'package:kurdle_app/services/firestore_service.dart';
 import 'package:kurdle_app/services/game_store.dart';
+import 'package:kurdle_app/services/haptic_service.dart';
 import 'package:kurdle_app/services/sound_service.dart';
 import 'package:kurdle_app/services/daily_word_service.dart';
 import 'package:kurdle_app/services/stats_service.dart';
+import 'package:kurdle_app/domain.dart' show AiDifficulty;
+import 'package:kurdle_app/services/daily_streak_service.dart';
+import 'package:kurdle_app/services/settings_service.dart';
 import 'package:kurdle_app/widgets/auth_screen.dart';
 import 'package:kurdle_app/widgets/ferheng/ferheng_home_screen.dart';
 import 'package:kurdle_app/widgets/how_to_play_screen.dart';
@@ -27,11 +31,11 @@ import 'package:kurdle_app/widgets/username_match_screen.dart';
 import 'package:kurdle_app/route_transitions.dart';
 import 'package:kurdle_app/app_theme.dart';
 
-const _kBg       = Color(0xFF080E18);
-const _kSurface  = Color(0xFF121C2B);
-const _kPrimary  = Color(0xFF3FBE6F);
-const _kGold     = Color(0xFFFFD27A);
-const _kGoldDim  = Color(0xFFB8860B);
+const _kBg = Color(0xFF080E18);
+const _kSurface = Color(0xFF121C2B);
+const _kPrimary = Color(0xFF3FBE6F);
+const _kGold = Color(0xFFFFD27A);
+const _kGoldDim = Color(0xFFB8860B);
 
 // Premium surface tonu — kart yüzeyi için tutarlı çok katmanlı kaplama
 class _PremiumSurface {
@@ -75,10 +79,18 @@ class _PremiumSurface {
 
 void _showAboutDialog(BuildContext ctx) {
   HapticFeedback.selectionClick();
+  final isDark = Theme.of(ctx).brightness == Brightness.dark;
+  final dialogBg = isDark ? const Color(0xFF1A2535) : const Color(0xFFF4F8FA);
+  final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
+  final mutedColor =
+      isDark ? Colors.white.withOpacity(0.45) : const Color(0xFF52636E);
+  final valueColor = isDark ? Colors.white70 : const Color(0xFF25313A);
+  final dividerColor =
+      isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFD6E1E7);
   showDialog(
     context: ctx,
     builder: (_) => Dialog(
-      backgroundColor: const Color(0xFF1A2535),
+      backgroundColor: dialogBg,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       child: Padding(
         padding: const EdgeInsets.all(28),
@@ -86,40 +98,65 @@ void _showAboutDialog(BuildContext ctx) {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 72, height: 72,
+              width: 72,
+              height: 72,
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   colors: [Color(0xFF4CAF50), Color(0xFF2E7D32)],
                 ),
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
-                  BoxShadow(color: _kPrimary.withOpacity(0.35), blurRadius: 14, offset: const Offset(0, 4)),
+                  BoxShadow(
+                      color: _kPrimary.withOpacity(0.35),
+                      blurRadius: 14,
+                      offset: const Offset(0, 4)),
                 ],
               ),
               child: const Center(
-                child: Text('P', style: TextStyle(color: Colors.white, fontSize: 40, fontWeight: FontWeight.bold, height: 1)),
+                child: Text('P',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 40,
+                        fontWeight: FontWeight.bold,
+                        height: 1)),
               ),
             ),
             const SizedBox(height: 16),
-            const Text('Peyvok', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+            Text('Peyvok',
+                style: TextStyle(
+                    color: titleColor,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5)),
             const SizedBox(height: 4),
-            Text(L.aboutTagline, style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 13)),
+            Text(L.aboutTagline,
+                style: TextStyle(color: mutedColor, fontSize: 13)),
             const SizedBox(height: 20),
-            Container(height: 1, color: Colors.white.withOpacity(0.08)),
+            Container(height: 1, color: dividerColor),
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(L.version, style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 13)),
-                const Text('1.0.0', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
+                Text(L.version,
+                    style: TextStyle(color: mutedColor, fontSize: 13)),
+                Text('1.0.0',
+                    style: TextStyle(
+                        color: valueColor,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600)),
               ],
             ),
             const SizedBox(height: 10),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(L.aboutDev, style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 13)),
-                const Text('Peyvok Team', style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
+                Text(L.aboutDev,
+                    style: TextStyle(color: mutedColor, fontSize: 13)),
+                Text('Peyvok Team',
+                    style: TextStyle(
+                        color: valueColor,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600)),
               ],
             ),
             const SizedBox(height: 24),
@@ -133,10 +170,12 @@ void _showAboutDialog(BuildContext ctx) {
                 style: TextButton.styleFrom(
                   backgroundColor: _kPrimary.withOpacity(0.12),
                   foregroundColor: _kPrimary,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
-                child: const Text('OK', style: TextStyle(fontWeight: FontWeight.bold)),
+                child: const Text('OK',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
               ),
             ),
           ],
@@ -156,6 +195,8 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   int _streak = 0;
+  bool _streakAtRisk = false;
+  int _longestStreak = 0;
   late AnimationController _entranceCtrl;
   List<MultiplayerRoom> _pendingInvites = [];
   final Set<String> _notifiedInviteCodes = <String>{};
@@ -216,8 +257,10 @@ class _HomeScreenState extends State<HomeScreen>
             final err = await MultiplayerService.instance
                 .joinRoom(inv.roomCode, uid, name);
             if (err == null && mounted) {
-              Navigator.push(context,
-                  appRoute(FriendGameScreen(roomCode: inv.roomCode, myUid: uid)));
+              Navigator.push(
+                  context,
+                  appRoute(
+                      FriendGameScreen(roomCode: inv.roomCode, myUid: uid)));
             }
           },
           onDeclineInvite: (inv) =>
@@ -225,8 +268,10 @@ class _HomeScreenState extends State<HomeScreen>
           onOpenRoom: (room) {
             Navigator.pop(context);
             final uid = AuthService.instance.effectiveUid ?? '';
-            Navigator.push(context,
-                appRoute(FriendGameScreen(roomCode: room.roomCode, myUid: uid)));
+            Navigator.push(
+                context,
+                appRoute(
+                    FriendGameScreen(roomCode: room.roomCode, myUid: uid)));
           },
           invites: _pendingInvites,
           activeRooms: _activeRooms,
@@ -240,7 +285,10 @@ class _HomeScreenState extends State<HomeScreen>
     final inv = _pendingInvites.firstWhere(
       (r) => r.roomCode == roomCode,
       orElse: () => MultiplayerRoom(
-        roomCode: '', hostUid: '', hostName: '', status: '',
+        roomCode: '',
+        hostUid: '',
+        hostName: '',
+        status: '',
         currentTurnUid: '',
       ),
     );
@@ -255,7 +303,8 @@ class _HomeScreenState extends State<HomeScreen>
           children: const [
             Icon(Icons.mail_rounded, color: Color(0xFF64B5F6)),
             SizedBox(width: 10),
-            Text('Oyun Daveti', style: TextStyle(color: Colors.white, fontSize: 18)),
+            Text('Oyun Daveti',
+                style: TextStyle(color: Colors.white, fontSize: 18)),
           ],
         ),
         content: Text(
@@ -265,7 +314,8 @@ class _HomeScreenState extends State<HomeScreen>
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text(L.decline, style: const TextStyle(color: Color(0xFFEF5350))),
+            child: Text(L.decline,
+                style: const TextStyle(color: Color(0xFFEF5350))),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -286,16 +336,19 @@ class _HomeScreenState extends State<HomeScreen>
     final uid = AuthService.instance.effectiveUid;
     final name = AuthService.instance.effectiveDisplayName;
     if (uid == null) return;
-    final err = await MultiplayerService.instance.joinRoom(inv.roomCode, uid, name);
+    final err =
+        await MultiplayerService.instance.joinRoom(inv.roomCode, uid, name);
     if (err == null && mounted) {
-      Navigator.push(context, appRoute(FriendGameScreen(roomCode: inv.roomCode, myUid: uid)));
+      Navigator.push(context,
+          appRoute(FriendGameScreen(roomCode: inv.roomCode, myUid: uid)));
     }
   }
 
   void _listenInvites() {
     final uid = AuthService.instance.currentUser?.uid;
     if (uid == null || !FirebaseService.isAvailable) return;
-    _inviteSub = MultiplayerService.instance.inviteStream(uid).listen((invites) {
+    _inviteSub =
+        MultiplayerService.instance.inviteStream(uid).listen((invites) {
       if (!mounted) return;
       for (final inv in invites) {
         if (_notifiedInviteCodes.add(inv.roomCode)) {
@@ -314,14 +367,15 @@ class _HomeScreenState extends State<HomeScreen>
   void _listenActiveRooms() {
     final uid = AuthService.instance.effectiveUid;
     if (uid == null || !FirebaseService.isAvailable) return;
-    _activeRoomsSub = MultiplayerService.instance.myActiveRoomsStream(uid).listen((rooms) {
+    _activeRoomsSub =
+        MultiplayerService.instance.myActiveRoomsStream(uid).listen((rooms) {
       if (mounted) setState(() => _activeRooms = rooms);
     });
   }
 
   Widget _stagger(int index, Widget child) {
     final start = (index * 0.10).clamp(0.0, 0.8);
-    final end   = (start + 0.55).clamp(0.0, 1.0);
+    final end = (start + 0.55).clamp(0.0, 1.0);
     final anim = CurvedAnimation(
       parent: _entranceCtrl,
       curve: Interval(start, end, curve: Curves.easeOutCubic),
@@ -339,8 +393,15 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _loadStreak() async {
-    final stats = await StatsService().loadStats();
-    if (mounted) setState(() => _streak = stats.streak.current);
+    // Yeni günlük streak (her gün herhangi bir oyun oynamak)
+    final daily = await DailyStreakService.instance.getState();
+    if (mounted) {
+      setState(() {
+        _streak = daily.current;
+        _streakAtRisk = daily.atRisk;
+        _longestStreak = daily.longest;
+      });
+    }
   }
 
   Future<void> _checkOnboarding() async {
@@ -361,21 +422,35 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    final top    = MediaQuery.of(context).padding.top;
+    final top = MediaQuery.of(context).padding.top;
     final bottom = MediaQuery.of(context).padding.bottom;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgGradient = isDark
+        ? const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFF0E1827), Color(0xFF050810)],
+          )
+        : const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFF4F8FA), Color(0xFFE6EEF2)],
+          );
+    final topGlow = isDark
+        ? const Color(0xFF4CAF50).withOpacity(0.07)
+        : const Color(0xFF4CAF50).withOpacity(0.10);
+    final bottomGlow = isDark
+        ? const Color(0xFF6CC0F5).withOpacity(0.05)
+        : const Color(0xFFB8C8D0).withOpacity(0.22);
 
     return Scaffold(
       body: Stack(
         children: [
           // Cinematic background: linear gradient + radial top glow + bottom vignette
-          const Positioned.fill(
+          Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xFF0E1827), Color(0xFF050810)],
-                ),
+                gradient: bgGradient,
               ),
             ),
           ),
@@ -387,7 +462,7 @@ class _HomeScreenState extends State<HomeScreen>
                     center: Alignment.topCenter,
                     radius: 1.1,
                     colors: [
-                      const Color(0xFF4CAF50).withOpacity(0.07),
+                      topGlow,
                       Colors.transparent,
                     ],
                   ),
@@ -403,7 +478,7 @@ class _HomeScreenState extends State<HomeScreen>
                     center: Alignment.bottomCenter,
                     radius: 1.0,
                     colors: [
-                      const Color(0xFF6CC0F5).withOpacity(0.05),
+                      bottomGlow,
                       Colors.transparent,
                     ],
                   ),
@@ -412,81 +487,121 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ),
           Column(
-        children: [
-          // Header
-          _HomeHeader(
-            statusBarHeight: top,
-            streak: _streak,
-            onLocaleChanged: () => setState(() {}),
-            onSettingsTap: () => _showSettingsSheet(context),
-            onStatsTap: () => _showStatsSheet(context),
-            onOptionsTap: (btnCtx) => _showOptionsMenu(btnCtx),
-          ),
-
-          // Menu cards
-          Expanded(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.fromLTRB(18, 22, 18, bottom + 28),
-              child: Column(
-                children: [
-                  _stagger(0, _QuickPlayCard(
-                    onTap: () => Navigator.push(
-                      context,
-                      appRoute(const ScrabbleGameScreen()),
-                    ).then((_) => setState(() {})),
-                  )),
-                  const SizedBox(height: 16),
-                  _stagger(1, _GamePairPanel(
-                    invites: _pendingInvites,
-                    activeRooms: _activeRooms,
-                    onAi: (seconds) => Navigator.push(
-                      context, appRoute(ScrabbleGameScreen(turnTimeLimitSeconds: seconds)),
-                    ).then((_) => setState(() {})),
-                    onFriend: (seconds) => Navigator.push(
-                      context, appRoute(FriendLobbyScreen(turnTimeLimitSeconds: seconds)),
-                    ),
-                    onUsername: () => Navigator.push(
-                      context, appRoute(const UsernameMatchScreen()),
-                    ),
-                    onRandom: () => Navigator.push(
-                      context, appRoute(const RandomMatchScreen()),
-                    ),
-                    onResume: (ctrl) => Navigator.push(
-                      context,
-                      appRoute(ScrabbleGameScreen(existingController: ctrl)),
-                    ).then((_) => setState(() {})),
-                    onAcceptInvite: (inv) async {
-                      final uid  = AuthService.instance.effectiveUid;
-                      final name = AuthService.instance.effectiveDisplayName;
-                      if (uid == null) return;
-                      final err = await MultiplayerService.instance.joinRoom(inv.roomCode, uid, name);
-                      if (err == null && context.mounted) {
-                        Navigator.push(context, appRoute(FriendGameScreen(roomCode: inv.roomCode, myUid: uid)));
-                      }
-                    },
-                    onDeclineInvite: (inv) => MultiplayerService.instance.declineInvite(inv.roomCode),
-                    onOpenRoom: (room) {
-                      final uid = AuthService.instance.effectiveUid ?? '';
-                      Navigator.push(context, appRoute(FriendGameScreen(roomCode: room.roomCode, myUid: uid)));
-                    },
-                  )),
-                  const SizedBox(height: 16),
-                  _stagger(2, _TurnuvaModuCard(
-                    onTap: () => Navigator.push(
-                      context,
-                      appRoute(const TournamentScreen()),
-                    ),
-                  )),
-                  const SizedBox(height: 16),
-                  _stagger(3, _GununKelimesiCard()),
-                  const SizedBox(height: 16),
-                  _stagger(4, _SiralamalarCard()),
-                ],
+            children: [
+              // Header
+              _HomeHeader(
+                statusBarHeight: top,
+                streak: _streak,
+                onLocaleChanged: () => setState(() {}),
+                onSettingsTap: () => _showSettingsSheet(context),
+                onStatsTap: () => _showStatsSheet(context),
+                onOptionsTap: (btnCtx) => _showOptionsMenu(btnCtx),
               ),
-            ),
+
+              // Menu cards
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(18, 22, 18, bottom + 28),
+                  child: Column(
+                    children: [
+                      if (_streakAtRisk) ...[
+                        _StreakRiskBanner(
+                          current: _streak,
+                          onPlay: () => Navigator.push(
+                            context,
+                            appRoute(const ScrabbleGameScreen()),
+                          ).then((_) {
+                            _loadStreak();
+                            setState(() {});
+                          }),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      _stagger(
+                          0,
+                          SizedBox(
+                            height: 134,
+                            child: _QuickPlayCard(
+                              onTap: () => _showQuickPlayDifficulty(context),
+                            ),
+                          )),
+                      const SizedBox(height: 14),
+                      _stagger(
+                          1,
+                          SizedBox(
+                            height: 134,
+                            child: _GamePairPanel(
+                              invites: _pendingInvites,
+                              activeRooms: _activeRooms,
+                              onAi: (seconds) => Navigator.push(
+                                context,
+                                appRoute(ScrabbleGameScreen(
+                                    turnTimeLimitSeconds: seconds)),
+                              ).then((_) => setState(() {})),
+                              onFriend: (seconds) => Navigator.push(
+                                context,
+                                appRoute(FriendLobbyScreen(
+                                    turnTimeLimitSeconds: seconds)),
+                              ),
+                              onUsername: () => Navigator.push(
+                                context,
+                                appRoute(const UsernameMatchScreen()),
+                              ),
+                              onRandom: () => Navigator.push(
+                                context,
+                                appRoute(const RandomMatchScreen()),
+                              ),
+                              onResume: (ctrl) => Navigator.push(
+                                context,
+                                appRoute(ScrabbleGameScreen(
+                                    existingController: ctrl)),
+                              ).then((_) => setState(() {})),
+                              onAcceptInvite: (inv) async {
+                                final uid = AuthService.instance.effectiveUid;
+                                final name =
+                                    AuthService.instance.effectiveDisplayName;
+                                if (uid == null) return;
+                                final err = await MultiplayerService.instance
+                                    .joinRoom(inv.roomCode, uid, name);
+                                if (err == null && context.mounted) {
+                                  Navigator.push(
+                                      context,
+                                      appRoute(FriendGameScreen(
+                                          roomCode: inv.roomCode, myUid: uid)));
+                                }
+                              },
+                              onDeclineInvite: (inv) => MultiplayerService
+                                  .instance
+                                  .declineInvite(inv.roomCode),
+                              onOpenRoom: (room) {
+                                final uid =
+                                    AuthService.instance.effectiveUid ?? '';
+                                Navigator.push(
+                                    context,
+                                    appRoute(FriendGameScreen(
+                                        roomCode: room.roomCode, myUid: uid)));
+                              },
+                            ),
+                          )),
+                      const SizedBox(height: 12),
+                      // Turnuva modu yeterli kullanıcı olmadığından gizlendi.
+                      // Geri açmak için: bu kartı + appRoute(TournamentScreen) yorumunu kaldır.
+                      // _stagger(2, _TurnuvaModuCard(
+                      //   onTap: () => Navigator.push(
+                      //     context,
+                      //     appRoute(const TournamentScreen()),
+                      //   ),
+                      // )),
+                      // const SizedBox(height: 16),
+                      _stagger(2, _GununKelimesiCard()),
+                      const SizedBox(height: 12),
+                      _stagger(3, _SiralamalarCard()),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-        ),
         ],
       ),
     );
@@ -504,6 +619,31 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  void _showQuickPlayDifficulty(BuildContext context) {
+    HapticFeedback.selectionClick();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (sheetCtx) => _QuickPlayDifficultySheet(
+        onSelected: (difficulty) {
+          Navigator.pop(sheetCtx);
+          _startQuickPlay(difficulty);
+        },
+      ),
+    );
+  }
+
+  void _startQuickPlay(AiDifficulty difficulty) {
+    Navigator.push(
+      context,
+      appRoute(ScrabbleGameScreen(aiDifficulty: difficulty)),
+    ).then((_) {
+      _loadStreak();
+      setState(() {});
+    });
+  }
+
   void _showStatsSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
@@ -515,7 +655,8 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _showOptionsMenu(BuildContext btnCtx) {
     final RenderBox btn = btnCtx.findRenderObject() as RenderBox;
-    final RenderBox overlay = Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
+    final RenderBox overlay =
+        Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
     final offset = btn.localToGlobal(Offset.zero, ancestor: overlay);
     final RelativeRect position = RelativeRect.fromLTRB(
       offset.dx,
@@ -523,12 +664,21 @@ class _HomeScreenState extends State<HomeScreen>
       offset.dx + btn.size.width,
       0,
     );
-    final isSignedIn = AuthService.instance.isSignedIn && !AuthService.instance.isAnonymous;
+    final isSignedIn =
+        AuthService.instance.isSignedIn && !AuthService.instance.isAnonymous;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showMenu<String>(
       context: context,
       position: position,
-      color: const Color(0xFF1E2A3A),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      color: isDark ? const Color(0xFF1E2A3A) : const Color(0xFFF4F8FA),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(
+          color: isDark
+              ? Colors.white.withOpacity(0.08)
+              : const Color(0xFF78868F).withOpacity(0.65),
+        ),
+      ),
       elevation: 12,
       items: [
         PopupMenuItem(
@@ -538,7 +688,8 @@ class _HomeScreenState extends State<HomeScreen>
         const PopupMenuDivider(),
         PopupMenuItem(
           value: 'how_to_play',
-          child: _MenuRow(icon: Icons.help_outline_rounded, label: L.howToPlayShort),
+          child: _MenuRow(
+              icon: Icons.help_outline_rounded, label: L.howToPlayShort),
         ),
         PopupMenuItem(
           value: 'about',
@@ -549,7 +700,8 @@ class _HomeScreenState extends State<HomeScreen>
           if (!isSignedIn)
             PopupMenuItem(
               value: 'google_signin',
-              child: _MenuRow(icon: Icons.login_rounded, label: 'Google ile Giriş Yap'),
+              child: _MenuRow(
+                  icon: Icons.login_rounded, label: 'Google ile Giriş Yap'),
             )
           else
             PopupMenuItem(
@@ -583,7 +735,8 @@ class _HomeScreenState extends State<HomeScreen>
           content: Text('Hoş geldin, ${user.displayName ?? user.email}!'),
           backgroundColor: const Color(0xFF2E7D32),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           margin: const EdgeInsets.all(16),
         ),
       );
@@ -605,7 +758,8 @@ class _HomeScreenState extends State<HomeScreen>
       SnackBar(
         content: Row(
           children: [
-            const Icon(Icons.info_outline_rounded, color: Colors.white, size: 18),
+            const Icon(Icons.info_outline_rounded,
+                color: Colors.white, size: 18),
             const SizedBox(width: 10),
             Text(L.comingSoon, style: const TextStyle(fontSize: 13)),
           ],
@@ -646,65 +800,114 @@ class _SiralamalarCardState extends State<_SiralamalarCard> {
       setState(() => _loading = false);
       return;
     }
-    final weekly  = await FirestoreService.instance.getWeeklyLeaderboard();
+    final weekly = await FirestoreService.instance.getWeeklyLeaderboard();
     final allTime = await FirestoreService.instance.getAllTimeLeaderboard();
-    if (mounted) setState(() { _weekly = weekly; _allTime = allTime; _loading = false; });
+    if (mounted)
+      setState(() {
+        _weekly = weekly;
+        _allTime = allTime;
+        _loading = false;
+      });
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : const Color(0xFF202830);
+    final mutedColor =
+        isDark ? Colors.white.withOpacity(0.4) : const Color(0xFF67727A);
+    final dividerColor = isDark
+        ? Colors.white.withOpacity(0.05)
+        : const Color(0xFF96A2AA).withOpacity(0.42);
     if (_loading) {
       return Container(
-        height: 120,
+        height: 104,
         decoration: BoxDecoration(
-          color: const Color(0xFF141E2B),
+          color: isDark ? const Color(0xFF141E2B) : const Color(0xFFF4F8FA),
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: _kGold.withOpacity(0.25), width: 1.2),
         ),
-        child: const Center(child: CircularProgressIndicator(color: _kGold, strokeWidth: 2)),
+        child: const Center(
+            child: CircularProgressIndicator(color: _kGold, strokeWidth: 2)),
       );
     }
 
     final entries = _tab == 0 ? _weekly : _allTime;
     final myUid = AuthService.instance.currentUser?.uid;
-    final myIdx = myUid != null ? entries.indexWhere((e) => e.uid == myUid) : -1;
-    final myRank  = myIdx >= 0 ? myIdx + 1 : null;
+    final myIdx =
+        myUid != null ? entries.indexWhere((e) => e.uid == myUid) : -1;
+    final myRank = myIdx >= 0 ? myIdx + 1 : null;
     final myScore = myIdx >= 0 ? entries[myIdx].score : null;
 
-    final board = entries.map((e) => (
-      name: e.displayName,
-      score: e.score,
-      isMe: e.uid == myUid,
-    )).toList();
+    final board = entries
+        .map((e) => (
+              name: e.displayName,
+              score: e.score,
+              isMe: e.uid == myUid,
+            ))
+        .toList();
     final top3 = board.take(3).toList();
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF141E2B),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? const [Color(0xFF141E2B), Color(0xFF101824)]
+              : const [Color(0xFFF4F8FA), Color(0xFFE6EEF2)],
+        ),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _kGold.withOpacity(0.25), width: 1.2),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 10, offset: const Offset(0, 4))],
+        border: Border.all(
+            color: isDark
+                ? _kGold.withOpacity(0.25)
+                : const Color(0xFF8E9AA2).withOpacity(0.60),
+            width: 1.2),
+        boxShadow: [
+          BoxShadow(
+              color: isDark
+                  ? Colors.black.withOpacity(0.2)
+                  : const Color(0xFF7F8D95).withOpacity(0.22),
+              blurRadius: 14,
+              offset: const Offset(0, 5))
+        ],
       ),
       child: Column(
         children: [
           // Başlık + tab
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
             child: Row(
               children: [
                 const Icon(Icons.leaderboard_rounded, color: _kGold, size: 18),
                 const SizedBox(width: 8),
-                Text(L.ranking, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
+                Text(L.ranking,
+                    style: TextStyle(
+                        color: titleColor,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold)),
                 const Spacer(),
-                _TabBtn(label: L.weekly,  active: _tab == 0, onTap: () { setState(() => _tab = 0); _load(); }),
+                _TabBtn(
+                    label: L.weekly,
+                    active: _tab == 0,
+                    onTap: () {
+                      setState(() => _tab = 0);
+                      _load();
+                    }),
                 const SizedBox(width: 6),
-                _TabBtn(label: L.allTime, active: _tab == 1, onTap: () { setState(() => _tab = 1); _load(); }),
+                _TabBtn(
+                    label: L.allTime,
+                    active: _tab == 1,
+                    onTap: () {
+                      setState(() => _tab = 1);
+                      _load();
+                    }),
               ],
             ),
           ),
 
-          const SizedBox(height: 12),
-          Container(height: 1, color: Colors.white.withOpacity(0.05)),
+          const SizedBox(height: 9),
+          Container(height: 1, color: dividerColor),
 
           // İki sütun: global top3 | benim sıram
           IntrinsicHeight(
@@ -714,32 +917,47 @@ class _SiralamalarCardState extends State<_SiralamalarCard> {
                 // Sol: global top 3
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 12, 8, 14),
+                    padding: const EdgeInsets.fromLTRB(12, 10, 8, 12),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(L.globalRanking, style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
-                        const SizedBox(height: 8),
+                        Text(L.globalRanking,
+                            style: TextStyle(
+                                color: mutedColor,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.5)),
+                        const SizedBox(height: 6),
                         ...top3.asMap().entries.map((e) {
-                          final rank  = e.key + 1;
+                          final rank = e.key + 1;
                           final entry = e.value;
-                          final medal = rank == 1 ? '🥇' : rank == 2 ? '🥈' : '🥉';
+                          final medal = rank == 1
+                              ? '🥇'
+                              : rank == 2
+                                  ? '🥈'
+                                  : '🥉';
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 7),
                             child: Row(
                               children: [
-                                Text(medal, style: const TextStyle(fontSize: 14)),
+                                Text(medal,
+                                    style: const TextStyle(fontSize: 14)),
                                 const SizedBox(width: 6),
                                 Expanded(
                                   child: Text(entry.name,
                                       style: TextStyle(
-                                        color: entry.isMe ? _kPrimary : Colors.white70,
+                                        color: entry.isMe
+                                            ? _kPrimary
+                                            : titleColor.withOpacity(0.78),
                                         fontSize: 12,
-                                        fontWeight: entry.isMe ? FontWeight.bold : FontWeight.normal,
+                                        fontWeight: entry.isMe
+                                            ? FontWeight.bold
+                                            : FontWeight.normal,
                                       )),
                                 ),
                                 Text(_fmtScore(entry.score),
-                                    style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 11)),
+                                    style: TextStyle(
+                                        color: mutedColor, fontSize: 11)),
                               ],
                             ),
                           );
@@ -750,21 +968,26 @@ class _SiralamalarCardState extends State<_SiralamalarCard> {
                 ),
 
                 // Dikey ayraç
-                Container(width: 1, color: Colors.white.withOpacity(0.05)),
+                Container(width: 1, color: dividerColor),
 
                 // Sağ: benim sıram
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 12, 14, 14),
+                    padding: const EdgeInsets.fromLTRB(10, 10, 12, 12),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(L.myRank, style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 10, fontWeight: FontWeight.w600, letterSpacing: 0.5)),
-                        const SizedBox(height: 10),
+                        Text(L.myRank,
+                            style: TextStyle(
+                                color: mutedColor,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.5)),
+                        const SizedBox(height: 8),
                         if (myRank == null)
                           Text(
                             L.noScoreYet,
-                            style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12),
+                            style: TextStyle(color: mutedColor, fontSize: 12),
                           )
                         else ...[
                           Row(
@@ -772,7 +995,7 @@ class _SiralamalarCardState extends State<_SiralamalarCard> {
                             children: [
                               Text('#$myRank',
                                   style: TextStyle(
-                                    color: myRank <= 3 ? _kGold : Colors.white,
+                                    color: myRank <= 3 ? _kGold : titleColor,
                                     fontSize: 32,
                                     fontWeight: FontWeight.bold,
                                     height: 1,
@@ -781,27 +1004,37 @@ class _SiralamalarCardState extends State<_SiralamalarCard> {
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 4),
                                 child: Text('/ ${board.length}',
-                                    style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 12)),
+                                    style: TextStyle(
+                                        color: mutedColor.withOpacity(0.75),
+                                        fontSize: 12)),
                               ),
                             ],
                           ),
                           const SizedBox(height: 6),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
                               color: _kPrimary.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: _kPrimary.withOpacity(0.3)),
+                              border:
+                                  Border.all(color: _kPrimary.withOpacity(0.3)),
                             ),
                             child: Text('${_fmtScore(myScore!)} ${L.points}',
-                                style: const TextStyle(color: _kPrimary, fontSize: 11, fontWeight: FontWeight.w600)),
+                                style: const TextStyle(
+                                    color: _kPrimary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600)),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             myRank <= 3
                                 ? L.rankingGreat
-                                : L.rankingBehind(myRank - 1, _fmtScore(board[myRank - 2].score - myScore)),
-                            style: TextStyle(color: Colors.white.withOpacity(0.35), fontSize: 10),
+                                : L.rankingBehind(
+                                    myRank - 1,
+                                    _fmtScore(
+                                        board[myRank - 2].score - myScore)),
+                            style: TextStyle(color: mutedColor, fontSize: 10),
                           ),
                         ],
                       ],
@@ -816,21 +1049,27 @@ class _SiralamalarCardState extends State<_SiralamalarCard> {
     );
   }
 
-  String _fmtScore(int s) => s >= 1000 ? '${(s / 1000).toStringAsFixed(1)}K' : '$s';
+  String _fmtScore(int s) =>
+      s >= 1000 ? '${(s / 1000).toStringAsFixed(1)}K' : '$s';
 }
 
 class _TabBtn extends StatelessWidget {
   final String label;
   final bool active;
   final VoidCallback onTap;
-  const _TabBtn({required this.label, required this.active, required this.onTap});
+  const _TabBtn(
+      {required this.label, required this.active, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () { HapticFeedback.selectionClick(); onTap(); },
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
         borderRadius: BorderRadius.circular(8),
         splashColor: _kGold.withOpacity(0.15),
         highlightColor: _kGold.withOpacity(0.08),
@@ -840,11 +1079,16 @@ class _TabBtn extends StatelessWidget {
           decoration: BoxDecoration(
             color: active ? _kGold.withOpacity(0.15) : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: active ? _kGold.withOpacity(0.5) : Colors.transparent),
+            border: Border.all(
+                color: active ? _kGold.withOpacity(0.5) : Colors.transparent),
           ),
           child: Text(label,
               style: TextStyle(
-                color: active ? _kGold : Colors.white.withOpacity(0.35),
+                color: active
+                    ? _kGold
+                    : isDark
+                        ? Colors.white.withOpacity(0.35)
+                        : const Color(0xFF69747C),
                 fontSize: 10,
                 fontWeight: active ? FontWeight.bold : FontWeight.normal,
               )),
@@ -866,7 +1110,7 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
   late AnimationController _pulseCtrl;
   bool _hasPlayed = false;
   int _challengePlays = 0;
-  int _perfectRuns   = 0;
+  int _perfectRuns = 0;
   bool _loading = true;
   int _activeStage = 0; // 0=kolay, 1=orta, 2=zor
   Timer? _stageTimer;
@@ -874,8 +1118,9 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
   @override
   void initState() {
     super.initState();
-    _pulseCtrl = AnimationController(
-      vsync: this, duration: const Duration(seconds: 2))..repeat(reverse: true);
+    _pulseCtrl =
+        AnimationController(vsync: this, duration: const Duration(seconds: 2))
+          ..repeat(reverse: true);
     _loadState();
     _stageTimer = Timer.periodic(const Duration(milliseconds: 2500), (_) {
       if (mounted && !_hasPlayed) {
@@ -887,13 +1132,13 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
   Future<void> _loadState() async {
     final svc = DailyWordService.instance;
     final played = svc.hasPlayedTodayLocal || await svc.hasPlayedToday();
-    final stats  = await svc.fetchTodayStats();
+    final stats = await svc.fetchTodayStats();
     if (mounted) {
       setState(() {
-        _hasPlayed     = played;
+        _hasPlayed = played;
         _challengePlays = stats?.totalPlayed ?? 0;
-        _perfectRuns   = stats?.totalWon ?? 0;
-        _loading       = false;
+        _perfectRuns = stats?.totalWon ?? 0;
+        _loading = false;
       });
     }
   }
@@ -932,6 +1177,7 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return AnimatedBuilder(
       animation: _pulseCtrl,
       builder: (_, __) {
@@ -940,24 +1186,30 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
           width: double.infinity,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(22),
-            gradient: const LinearGradient(
+            gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [Color(0xFF1A1538), Color(0xFF0F0E27)],
+              colors: isDark
+                  ? const [Color(0xFF1A1538), Color(0xFF0F0E27)]
+                  : const [Color(0xFFDAD8E4), Color(0xFFC4CAD8)],
             ),
             border: Border.all(
-              color: const Color(0xFF7C4DFF).withOpacity(0.22 + 0.10 * t),
+              color: isDark
+                  ? const Color(0xFF7C4DFF).withOpacity(0.22 + 0.10 * t)
+                  : const Color(0xFF7C8792).withOpacity(0.55),
               width: 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF7C4DFF).withOpacity(0.18 + 0.06 * t),
-                blurRadius: 26,
+                color: isDark
+                    ? const Color(0xFF7C4DFF).withOpacity(0.18 + 0.06 * t)
+                    : const Color(0xFF7F8992).withOpacity(0.22),
+                blurRadius: 24,
                 spreadRadius: -4,
                 offset: const Offset(0, 10),
               ),
               BoxShadow(
-                color: Colors.black.withOpacity(0.40),
+                color: Colors.black.withOpacity(isDark ? 0.40 : 0.08),
                 blurRadius: 14,
                 offset: const Offset(0, 6),
               ),
@@ -966,8 +1218,12 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
           child: _loading
               ? const SizedBox(
                   height: 60,
-                  child: Center(child: SizedBox(width: 16, height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF7C4DFF)))))
+                  child: Center(
+                      child: SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Color(0xFF7C4DFF)))))
               : _body(),
         );
       },
@@ -975,15 +1231,20 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
   }
 
   Widget _body() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryText = isDark ? Colors.white70 : const Color(0xFF30363D);
+    final mutedText =
+        isDark ? Colors.white.withOpacity(0.45) : const Color(0xFF6D7680);
     return Padding(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ── Başlık satırı ───────────────────────────────────────
           Row(
             children: [
-              const Icon(Icons.auto_awesome_rounded, color: Color(0xFFB39DDB), size: 14),
+              const Icon(Icons.auto_awesome_rounded,
+                  color: Color(0xFFB39DDB), size: 14),
               const SizedBox(width: 6),
               Text(L.dailyChallenge,
                   style: const TextStyle(
@@ -994,29 +1255,37 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
               const Spacer(),
               if (_hasPlayed)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: const Color(0xFF4CAF50).withOpacity(0.15),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.4)),
+                    border: Border.all(
+                        color: const Color(0xFF4CAF50).withOpacity(0.4)),
                   ),
                   child: Text(L.alreadyPlayed,
                       style: const TextStyle(
-                          color: Color(0xFF4CAF50), fontSize: 10, fontWeight: FontWeight.w700)),
+                          color: Color(0xFF4CAF50),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700)),
                 ),
             ],
           ),
 
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
 
           // ── Bugünkü hedef + kalan süre ───────────────────────────
           Row(
             children: [
-              const Icon(Icons.flag_rounded, color: Color(0xFF9575CD), size: 13),
+              const Icon(Icons.flag_rounded,
+                  color: Color(0xFF9575CD), size: 13),
               const SizedBox(width: 5),
               Text(
                 L.dailyGoal,
-                style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500),
+                style: TextStyle(
+                    color: primaryText,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500),
               ),
               const Spacer(),
               const Text('⏳', style: TextStyle(fontSize: 11)),
@@ -1024,7 +1293,7 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
               Text(
                 '${_nextResetCountdown()} ${L.timeRemaining}',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.45),
+                  color: mutedText,
                   fontSize: 11,
                   fontFamily: 'monospace',
                 ),
@@ -1032,7 +1301,7 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
             ],
           ),
 
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
 
           // ── 3 Aşama göstergesi ───────────────────────────────────
           Row(
@@ -1045,7 +1314,7 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
                 seconds: '5s',
                 isActive: !_hasPlayed && _activeStage == 0,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               _StagePreview(
                 color: const Color(0xFFFFB74D),
                 label: L.stageMedium,
@@ -1054,7 +1323,7 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
                 seconds: '7s',
                 isActive: !_hasPlayed && _activeStage == 1,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               _StagePreview(
                 color: const Color(0xFFEF5350),
                 label: L.stageHard,
@@ -1066,7 +1335,7 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
             ],
           ),
 
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
 
           // ── Alt satır: istatistik + buton ────────────────────────
           Row(
@@ -1099,12 +1368,12 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.timer_outlined,
-                        color: Colors.white.withOpacity(0.3), size: 12),
+                        color: mutedText.withOpacity(0.8), size: 12),
                     const SizedBox(width: 4),
                     Text(
                       _nextResetCountdown(),
                       style: TextStyle(
-                          color: Colors.white.withOpacity(0.3),
+                          color: mutedText.withOpacity(0.8),
                           fontSize: 11,
                           fontFamily: 'monospace'),
                     ),
@@ -1115,7 +1384,8 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
                 GestureDetector(
                   onTap: _openChallenge,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
                     decoration: BoxDecoration(
                       gradient: const LinearGradient(
                           colors: [Color(0xFF7C4DFF), Color(0xFF512DA8)]),
@@ -1123,7 +1393,8 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
                       boxShadow: [
                         BoxShadow(
                             color: const Color(0xFF7C4DFF).withOpacity(0.35),
-                            blurRadius: 10, offset: const Offset(0, 3)),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3)),
                       ],
                     ),
                     child: Text(
@@ -1162,10 +1433,11 @@ class _StagePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Expanded(
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 7),
         decoration: BoxDecoration(
           color: isActive ? color.withOpacity(0.16) : color.withOpacity(0.07),
           borderRadius: BorderRadius.circular(10),
@@ -1174,7 +1446,12 @@ class _StagePreview extends StatelessWidget {
             width: isActive ? 1.5 : 1.0,
           ),
           boxShadow: isActive
-              ? [BoxShadow(color: color.withOpacity(0.35), blurRadius: 10, spreadRadius: 1)]
+              ? [
+                  BoxShadow(
+                      color: color.withOpacity(0.35),
+                      blurRadius: 10,
+                      spreadRadius: 1)
+                ]
               : [],
         ),
         child: Column(
@@ -1193,15 +1470,105 @@ class _StagePreview extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 3),
             Text(percent,
                 style: TextStyle(
-                    color: isActive ? Colors.white : Colors.white70,
+                    color: isActive
+                        ? (isDark ? Colors.white : const Color(0xFF273039))
+                        : (isDark ? Colors.white70 : const Color(0xFF4E5963)),
                     fontSize: 12,
                     fontWeight: FontWeight.bold)),
             Text(seconds,
-                style: TextStyle(color: Colors.white.withOpacity(0.35), fontSize: 10)),
+                style: TextStyle(
+                    color: isDark
+                        ? Colors.white.withOpacity(0.35)
+                        : const Color(0xFF6B747D),
+                    fontSize: 10)),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Streak risk uyarı banner'ı ──────────────────────────────────
+
+class _StreakRiskBanner extends StatelessWidget {
+  final int current;
+  final VoidCallback onPlay;
+  const _StreakRiskBanner({required this.current, required this.onPlay});
+
+  @override
+  Widget build(BuildContext context) {
+    final isTr = L.current == AppLocale.tr;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onPlay,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFFFF6F00), Color(0xFFFF3D00)],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFF3D00).withOpacity(0.35),
+                blurRadius: 14,
+                spreadRadius: -2,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.18),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.local_fire_department_rounded,
+                    color: Colors.white, size: 26),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isTr
+                          ? '$current günlük serin tehlikede!'
+                          : 'Rêza te ya $current rojan di xetereyê de ye!',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isTr
+                          ? 'Bugün oyna, serini koru.'
+                          : 'Îro bilîze, rêza xwe biparêze.',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.92),
+                        fontSize: 12.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(Icons.arrow_forward_rounded,
+                  color: Colors.white, size: 22),
+            ],
+          ),
         ),
       ),
     );
@@ -1226,8 +1593,9 @@ class _QuickPlayCardState extends State<_QuickPlayCard>
   @override
   void initState() {
     super.initState();
-    _pulse = AnimationController(vsync: this, duration: const Duration(seconds: 2))
-      ..repeat(reverse: true);
+    _pulse =
+        AnimationController(vsync: this, duration: const Duration(seconds: 2))
+          ..repeat(reverse: true);
   }
 
   @override
@@ -1238,6 +1606,10 @@ class _QuickPlayCardState extends State<_QuickPlayCard>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : const Color(0xFF17201B);
+    final subtitleColor =
+        isDark ? Colors.white.withOpacity(0.62) : const Color(0xFF344238);
     return AnimatedBuilder(
       animation: _pulse,
       builder: (_, __) {
@@ -1258,19 +1630,34 @@ class _QuickPlayCardState extends State<_QuickPlayCard>
               width: double.infinity,
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(22),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF1B5E20).withOpacity(0.28 + 0.10 * t),
-                    blurRadius: 32,
-                    spreadRadius: -4,
-                    offset: const Offset(0, 14),
-                  ),
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.45),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
+                boxShadow: isDark
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFF1B5E20)
+                              .withOpacity(0.28 + 0.10 * t),
+                          blurRadius: 32,
+                          spreadRadius: -4,
+                          offset: const Offset(0, 14),
+                        ),
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.45),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ]
+                    : [
+                        BoxShadow(
+                          color: const Color(0xFF7C8980).withOpacity(0.26),
+                          blurRadius: 24,
+                          spreadRadius: -8,
+                          offset: const Offset(0, 14),
+                        ),
+                        BoxShadow(
+                          color: Colors.white.withOpacity(0.45),
+                          blurRadius: 10,
+                          offset: const Offset(0, -2),
+                        ),
+                      ],
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(22),
@@ -1278,11 +1665,13 @@ class _QuickPlayCardState extends State<_QuickPlayCard>
                   children: [
                     // Layer 1: deep diagonal base
                     Container(
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         gradient: LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
-                          colors: [Color(0xFF14502B), Color(0xFF071E11)],
+                          colors: isDark
+                              ? const [Color(0xFF14502B), Color(0xFF071E11)]
+                              : const [Color(0xFFC1CCC6), Color(0xFF92A69A)],
                         ),
                       ),
                     ),
@@ -1295,7 +1684,8 @@ class _QuickPlayCardState extends State<_QuickPlayCard>
                               center: Alignment(-0.4 + 0.3 * t, -0.5),
                               radius: 1.2,
                               colors: [
-                                const Color(0xFF66E093).withOpacity(0.35 + 0.10 * t),
+                                const Color(0xFF66E093).withOpacity(
+                                    isDark ? 0.35 + 0.10 * t : 0.14 + 0.05 * t),
                                 Colors.transparent,
                               ],
                             ),
@@ -1305,7 +1695,9 @@ class _QuickPlayCardState extends State<_QuickPlayCard>
                     ),
                     // Layer 3: top inner highlight
                     Positioned(
-                      top: 0, left: 0, right: 0,
+                      top: 0,
+                      left: 0,
+                      right: 0,
                       child: Container(
                         height: 44,
                         decoration: BoxDecoration(
@@ -1327,7 +1719,10 @@ class _QuickPlayCardState extends State<_QuickPlayCard>
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(22),
                             border: Border.all(
-                              color: const Color(0xFF66E093).withOpacity(0.30 + 0.18 * t),
+                              color: isDark
+                                  ? const Color(0xFF66E093)
+                                      .withOpacity(0.30 + 0.18 * t)
+                                  : const Color(0xFF74A184).withOpacity(0.55),
                               width: 1,
                             ),
                           ),
@@ -1335,7 +1730,7 @@ class _QuickPlayCardState extends State<_QuickPlayCard>
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(22, 20, 18, 20),
+                      padding: const EdgeInsets.fromLTRB(22, 22, 18, 22),
                       child: Row(
                         children: [
                           Expanded(
@@ -1346,8 +1741,8 @@ class _QuickPlayCardState extends State<_QuickPlayCard>
                                   children: [
                                     Text(
                                       L.quickPlay,
-                                      style: const TextStyle(
-                                        color: Colors.white,
+                                      style: TextStyle(
+                                        color: titleColor,
                                         fontSize: 23,
                                         fontWeight: FontWeight.w800,
                                         letterSpacing: -0.4,
@@ -1357,11 +1752,13 @@ class _QuickPlayCardState extends State<_QuickPlayCard>
                                     const SizedBox(width: 8),
                                     Icon(
                                       Icons.flash_on_rounded,
-                                      color: const Color(0xFFFFD27A).withOpacity(0.85 + 0.15 * t),
+                                      color: const Color(0xFFFFD27A)
+                                          .withOpacity(0.85 + 0.15 * t),
                                       size: 19,
                                       shadows: [
                                         Shadow(
-                                          color: const Color(0xFFFFB300).withOpacity(0.55),
+                                          color: const Color(0xFFFFB300)
+                                              .withOpacity(0.55),
                                           blurRadius: 10,
                                         ),
                                       ],
@@ -1372,7 +1769,7 @@ class _QuickPlayCardState extends State<_QuickPlayCard>
                                 Text(
                                   L.quickPlaySub,
                                   style: TextStyle(
-                                    color: Colors.white.withOpacity(0.62),
+                                    color: subtitleColor,
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.w500,
                                     letterSpacing: 0.1,
@@ -1384,39 +1781,48 @@ class _QuickPlayCardState extends State<_QuickPlayCard>
                           ),
                           // Premium play button — double ring + pulse
                           SizedBox(
-                            width: 60, height: 60,
+                            width: 66,
+                            height: 66,
                             child: Stack(
                               alignment: Alignment.center,
                               children: [
                                 // Outer pulse ring
                                 Container(
-                                  width: 60, height: 60,
+                                  width: 60,
+                                  height: 60,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     border: Border.all(
-                                      color: Colors.white.withOpacity(0.10 + 0.10 * t),
+                                      color: Colors.white
+                                          .withOpacity(0.10 + 0.10 * t),
                                       width: 1.2,
                                     ),
                                   ),
                                 ),
                                 // Main play button
                                 Container(
-                                  width: 50, height: 50,
+                                  width: 50,
+                                  height: 50,
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     gradient: const LinearGradient(
                                       begin: Alignment.topLeft,
                                       end: Alignment.bottomRight,
-                                      colors: [Color(0xFFFFFFFF), Color(0xFFC8E6C9)],
+                                      colors: [
+                                        Color(0xFFFFFFFF),
+                                        Color(0xFFC8E6C9)
+                                      ],
                                     ),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.white.withOpacity(0.30 + 0.15 * t),
+                                        color: Colors.white
+                                            .withOpacity(0.30 + 0.15 * t),
                                         blurRadius: 16,
                                         spreadRadius: 1,
                                       ),
                                       BoxShadow(
-                                        color: const Color(0xFF1B5E20).withOpacity(0.4),
+                                        color: const Color(0xFF1B5E20)
+                                            .withOpacity(0.4),
                                         blurRadius: 8,
                                         offset: const Offset(0, 3),
                                       ),
@@ -1441,6 +1847,187 @@ class _QuickPlayCardState extends State<_QuickPlayCard>
           ),
         );
       },
+    );
+  }
+}
+
+class _QuickPlayDifficultySheet extends StatelessWidget {
+  final void Function(AiDifficulty difficulty) onSelected;
+
+  const _QuickPlayDifficultySheet({required this.onSelected});
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).padding.bottom;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sheetBg = isDark ? const Color(0xFF141E2B) : const Color(0xFFE6EEF2);
+    final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
+    final mutedColor = isDark ? Colors.white54 : const Color(0xFF4F5C65);
+
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: EdgeInsets.fromLTRB(18, 10, 18, bottom + 18),
+        decoration: BoxDecoration(
+          color: sheetBg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withOpacity(0.08)
+                : Colors.white.withOpacity(0.24),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(isDark ? 0.35 : 0.18),
+              blurRadius: 24,
+              offset: const Offset(0, -8),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 42,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 18),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? Colors.white24
+                      : const Color(0xFF71808A).withOpacity(0.55),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+            ),
+            Text(
+              L.aiDifficulty,
+              style: TextStyle(
+                color: titleColor,
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              L.current == AppLocale.tr
+                  ? 'Hızlı oyunu hangi AI seviyesiyle başlatalım?'
+                  : 'Em lîstika zû bi kîjan asta AI dest pê bikin?',
+              style: TextStyle(color: mutedColor, fontSize: 12.5),
+            ),
+            const SizedBox(height: 16),
+            _DifficultyOption(
+              icon: Icons.spa_rounded,
+              color: const Color(0xFF66BB6A),
+              title: L.aiEasy,
+              subtitle: L.aiEasyDesc,
+              onTap: () => onSelected(AiDifficulty.easy),
+            ),
+            const SizedBox(height: 10),
+            _DifficultyOption(
+              icon: Icons.balance_rounded,
+              color: const Color(0xFF64B5F6),
+              title: L.aiNormal,
+              subtitle: L.aiNormalDesc,
+              onTap: () => onSelected(AiDifficulty.normal),
+            ),
+            const SizedBox(height: 10),
+            _DifficultyOption(
+              icon: Icons.local_fire_department_rounded,
+              color: const Color(0xFFFFB74D),
+              title: L.aiHard,
+              subtitle: L.aiHardDesc,
+              onTap: () => onSelected(AiDifficulty.hard),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DifficultyOption extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _DifficultyOption({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : const Color(0xFF1C252B);
+    final subtitleColor =
+        isDark ? Colors.white.withOpacity(0.46) : const Color(0xFF56626B);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        splashColor: color.withOpacity(0.12),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: isDark
+                ? Colors.white.withOpacity(0.05)
+                : Colors.white.withOpacity(0.18),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withOpacity(0.08)
+                  : const Color(0xFF7D8C95).withOpacity(0.45),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(isDark ? 0.14 : 0.18),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: color, size: 23),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        color: titleColor,
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: subtitleColor, fontSize: 11.5),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right_rounded, color: subtitleColor, size: 22),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1477,7 +2064,6 @@ class _GamePairPanel extends StatefulWidget {
 }
 
 class _GamePairPanelState extends State<_GamePairPanel> {
-
   void _showMyGamesSheet(BuildContext context) {
     HapticFeedback.selectionClick();
     showModalBottomSheet(
@@ -1485,10 +2071,21 @@ class _GamePairPanelState extends State<_GamePairPanel> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _MyGamesSheet(
-        onResume: (ctrl) { Navigator.pop(context); widget.onResume(ctrl); },
-        onAcceptInvite: (inv) { Navigator.pop(context); widget.onAcceptInvite(inv); },
-        onDeclineInvite: (inv) { widget.onDeclineInvite(inv); },
-        onOpenRoom: (room) { Navigator.pop(context); widget.onOpenRoom(room); },
+        onResume: (ctrl) {
+          Navigator.pop(context);
+          widget.onResume(ctrl);
+        },
+        onAcceptInvite: (inv) {
+          Navigator.pop(context);
+          widget.onAcceptInvite(inv);
+        },
+        onDeclineInvite: (inv) {
+          widget.onDeclineInvite(inv);
+        },
+        onOpenRoom: (room) {
+          Navigator.pop(context);
+          widget.onOpenRoom(room);
+        },
         invites: widget.invites,
         activeRooms: widget.activeRooms,
       ),
@@ -1502,7 +2099,6 @@ class _GamePairPanelState extends State<_GamePairPanel> {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _NewGameSheet(
-        onAi: widget.onAi,
         onFriend: widget.onFriend,
         onUsername: widget.onUsername,
         onRandom: widget.onRandom,
@@ -1512,6 +2108,24 @@ class _GamePairPanelState extends State<_GamePairPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : const Color(0xFF16212A);
+    final subtitleColor = isDark ? Colors.white38 : const Color(0xFF3F4E58);
+    final chevronColor = isDark ? Colors.white38 : const Color(0xFF52636E);
+    final dividerColor =
+        isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFD8E2E7);
+    final panelBorderColor = isDark
+        ? Colors.white.withOpacity(0.10)
+        : const Color(0xFFFFFFFF).withOpacity(0.85);
+    final panelShadowColor = isDark
+        ? Colors.black.withOpacity(0.28)
+        : const Color(0xFF758691).withOpacity(0.18);
+    final newGameIconBg =
+        isDark ? _kPrimary.withOpacity(0.12) : const Color(0xFFE8F7ED);
+    final myGamesIconBg =
+        isDark ? _kGold.withOpacity(0.12) : const Color(0xFFFFF4DA);
+    final titleWeight = isDark ? FontWeight.bold : FontWeight.w800;
+    final subtitleWeight = isDark ? FontWeight.normal : FontWeight.w700;
     final store = GameStore.instance;
     final hasActiveGame = store.activeController != null &&
         store.activeRecord != null &&
@@ -1521,14 +2135,19 @@ class _GamePairPanelState extends State<_GamePairPanel> {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF141E2B), Color(0xFF0F1923)],
+        gradient: LinearGradient(
+          colors: isDark
+              ? const [Color(0xFF141E2B), Color(0xFF0F1923)]
+              : const [Color(0xFFF4F8FA), Color(0xFFE6EEF2)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        border: Border.all(color: Colors.white.withOpacity(0.10), width: 1.2),
+        border: Border.all(color: panelBorderColor, width: 1.2),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.28), blurRadius: 14, offset: const Offset(0, 4)),
+          BoxShadow(
+              color: panelShadowColor,
+              blurRadius: 16,
+              offset: const Offset(0, 6)),
         ],
       ),
       child: IntrinsicHeight(
@@ -1538,7 +2157,8 @@ class _GamePairPanelState extends State<_GamePairPanel> {
             // ── Sol: Yeni Oyun ─────────────────────────────────
             Expanded(
               child: ClipRRect(
-                borderRadius: const BorderRadius.horizontal(left: Radius.circular(17)),
+                borderRadius:
+                    const BorderRadius.horizontal(left: Radius.circular(17)),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -1548,38 +2168,54 @@ class _GamePairPanelState extends State<_GamePairPanel> {
                         color: Colors.transparent,
                         child: InkWell(
                           onTap: () => _showNewGameSheet(context),
-                          borderRadius: const BorderRadius.horizontal(left: Radius.circular(17)),
+                          borderRadius: const BorderRadius.horizontal(
+                              left: Radius.circular(17)),
                           splashColor: _kPrimary.withOpacity(0.10),
                           child: Padding(
-                            padding: const EdgeInsets.fromLTRB(14, 16, 10, 16),
+                            padding: const EdgeInsets.fromLTRB(16, 22, 12, 22),
                             child: Row(
                               children: [
                                 Container(
-                                  width: 38, height: 38,
+                                  width: 46,
+                                  height: 46,
                                   decoration: BoxDecoration(
-                                    color: _kPrimary.withOpacity(0.12),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: _kPrimary.withOpacity(0.3)),
+                                    color: newGameIconBg,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                        color: _kPrimary
+                                            .withOpacity(isDark ? 0.3 : 0.45)),
                                   ),
-                                  child: const Icon(Icons.play_circle_fill_rounded, color: _kPrimary, size: 20),
+                                  child: const Icon(
+                                      Icons.play_circle_fill_rounded,
+                                      color: _kPrimary,
+                                      size: 24),
                                 ),
-                                const SizedBox(width: 10),
+                                const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(L.newGame,
-                                          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
-                                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                                          style: TextStyle(
+                                              color: titleColor,
+                                              fontSize: 15,
+                                              fontWeight: titleWeight),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis),
                                       Text(L.howToPlay,
-                                          style: const TextStyle(color: Colors.white38, fontSize: 10),
-                                          maxLines: 2, overflow: TextOverflow.ellipsis),
+                                          style: TextStyle(
+                                              color: subtitleColor,
+                                              fontSize: 11,
+                                              fontWeight: subtitleWeight),
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis),
                                     ],
                                   ),
                                 ),
-                                const Icon(Icons.chevron_right_rounded,
-                                    color: Colors.white38, size: 18),
+                                Icon(Icons.chevron_right_rounded,
+                                    color: chevronColor, size: 20),
                               ],
                             ),
                           ),
@@ -1592,69 +2228,91 @@ class _GamePairPanelState extends State<_GamePairPanel> {
             ),
 
             // ── Dikey ayraç ────────────────────────────────────
-            Container(width: 1, color: Colors.white.withOpacity(0.08)),
+            Container(width: 1, color: dividerColor),
 
             // ── Sağ: Oyunlarım ─────────────────────────────────
             Expanded(
               child: ClipRRect(
-                borderRadius: const BorderRadius.horizontal(right: Radius.circular(17)),
+                borderRadius:
+                    const BorderRadius.horizontal(right: Radius.circular(17)),
                 child: Material(
                   color: Colors.transparent,
                   child: InkWell(
                     onTap: () => _showMyGamesSheet(context),
-                      borderRadius: const BorderRadius.horizontal(right: Radius.circular(17)),
-                      splashColor: _kGold.withOpacity(0.10),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(10, 16, 14, 16),
-                        child: Row(
-                          children: [
-                            Stack(
-                              clipBehavior: Clip.none,
-                              children: [
-                                Container(
-                                  width: 38, height: 38,
-                                  decoration: BoxDecoration(
-                                    color: _kGold.withOpacity(0.12),
-                                    borderRadius: BorderRadius.circular(10),
-                                    border: Border.all(color: _kGold.withOpacity(0.3)),
-                                  ),
-                                  child: const Icon(Icons.grid_view_rounded, color: _kGold, size: 20),
+                    borderRadius: const BorderRadius.horizontal(
+                        right: Radius.circular(17)),
+                    splashColor: _kGold.withOpacity(0.10),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 22, 16, 22),
+                      child: Row(
+                        children: [
+                          Stack(
+                            clipBehavior: Clip.none,
+                            children: [
+                              Container(
+                                width: 46,
+                                height: 46,
+                                decoration: BoxDecoration(
+                                  color: myGamesIconBg,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                      color: _kGold
+                                          .withOpacity(isDark ? 0.3 : 0.5)),
                                 ),
-                                if (widget.invites.isNotEmpty)
-                                  Positioned(
-                                    right: -4, top: -4,
-                                    child: Container(
-                                      width: 14, height: 14,
-                                      decoration: const BoxDecoration(
-                                        color: Color(0xFFFF5252),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: Center(
-                                        child: Text('${widget.invites.length}',
-                                            style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold)),
-                                      ),
+                                child: const Icon(Icons.grid_view_rounded,
+                                    color: _kGold, size: 24),
+                              ),
+                              if (widget.invites.isNotEmpty)
+                                Positioned(
+                                  right: -4,
+                                  top: -4,
+                                  child: Container(
+                                    width: 14,
+                                    height: 14,
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFFFF5252),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Center(
+                                      child: Text('${widget.invites.length}',
+                                          style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 8,
+                                              fontWeight: FontWeight.bold)),
                                     ),
                                   ),
+                                ),
+                            ],
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(L.myGames,
+                                    style: TextStyle(
+                                        color: titleColor,
+                                        fontSize: 15,
+                                        fontWeight: titleWeight),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis),
+                                Text(
+                                  totalActive > 0
+                                      ? L.gamesCount(totalActive)
+                                      : L.noGames,
+                                  style: TextStyle(
+                                      color: subtitleColor,
+                                      fontSize: 11,
+                                      fontWeight: subtitleWeight),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ],
                             ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(L.myGames,
-                                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
-                                      maxLines: 1, overflow: TextOverflow.ellipsis),
-                                  Text(
-                                    totalActive > 0 ? L.gamesCount(totalActive) : L.noGames,
-                                    style: TextStyle(color: Colors.white.withOpacity(0.38), fontSize: 10),
-                                    maxLines: 1, overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          const Icon(Icons.chevron_right_rounded, color: Colors.white38, size: 18),
+                          ),
+                          Icon(Icons.chevron_right_rounded,
+                              color: chevronColor, size: 20),
                         ],
                       ),
                     ),
@@ -1675,21 +2333,36 @@ class _CompactOption extends StatelessWidget {
   final Color color;
   final String label;
   final VoidCallback onTap;
-  const _CompactOption({required this.icon, required this.color, required this.label, required this.onTap});
+  const _CompactOption(
+      {required this.icon,
+      required this.color,
+      required this.label,
+      required this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isDark
+        ? Colors.white.withOpacity(0.06)
+        : const Color(0xFF7B8992).withOpacity(0.55);
+    final textColor = isDark ? Colors.white70 : const Color(0xFF25313A);
+    final chevronColor =
+        isDark ? Colors.white.withOpacity(0.18) : const Color(0xFF5E6B74);
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () { HapticFeedback.selectionClick(); onTap(); },
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
         splashColor: color.withOpacity(0.12),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           child: Row(
             children: [
               Container(
-                width: 30, height: 30,
+                width: 30,
+                height: 30,
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.10),
                   borderRadius: BorderRadius.circular(8),
@@ -1700,8 +2373,12 @@ class _CompactOption extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(label,
-                    style: const TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w500),
-                    maxLines: 2, overflow: TextOverflow.ellipsis),
+                    style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis),
               ),
             ],
           ),
@@ -1714,13 +2391,11 @@ class _CompactOption extends StatelessWidget {
 // ── Yeni Oyun tam ekran seçenekler ──────────────────────────────
 
 class _NewGameSheet extends StatelessWidget {
-  final void Function(int? seconds) onAi;
   final void Function(int? seconds) onFriend;
   final VoidCallback onUsername;
   final VoidCallback onRandom;
 
   const _NewGameSheet({
-    required this.onAi,
     required this.onFriend,
     required this.onUsername,
     required this.onRandom,
@@ -1748,10 +2423,17 @@ class _NewGameSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mq = MediaQuery.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sheetBg = isDark ? const Color(0xFF101824) : const Color(0xFFE6EEF2);
+    final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
+    final mutedColor =
+        isDark ? Colors.white.withOpacity(0.40) : const Color(0xFF52636E);
+    final handleColor =
+        isDark ? Colors.white.withOpacity(0.15) : const Color(0xFF9AABB5);
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF101824),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      decoration: BoxDecoration(
+        color: sheetBg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
       ),
       padding: EdgeInsets.fromLTRB(20, 12, 20, 24 + mq.viewInsets.bottom),
       child: Column(
@@ -1759,10 +2441,11 @@ class _NewGameSheet extends StatelessWidget {
         children: [
           // pill
           Container(
-            width: 40, height: 4,
+            width: 40,
+            height: 4,
             margin: const EdgeInsets.only(bottom: 24),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: handleColor,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
@@ -1770,35 +2453,33 @@ class _NewGameSheet extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 44, height: 44,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   color: _kPrimary.withOpacity(0.14),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: _kPrimary.withOpacity(0.35)),
                 ),
-                child: const Icon(Icons.play_circle_fill_rounded, color: _kPrimary, size: 24),
+                child: const Icon(Icons.play_circle_fill_rounded,
+                    color: _kPrimary, size: 24),
               ),
               const SizedBox(width: 14),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(L.newGame,
-                      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                      style: TextStyle(
+                          color: titleColor,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold)),
                   Text(L.howToPlay,
-                      style: TextStyle(color: Colors.white.withOpacity(0.40), fontSize: 13)),
+                      style: TextStyle(color: mutedColor, fontSize: 13)),
                 ],
               ),
             ],
           ),
           const SizedBox(height: 24),
           // seçenekler
-          _SheetOption(
-            icon: Icons.smart_toy_rounded,
-            color: _kPrimary,
-            label: L.aiPlay,
-            onTap: () => _pickWithTime(context, onAi),
-          ),
-          const SizedBox(height: 12),
           _SheetOption(
             icon: Icons.people_alt_rounded,
             color: const Color(0xFF64B5F6),
@@ -1831,15 +2512,33 @@ class _SheetOption extends StatelessWidget {
   final Color color;
   final String label;
   final VoidCallback onTap;
-  const _SheetOption({required this.icon, required this.color, required this.label, required this.onTap});
+  const _SheetOption(
+      {required this.icon,
+      required this.color,
+      required this.label,
+      required this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tileBg = isDark ? const Color(0xFF1A2535) : const Color(0xFFF4F8FA);
+    final borderColor = isDark
+        ? Colors.white.withOpacity(0.06)
+        : const Color(0xFF7B8992).withOpacity(0.55);
+    final textColor = isDark ? Colors.white70 : const Color(0xFF25313A);
+    final chevronColor =
+        isDark ? Colors.white.withOpacity(0.18) : const Color(0xFF5E6B74);
     return Material(
-      color: Colors.white.withOpacity(0.04),
-      borderRadius: BorderRadius.circular(16),
+      color: tileBg,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: borderColor),
+      ),
       child: InkWell(
-        onTap: () { HapticFeedback.selectionClick(); onTap(); },
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
         borderRadius: BorderRadius.circular(16),
         splashColor: color.withOpacity(0.10),
         child: Padding(
@@ -1847,7 +2546,8 @@ class _SheetOption extends StatelessWidget {
           child: Row(
             children: [
               Container(
-                width: 46, height: 46,
+                width: 46,
+                height: 46,
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(12),
@@ -1858,9 +2558,12 @@ class _SheetOption extends StatelessWidget {
               const SizedBox(width: 16),
               Expanded(
                 child: Text(label,
-                    style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)),
+                    style: TextStyle(
+                        color: textColor,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600)),
               ),
-              Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.25), size: 20),
+              Icon(Icons.chevron_right_rounded, color: chevronColor, size: 20),
             ],
           ),
         ),
@@ -1898,10 +2601,18 @@ class _MyGamesSheetState extends State<_MyGamesSheet>
 
   static String _timeAgo(DateTime t) {
     final d = DateTime.now().difference(t);
-    if (d.inSeconds < 60)  return L.current == AppLocale.tr ? 'Az önce' : 'Nû';
-    if (d.inMinutes < 60)  return L.current == AppLocale.tr ? '${d.inMinutes} dk önce' : '${d.inMinutes} xul berê';
-    if (d.inHours < 24)    return L.current == AppLocale.tr ? '${d.inHours} sa önce' : '${d.inHours} st berê';
-    return L.current == AppLocale.tr ? '${d.inDays} gün önce' : '${d.inDays} roj berê';
+    if (d.inSeconds < 60) return L.current == AppLocale.tr ? 'Az önce' : 'Nû';
+    if (d.inMinutes < 60)
+      return L.current == AppLocale.tr
+          ? '${d.inMinutes} dk önce'
+          : '${d.inMinutes} xul berê';
+    if (d.inHours < 24)
+      return L.current == AppLocale.tr
+          ? '${d.inHours} sa önce'
+          : '${d.inHours} st berê';
+    return L.current == AppLocale.tr
+        ? '${d.inDays} gün önce'
+        : '${d.inDays} roj berê';
   }
 
   @override
@@ -1931,58 +2642,82 @@ class _MyGamesSheetState extends State<_MyGamesSheet>
 
   @override
   Widget build(BuildContext context) {
-    final store    = GameStore.instance;
-    final active   = store.records.where((r) => !r.isFinished).toList();
+    final store = GameStore.instance;
+    final active = store.records.where((r) => !r.isFinished).toList();
     final finished = store.records.where((r) => r.isFinished).toList();
-    final mq       = MediaQuery.of(context);
-    final myUid    = AuthService.instance.effectiveUid ?? '';
+    final mq = MediaQuery.of(context);
+    final myUid = AuthService.instance.effectiveUid ?? '';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sheetBg = isDark ? const Color(0xFF101824) : const Color(0xFFE6EEF2);
+    final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
+    final tabBg =
+        isDark ? Colors.white.withOpacity(0.06) : const Color(0xFFF4F8FA);
+    final handleColor =
+        isDark ? Colors.white.withOpacity(0.15) : const Color(0xFF9AABB5);
+    final selectedTabColor =
+        isDark ? _kPrimary.withOpacity(0.2) : const Color(0xFFE8F7ED);
+    final unselectedTabColor =
+        isDark ? Colors.white54 : const Color(0xFF667681);
 
     final isTr = L.current == AppLocale.tr;
 
-    final activeItems = active.map((rec) => Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: _ActiveGameCard(
-        record: rec,
-        onTap: () => widget.onResume(store.activeController),
-      ),
-    )).toList();
+    final activeItems = active
+        .map((rec) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _ActiveGameCard(
+                record: rec,
+                onTap: () => widget.onResume(store.activeController),
+              ),
+            ))
+        .toList();
 
-    final multiplayerItems = widget.activeRooms.map((room) => Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: _MultiplayerGameCard(
-        room: room,
-        myUid: myUid,
-        onTap: () => widget.onOpenRoom(room),
-      ),
-    )).toList();
+    final multiplayerItems = widget.activeRooms
+        .map((room) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _MultiplayerGameCard(
+                room: room,
+                myUid: myUid,
+                onTap: () => widget.onOpenRoom(room),
+              ),
+            ))
+        .toList();
 
-    final finishedItems = finished.map((rec) => Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: _FinishedGameCard(record: rec),
-    )).toList();
+    final finishedItems = finished
+        .map((rec) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _FinishedGameCard(record: rec),
+            ))
+        .toList();
 
-    final inviteItems = widget.invites.map((inv) => Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: _InviteCard(
-        invite: inv,
-        onAccept: () => widget.onAcceptInvite(inv),
-        onDecline: () { widget.onDeclineInvite(inv); setState(() {}); },
-      ),
-    )).toList();
+    final inviteItems = widget.invites
+        .map((inv) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _InviteCard(
+                invite: inv,
+                onAccept: () => widget.onAcceptInvite(inv),
+                onDecline: () {
+                  widget.onDeclineInvite(inv);
+                  setState(() {});
+                },
+              ),
+            ))
+        .toList();
 
     return Container(
       height: mq.size.height * 0.85,
-      decoration: const BoxDecoration(
-        color: Color(0xFF101824),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      decoration: BoxDecoration(
+        color: sheetBg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
       ),
       child: Column(
         children: [
           // pill
           Container(
-            width: 40, height: 4,
+            width: 40,
+            height: 4,
             margin: const EdgeInsets.only(top: 12, bottom: 16),
-            decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(2)),
+            decoration: BoxDecoration(
+                color: handleColor, borderRadius: BorderRadius.circular(2)),
           ),
           // Başlık
           Padding(
@@ -1990,16 +2725,22 @@ class _MyGamesSheetState extends State<_MyGamesSheet>
             child: Row(
               children: [
                 Container(
-                  width: 44, height: 44,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
                     color: _kGold.withOpacity(0.14),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: _kGold.withOpacity(0.35)),
                   ),
-                  child: const Icon(Icons.grid_view_rounded, color: _kGold, size: 24),
+                  child: const Icon(Icons.grid_view_rounded,
+                      color: _kGold, size: 24),
                 ),
                 const SizedBox(width: 14),
-                Text(L.myGames, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                Text(L.myGames,
+                    style: TextStyle(
+                        color: titleColor,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold)),
               ],
             ),
           ),
@@ -2009,22 +2750,29 @@ class _MyGamesSheetState extends State<_MyGamesSheet>
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.06),
+                color: tabBg,
                 borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isDark
+                      ? Colors.white.withOpacity(0.06)
+                      : const Color(0xFFD6E1E7),
+                ),
               ),
               child: TabBar(
                 controller: _tabs,
                 indicator: BoxDecoration(
-                  color: _kPrimary.withOpacity(0.2),
+                  color: selectedTabColor,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: _kPrimary.withOpacity(0.5)),
                 ),
                 indicatorSize: TabBarIndicatorSize.tab,
                 dividerColor: Colors.transparent,
-                labelColor: Colors.white,
-                unselectedLabelColor: Colors.white54,
-                labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                unselectedLabelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w400),
+                labelColor: isDark ? Colors.white : const Color(0xFF1F5E37),
+                unselectedLabelColor: unselectedTabColor,
+                labelStyle:
+                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                unselectedLabelStyle:
+                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w400),
                 tabs: [
                   Tab(
                     child: FittedBox(
@@ -2035,9 +2783,11 @@ class _MyGamesSheetState extends State<_MyGamesSheet>
                           const Icon(Icons.play_circle_rounded, size: 16),
                           const SizedBox(width: 4),
                           Text(isTr ? 'Devam Eden' : 'Berdewam'),
-                          if (active.isNotEmpty || multiplayerItems.isNotEmpty) ...[
+                          if (active.isNotEmpty ||
+                              multiplayerItems.isNotEmpty) ...[
                             const SizedBox(width: 4),
-                            _TabBadge(active.length + multiplayerItems.length, _kPrimary),
+                            _TabBadge(active.length + multiplayerItems.length,
+                                _kPrimary),
                           ],
                         ],
                       ),
@@ -2071,7 +2821,8 @@ class _MyGamesSheetState extends State<_MyGamesSheet>
                           Text(isTr ? 'Davetler' : 'Vexwendin'),
                           if (widget.invites.isNotEmpty) ...[
                             const SizedBox(width: 4),
-                            _TabBadge(widget.invites.length, const Color(0xFF64B5F6)),
+                            _TabBadge(
+                                widget.invites.length, const Color(0xFF64B5F6)),
                           ],
                         ],
                       ),
@@ -2087,9 +2838,12 @@ class _MyGamesSheetState extends State<_MyGamesSheet>
             child: TabBarView(
               controller: _tabs,
               children: [
-                _tabView([...activeItems, ...multiplayerItems], 'Aktif oyun yok', 'Lîstikek çalak tune'),
-                _tabView(finishedItems, 'Biten oyun yok', 'Lîstikeke qediyayî tune'),
-                _tabView(inviteItems, 'Bekleyen davet yok', 'Vexwendinek li bendê tune'),
+                _tabView([...activeItems, ...multiplayerItems],
+                    'Aktif oyun yok', 'Lîstikek çalak tune'),
+                _tabView(
+                    finishedItems, 'Biten oyun yok', 'Lîstikeke qediyayî tune'),
+                _tabView(inviteItems, 'Bekleyen davet yok',
+                    'Vexwendinek li bendê tune'),
               ],
             ),
           ),
@@ -2106,6 +2860,15 @@ class _TabBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tileBg =
+        isDark ? Colors.white.withOpacity(0.04) : const Color(0xFFF4F8FA);
+    final borderColor = isDark
+        ? Colors.white.withOpacity(0.06)
+        : const Color(0xFF7B8992).withOpacity(0.55);
+    final titleColor = isDark ? Colors.white : const Color(0xFF1C2830);
+    final descColor =
+        isDark ? Colors.white.withOpacity(0.45) : const Color(0xFF52606A);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
       decoration: BoxDecoration(
@@ -2115,7 +2878,8 @@ class _TabBadge extends StatelessWidget {
       ),
       child: Text(
         '$count',
-        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color),
+        style:
+            TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color),
       ),
     );
   }
@@ -2126,7 +2890,11 @@ class _SectionHeader extends StatelessWidget {
   final Color color;
   final String label;
   final int count;
-  const _SectionHeader({required this.icon, required this.color, required this.label, required this.count});
+  const _SectionHeader(
+      {required this.icon,
+      required this.color,
+      required this.label,
+      required this.count});
 
   @override
   Widget build(BuildContext context) {
@@ -2134,12 +2902,21 @@ class _SectionHeader extends StatelessWidget {
       children: [
         Icon(icon, color: color, size: 14),
         const SizedBox(width: 6),
-        Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.4)),
+        Text(label,
+            style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.4)),
         const SizedBox(width: 6),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-          decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
-          child: Text('$count', style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
+          decoration: BoxDecoration(
+              color: color.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(8)),
+          child: Text('$count',
+              style: TextStyle(
+                  color: color, fontSize: 10, fontWeight: FontWeight.bold)),
         ),
       ],
     );
@@ -2151,10 +2928,20 @@ class _EmptyHint extends StatelessWidget {
   const _EmptyHint(this.text);
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 8),
-    child: Text(text, style: TextStyle(color: Colors.white.withOpacity(0.25), fontSize: 13)),
-  );
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Text(
+        text,
+        style: TextStyle(
+          color:
+              isDark ? Colors.white.withOpacity(0.25) : const Color(0xFF667681),
+          fontSize: 13,
+        ),
+      ),
+    );
+  }
 }
 
 class _ActiveGameCard extends StatelessWidget {
@@ -2164,19 +2951,33 @@ class _ActiveGameCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tileBg = isDark ? const Color(0xFF1A2535) : const Color(0xFFF4F8FA);
+    final borderColor = isDark
+        ? Colors.white.withOpacity(0.06)
+        : const Color(0xFF7B8992).withOpacity(0.55);
+    final textColor = isDark ? Colors.white70 : const Color(0xFF25313A);
     return Material(
-      color: _kPrimary.withOpacity(0.07),
-      borderRadius: BorderRadius.circular(14),
+      color: isDark ? _kPrimary.withOpacity(0.07) : tileBg,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: BorderSide(color: borderColor),
+      ),
       child: InkWell(
-        onTap: () { HapticFeedback.selectionClick(); onTap(); },
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
         borderRadius: BorderRadius.circular(14),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
             children: [
               Container(
-                width: 10, height: 10,
-                decoration: const BoxDecoration(shape: BoxShape.circle, color: _kPrimary),
+                width: 10,
+                height: 10,
+                decoration: const BoxDecoration(
+                    shape: BoxShape.circle, color: _kPrimary),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -2184,26 +2985,39 @@ class _ActiveGameCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      L.current == AppLocale.tr ? 'AI ile Oyun' : 'Lîstik bi AI',
-                      style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                      L.current == AppLocale.tr
+                          ? 'AI ile Oyun'
+                          : 'Lîstik bi AI',
+                      style: TextStyle(
+                          color: textColor,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       '${record.playerScore} — ${record.aiScore}',
-                      style: const TextStyle(color: Colors.white38, fontSize: 12),
+                      style: TextStyle(
+                          color:
+                              isDark ? Colors.white38 : const Color(0xFF52636E),
+                          fontSize: 12),
                     ),
                     if (record.lastMoveAt != null) ...[
                       const SizedBox(height: 2),
                       Text(
                         _MyGamesSheetState._timeAgo(record.lastMoveAt!),
-                        style: TextStyle(color: Colors.white.withOpacity(0.25), fontSize: 11),
+                        style: TextStyle(
+                            color: isDark
+                                ? Colors.white.withOpacity(0.25)
+                                : const Color(0xFF667681),
+                            fontSize: 11),
                       ),
                     ],
                   ],
                 ),
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
                   color: _kPrimary.withOpacity(0.15),
                   borderRadius: BorderRadius.circular(8),
@@ -2211,7 +3025,10 @@ class _ActiveGameCard extends StatelessWidget {
                 ),
                 child: Text(
                   L.current == AppLocale.tr ? 'Devam Et' : 'Berdewam bike',
-                  style: const TextStyle(color: _kPrimary, fontSize: 11, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      color: _kPrimary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold),
                 ),
               ),
             ],
@@ -2226,47 +3043,65 @@ class _MultiplayerGameCard extends StatelessWidget {
   final MultiplayerRoom room;
   final String myUid;
   final VoidCallback onTap;
-  const _MultiplayerGameCard({required this.room, required this.myUid, required this.onTap});
+  const _MultiplayerGameCard(
+      {required this.room, required this.myUid, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final isMyTurn = room.currentTurnUid == myUid;
-    final isHost   = room.hostUid == myUid;
-    final myScore  = isHost ? room.hostScore : room.guestScore;
+    final isHost = room.hostUid == myUid;
+    final myScore = isHost ? room.hostScore : room.guestScore;
     final oppScore = isHost ? room.guestScore : room.hostScore;
-    final oppName  = isHost ? (room.guestName ?? 'Rakip') : room.hostName;
-    final dotColor = isMyTurn ? _kPrimary : Colors.white38;
-    final isTr     = L.current == AppLocale.tr;
+    final oppName = isHost ? (room.guestName ?? 'Rakip') : room.hostName;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dotColor = isMyTurn
+        ? _kPrimary
+        : (isDark ? Colors.white38 : const Color(0xFF9AABB5));
+    final isTr = L.current == AppLocale.tr;
+    final tileColor = isDark
+        ? (isMyTurn ? const Color(0xFF1A3A2A) : const Color(0xFF1A2030))
+        : (isMyTurn ? const Color(0xFFF4F8FA) : const Color(0xFFEAF1F4));
+    final borderColor = isDark
+        ? Colors.transparent
+        : (isMyTurn ? _kPrimary.withOpacity(0.32) : const Color(0xFFD6E1E7));
+    final titleColor = isDark ? Colors.white : const Color(0xFF25313A);
+    final mutedColor = isDark ? Colors.white38 : const Color(0xFF52636E);
 
     final lastBy = room.lastMoveBy;
     final lastScore = room.lastMoveScore;
     String? lastMoveText;
     if (lastBy != null && lastScore != null) {
-      final byMe = (lastBy == 'host' && isHost) || (lastBy == 'guest' && !isHost);
+      final byMe =
+          (lastBy == 'host' && isHost) || (lastBy == 'guest' && !isHost);
       final who = byMe ? (isTr ? 'Sen' : 'Tu') : oppName;
       final sign = lastScore >= 0 ? '+' : '';
-      lastMoveText = isTr
-          ? '$who: $sign$lastScore puan'
-          : '$who: $sign$lastScore xal';
+      lastMoveText =
+          isTr ? '$who: $sign$lastScore puan' : '$who: $sign$lastScore xal';
     }
 
     return Opacity(
       opacity: isMyTurn ? 1.0 : 0.45,
       child: Material(
-        color: isMyTurn
-            ? const Color(0xFF1A3A2A)
-            : const Color(0xFF1A2030),
-        borderRadius: BorderRadius.circular(14),
+        color: tileColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: borderColor),
+        ),
         child: InkWell(
-          onTap: () { HapticFeedback.selectionClick(); onTap(); },
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onTap();
+          },
           borderRadius: BorderRadius.circular(14),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
               children: [
                 Container(
-                  width: 10, height: 10,
-                  decoration: BoxDecoration(shape: BoxShape.circle, color: dotColor),
+                  width: 10,
+                  height: 10,
+                  decoration:
+                      BoxDecoration(shape: BoxShape.circle, color: dotColor),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -2275,13 +3110,16 @@ class _MultiplayerGameCard extends StatelessWidget {
                     children: [
                       Text(
                         oppName,
-                        style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                            color: titleColor,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600),
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 3),
                       Text(
                         '$myScore — $oppScore',
-                        style: const TextStyle(color: Colors.white38, fontSize: 12),
+                        style: TextStyle(color: mutedColor, fontSize: 12),
                       ),
                       if (lastMoveText != null) ...[
                         const SizedBox(height: 2),
@@ -2303,9 +3141,12 @@ class _MultiplayerGameCard extends StatelessWidget {
                             ? (isTr ? 'Senin sıran' : 'Nöbeta te')
                             : (isTr ? 'Rakip sırası' : 'Nöbeta hevrik'),
                         style: TextStyle(
-                          color: isMyTurn ? _kPrimary.withOpacity(0.8) : Colors.white38,
+                          color: isMyTurn
+                              ? _kPrimary.withOpacity(0.8)
+                              : mutedColor,
                           fontSize: 11,
-                          fontWeight: isMyTurn ? FontWeight.w600 : FontWeight.normal,
+                          fontWeight:
+                              isMyTurn ? FontWeight.w600 : FontWeight.normal,
                         ),
                       ),
                     ],
@@ -2313,7 +3154,8 @@ class _MultiplayerGameCard extends StatelessWidget {
                 ),
                 if (isMyTurn)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
                       color: _kPrimary.withOpacity(0.15),
                       borderRadius: BorderRadius.circular(8),
@@ -2321,11 +3163,16 @@ class _MultiplayerGameCard extends StatelessWidget {
                     ),
                     child: Text(
                       isTr ? 'Oyna' : 'Bilîze',
-                      style: const TextStyle(color: _kPrimary, fontSize: 11, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                          color: _kPrimary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold),
                     ),
                   )
                 else
-                  const Icon(Icons.hourglass_bottom_rounded, color: Colors.white24, size: 18),
+                  Icon(Icons.hourglass_bottom_rounded,
+                      color: isDark ? Colors.white24 : const Color(0xFF9AABB5),
+                      size: 18),
               ],
             ),
           ),
@@ -2342,13 +3189,23 @@ class _FinishedGameCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final won = record.playerScore > record.aiScore;
-    final color = won ? const Color(0xFFFFD700) : Colors.white38;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final color = won
+        ? const Color(0xFFFFB300)
+        : (isDark ? Colors.white38 : const Color(0xFF667681));
+    final tileBg =
+        isDark ? Colors.white.withOpacity(0.04) : const Color(0xFFF4F8FA);
+    final borderColor =
+        isDark ? Colors.white.withOpacity(0.06) : const Color(0xFFD6E1E7);
+    final mutedColor = isDark ? Colors.white38 : const Color(0xFF52636E);
+    final timeColor =
+        isDark ? Colors.white.withOpacity(0.2) : const Color(0xFF667681);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.04),
+        color: tileBg,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
+        border: Border.all(color: borderColor),
       ),
       child: Row(
         children: [
@@ -2361,14 +3218,17 @@ class _FinishedGameCard extends StatelessWidget {
                 Text(
                   won
                       ? (L.current == AppLocale.tr ? 'Kazandın' : 'Tu biri')
-                      : (L.current == AppLocale.tr ? 'Kaybettin' : 'Tu şikestî'),
-                  style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.w600),
+                      : (L.current == AppLocale.tr
+                          ? 'Kaybettin'
+                          : 'Tu şikestî'),
+                  style: TextStyle(
+                      color: color, fontSize: 14, fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 3),
                 Text('${record.playerScore} — ${record.aiScore}',
-                    style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                    style: TextStyle(color: mutedColor, fontSize: 12)),
                 Text(_MyGamesSheetState._timeAgo(record.startedAt),
-                    style: TextStyle(color: Colors.white.withOpacity(0.2), fontSize: 11)),
+                    style: TextStyle(color: timeColor, fontSize: 11)),
               ],
             ),
           ),
@@ -2382,21 +3242,37 @@ class _InviteCard extends StatelessWidget {
   final MultiplayerRoom invite;
   final VoidCallback onAccept;
   final VoidCallback onDecline;
-  const _InviteCard({required this.invite, required this.onAccept, required this.onDecline});
+  const _InviteCard(
+      {required this.invite, required this.onAccept, required this.onDecline});
 
   static const _blue = Color(0xFF64B5F6);
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tileBg = isDark ? const Color(0xFF1A2535) : const Color(0xFFF4F8FA);
+    final borderColor = isDark
+        ? Colors.white.withOpacity(0.06)
+        : const Color(0xFF7B8992).withOpacity(0.55);
+    final textColor = isDark ? Colors.white70 : const Color(0xFF25313A);
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [_blue.withOpacity(0.10), _blue.withOpacity(0.04)],
-          begin: Alignment.topLeft, end: Alignment.bottomRight,
+          colors: isDark
+              ? [_blue.withOpacity(0.10), _blue.withOpacity(0.04)]
+              : const [Color(0xFFF4F8FA), Color(0xFFEAF1F4)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _blue.withOpacity(0.35), width: 1.2),
-        boxShadow: [BoxShadow(color: _blue.withOpacity(0.08), blurRadius: 12, offset: const Offset(0, 4))],
+        border: Border.all(
+            color: isDark ? _blue.withOpacity(0.35) : borderColor, width: 1.2),
+        boxShadow: [
+          BoxShadow(
+              color: _blue.withOpacity(0.08),
+              blurRadius: 12,
+              offset: const Offset(0, 4))
+        ],
       ),
       child: Column(
         children: [
@@ -2406,13 +3282,15 @@ class _InviteCard extends StatelessWidget {
             child: Row(
               children: [
                 Container(
-                  width: 42, height: 42,
+                  width: 42,
+                  height: 42,
                   decoration: BoxDecoration(
                     color: _blue.withOpacity(0.15),
                     shape: BoxShape.circle,
                     border: Border.all(color: _blue.withOpacity(0.4)),
                   ),
-                  child: const Icon(Icons.sports_esports_rounded, color: _blue, size: 20),
+                  child: const Icon(Icons.sports_esports_rounded,
+                      color: _blue, size: 20),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -2420,15 +3298,23 @@ class _InviteCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(invite.hostName,
-                          style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+                          style: TextStyle(
+                              color: textColor,
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold)),
                       const SizedBox(height: 2),
                       Text(L.inviteFrom,
-                          style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12)),
+                          style: TextStyle(
+                              color: isDark
+                                  ? Colors.white.withOpacity(0.45)
+                                  : const Color(0xFF52636E),
+                              fontSize: 12)),
                     ],
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: _blue.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(8),
@@ -2436,11 +3322,17 @@ class _InviteCard extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(width: 6, height: 6,
-                          decoration: const BoxDecoration(color: _blue, shape: BoxShape.circle)),
+                      Container(
+                          width: 6,
+                          height: 6,
+                          decoration: const BoxDecoration(
+                              color: _blue, shape: BoxShape.circle)),
                       const SizedBox(width: 5),
                       Text(L.current == AppLocale.tr ? 'Bekliyor' : 'Hêvî dike',
-                          style: const TextStyle(color: _blue, fontSize: 10, fontWeight: FontWeight.w600)),
+                          style: const TextStyle(
+                              color: _blue,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600)),
                     ],
                   ),
                 ),
@@ -2460,18 +3352,30 @@ class _InviteCard extends StatelessWidget {
                 // Reddet
                 Expanded(
                   child: GestureDetector(
-                    onTap: () { HapticFeedback.selectionClick(); onDecline(); },
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      onDecline();
+                    },
                     child: Container(
                       height: 44,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.06),
+                        color: isDark
+                            ? Colors.white.withOpacity(0.06)
+                            : const Color(0xFFF4F8FA),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.white.withOpacity(0.10)),
+                        border: Border.all(
+                            color: isDark
+                                ? Colors.white.withOpacity(0.10)
+                                : const Color(0xFFD6E1E7)),
                       ),
                       child: Center(
                         child: Text(L.decline,
-                            style: TextStyle(color: Colors.white.withOpacity(0.55),
-                                fontSize: 13, fontWeight: FontWeight.w600)),
+                            style: TextStyle(
+                                color: isDark
+                                    ? Colors.white.withOpacity(0.55)
+                                    : const Color(0xFF52636E),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600)),
                       ),
                     ),
                   ),
@@ -2481,7 +3385,10 @@ class _InviteCard extends StatelessWidget {
                 Expanded(
                   flex: 2,
                   child: GestureDetector(
-                    onTap: () { HapticFeedback.mediumImpact(); onAccept(); },
+                    onTap: () {
+                      HapticFeedback.mediumImpact();
+                      onAccept();
+                    },
                     child: Container(
                       height: 44,
                       decoration: BoxDecoration(
@@ -2489,17 +3396,25 @@ class _InviteCard extends StatelessWidget {
                           colors: [Color(0xFF42A5F5), Color(0xFF1E88E5)],
                         ),
                         borderRadius: BorderRadius.circular(12),
-                        boxShadow: [BoxShadow(color: _blue.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 3))],
+                        boxShadow: [
+                          BoxShadow(
+                              color: _blue.withOpacity(0.3),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3))
+                        ],
                       ),
                       child: Center(
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.check_rounded, color: Colors.white, size: 16),
+                            const Icon(Icons.check_rounded,
+                                color: Colors.white, size: 16),
                             const SizedBox(width: 6),
                             Text(L.accept,
-                                style: const TextStyle(color: Colors.white,
-                                    fontSize: 13, fontWeight: FontWeight.bold)),
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold)),
                           ],
                         ),
                       ),
@@ -2522,100 +3437,157 @@ class _TimeControlSheet extends StatelessWidget {
   const _TimeControlSheet({required this.onSelected});
 
   static const _options = [
-    (label: '48 Saat', sublabel: 'Her hamle için 48 saat', seconds: 48 * 3600, icon: Icons.calendar_today_rounded, color: Color(0xFF64B5F6)),
-    (label: '24 Saat', sublabel: 'Her hamle için 24 saat', seconds: 24 * 3600, icon: Icons.wb_sunny_rounded, color: Color(0xFFFFB74D)),
-    (label: '12 Saat', sublabel: 'Her hamle için 12 saat', seconds: 12 * 3600, icon: Icons.schedule_rounded, color: Color(0xFFBA68C8)),
-    (label: '5 Dakika', sublabel: 'Canlı hızlı oyun', seconds: 5 * 60, icon: Icons.bolt_rounded, color: Color(0xFFFF5252)),
+    (
+      label: '48 Saat',
+      sublabel: 'Her hamle için 48 saat',
+      seconds: 48 * 3600,
+      icon: Icons.calendar_today_rounded,
+      color: Color(0xFF64B5F6)
+    ),
+    (
+      label: '24 Saat',
+      sublabel: 'Her hamle için 24 saat',
+      seconds: 24 * 3600,
+      icon: Icons.wb_sunny_rounded,
+      color: Color(0xFFFFB74D)
+    ),
+    (
+      label: '12 Saat',
+      sublabel: 'Her hamle için 12 saat',
+      seconds: 12 * 3600,
+      icon: Icons.schedule_rounded,
+      color: Color(0xFFBA68C8)
+    ),
+    (
+      label: '5 Dakika',
+      sublabel: 'Canlı hızlı oyun',
+      seconds: 5 * 60,
+      icon: Icons.bolt_rounded,
+      color: Color(0xFFFF5252)
+    ),
   ];
 
   @override
   Widget build(BuildContext context) {
     final mq = MediaQuery.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sheetBg = isDark ? const Color(0xFF101824) : const Color(0xFFE6EEF2);
+    final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
+    final mutedColor =
+        isDark ? Colors.white.withOpacity(0.40) : const Color(0xFF52636E);
+    final handleColor =
+        isDark ? Colors.white.withOpacity(0.15) : const Color(0xFF9AABB5);
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF101824),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      decoration: BoxDecoration(
+        color: sheetBg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
       ),
       padding: EdgeInsets.fromLTRB(20, 12, 20, 24 + mq.viewInsets.bottom),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
-            width: 40, height: 4,
+            width: 40,
+            height: 4,
             margin: const EdgeInsets.only(bottom: 20),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: handleColor,
               borderRadius: BorderRadius.circular(2),
             ),
           ),
           Row(
             children: [
               Container(
-                width: 44, height: 44,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   color: Colors.orange.withOpacity(0.14),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.orange.withOpacity(0.35)),
                 ),
-                child: const Icon(Icons.timer_rounded, color: Colors.orange, size: 24),
+                child: const Icon(Icons.timer_rounded,
+                    color: Colors.orange, size: 24),
               ),
               const SizedBox(width: 14),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(L.selectTime,
-                      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                      style: TextStyle(
+                          color: titleColor,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold)),
                   Text(L.timePerMove,
-                      style: TextStyle(color: Colors.white.withOpacity(0.40), fontSize: 13)),
+                      style: TextStyle(color: mutedColor, fontSize: 13)),
                 ],
               ),
             ],
           ),
           const SizedBox(height: 20),
           ..._options.map((opt) => Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Material(
-              color: Colors.white.withOpacity(0.04),
-              borderRadius: BorderRadius.circular(16),
-              child: InkWell(
-                onTap: () {
-                  HapticFeedback.selectionClick();
-                  onSelected(opt.seconds);
-                },
-                borderRadius: BorderRadius.circular(16),
-                splashColor: opt.color.withOpacity(0.10),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 46, height: 46,
-                        decoration: BoxDecoration(
-                          color: opt.color.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: opt.color.withOpacity(0.3)),
-                        ),
-                        child: Icon(opt.icon, color: opt.color, size: 22),
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Material(
+                  color: isDark
+                      ? Colors.white.withOpacity(0.04)
+                      : const Color(0xFFF4F8FA),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: BorderSide(
+                      color: isDark
+                          ? Colors.white.withOpacity(0.06)
+                          : const Color(0xFFD6E1E7),
+                    ),
+                  ),
+                  child: InkWell(
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      onSelected(opt.seconds);
+                    },
+                    borderRadius: BorderRadius.circular(16),
+                    splashColor: opt.color.withOpacity(0.10),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 14),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 46,
+                            height: 46,
+                            decoration: BoxDecoration(
+                              color: opt.color.withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(12),
+                              border:
+                                  Border.all(color: opt.color.withOpacity(0.3)),
+                            ),
+                            child: Icon(opt.icon, color: opt.color, size: 22),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(opt.label,
+                                    style: TextStyle(
+                                        color: titleColor,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold)),
+                                Text(opt.sublabel,
+                                    style: TextStyle(
+                                        color: mutedColor, fontSize: 12)),
+                              ],
+                            ),
+                          ),
+                          Icon(Icons.chevron_right_rounded,
+                              color: isDark
+                                  ? Colors.white.withOpacity(0.25)
+                                  : const Color(0xFF5E6B74),
+                              size: 20),
+                        ],
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(opt.label,
-                                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                            Text(opt.sublabel,
-                                style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 12)),
-                          ],
-                        ),
-                      ),
-                      Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.25), size: 20),
-                    ],
+                    ),
                   ),
                 ),
-              ),
-            ),
-          )),
+              )),
           const SizedBox(height: 4),
         ],
       ),
@@ -2659,7 +3631,10 @@ class _YeniOyunCardState extends State<_YeniOyunCard> {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: _kPrimary.withOpacity(0.4), width: 1.2),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 12, offset: const Offset(0, 4)),
+          BoxShadow(
+              color: Colors.black.withOpacity(0.25),
+              blurRadius: 12,
+              offset: const Offset(0, 4)),
         ],
       ),
       child: Column(
@@ -2678,17 +3653,20 @@ class _YeniOyunCardState extends State<_YeniOyunCard> {
               splashColor: _kPrimary.withOpacity(0.10),
               highlightColor: _kPrimary.withOpacity(0.05),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
                 child: Row(
                   children: [
                     Container(
-                      width: 52, height: 52,
+                      width: 52,
+                      height: 52,
                       decoration: BoxDecoration(
                         color: _kPrimary.withOpacity(0.12),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(color: _kPrimary.withOpacity(0.25)),
                       ),
-                      child: const Icon(Icons.play_circle_fill_rounded, color: _kPrimary, size: 26),
+                      child: const Icon(Icons.play_circle_fill_rounded,
+                          color: _kPrimary, size: 26),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -2696,10 +3674,14 @@ class _YeniOyunCardState extends State<_YeniOyunCard> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(L.newGame,
-                              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold)),
                           const SizedBox(height: 3),
                           Text(L.howToPlay,
-                              style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                              style: const TextStyle(
+                                  color: Colors.white38, fontSize: 12)),
                         ],
                       ),
                     ),
@@ -2782,7 +3764,8 @@ class _SubOption extends StatelessWidget {
           child: Row(
             children: [
               Container(
-                width: 40, height: 40,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
                   color: iconColor.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(10),
@@ -2793,20 +3776,28 @@ class _SubOption extends StatelessWidget {
               const SizedBox(width: 14),
               Expanded(
                 child: Text(title,
-                    style: const TextStyle(color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w500)),
+                    style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500)),
               ),
               if (badge != null)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.08),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(badge!,
-                      style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 9, fontWeight: FontWeight.w600)),
+                      style: TextStyle(
+                          color: Colors.white.withOpacity(0.45),
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600)),
                 ),
               if (badge == null)
-                Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.2), size: 20),
+                Icon(Icons.chevron_right_rounded,
+                    color: Colors.white.withOpacity(0.2), size: 20),
             ],
           ),
         ),
@@ -2836,17 +3827,27 @@ class _HomeHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : const Color(0xFF162027);
+    final mutedColor =
+        isDark ? Colors.white.withOpacity(0.42) : const Color(0xFF4B5860);
     return Container(
       width: double.infinity,
       padding: EdgeInsets.fromLTRB(16, statusBarHeight + 10, 16, 14),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xE6111A28), Color(0x99111A28)],
+          colors: isDark
+              ? const [Color(0xE6111A28), Color(0x99111A28)]
+              : const [Color(0xFFF4F8FA), Color(0xFFE6EEF2)],
         ),
         border: Border(
-          bottom: BorderSide(color: Colors.white.withOpacity(0.05), width: 1),
+          bottom: BorderSide(
+              color: isDark
+                  ? Colors.white.withOpacity(0.05)
+                  : const Color(0xFF77858E).withOpacity(0.70),
+              width: 1),
         ),
       ),
       child: Row(
@@ -2914,10 +3915,10 @@ class _HomeHeader extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 9),
-                    const Text(
+                    Text(
                       'Peyvok',
                       style: TextStyle(
-                        color: Colors.white,
+                        color: titleColor,
                         fontSize: 21,
                         fontWeight: FontWeight.w800,
                         letterSpacing: -0.2,
@@ -2928,7 +3929,8 @@ class _HomeHeader extends StatelessWidget {
                 const SizedBox(height: 6),
                 if (streak > 0)
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
@@ -2937,7 +3939,8 @@ class _HomeHeader extends StatelessWidget {
                         ],
                       ),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: const Color(0xFFFF8F00).withOpacity(0.45)),
+                      border: Border.all(
+                          color: const Color(0xFFFF8F00).withOpacity(0.45)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -2961,7 +3964,7 @@ class _HomeHeader extends StatelessWidget {
                   Text(
                     L.appSubtitle,
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.42),
+                      color: mutedColor,
                       fontSize: 10.5,
                       letterSpacing: 0.4,
                       fontWeight: FontWeight.w500,
@@ -2999,19 +4002,29 @@ class _IconBtn extends StatelessWidget {
   final String tooltip;
   final VoidCallback onTap;
 
-  const _IconBtn({required this.icon, required this.tooltip, required this.onTap});
+  const _IconBtn(
+      {required this.icon, required this.tooltip, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor = isDark
+        ? Colors.white.withOpacity(0.10)
+        : const Color(0xFF8F9AA2).withOpacity(0.55);
+    final iconColor =
+        isDark ? Colors.white.withOpacity(0.78) : const Color(0xFF303940);
     return Tooltip(
       message: tooltip,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () { HapticFeedback.selectionClick(); onTap(); },
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onTap();
+          },
           borderRadius: BorderRadius.circular(13),
-          splashColor: Colors.white.withOpacity(0.10),
-          highlightColor: Colors.white.withOpacity(0.04),
+          splashColor: _kPrimary.withOpacity(0.10),
+          highlightColor: _kPrimary.withOpacity(0.04),
           child: Container(
             width: 40,
             height: 40,
@@ -3019,22 +4032,26 @@ class _IconBtn extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                colors: [
-                  Colors.white.withOpacity(0.08),
-                  Colors.white.withOpacity(0.03),
-                ],
+                colors: isDark
+                    ? [
+                        Colors.white.withOpacity(0.08),
+                        Colors.white.withOpacity(0.03),
+                      ]
+                    : const [Color(0xFFE1E6E9), Color(0xFFC4CDD3)],
               ),
               borderRadius: BorderRadius.circular(13),
-              border: Border.all(color: Colors.white.withOpacity(0.10), width: 1),
+              border: Border.all(color: borderColor, width: 1),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.18),
-                  blurRadius: 6,
+                  color: isDark
+                      ? Colors.black.withOpacity(0.18)
+                      : Colors.white.withOpacity(0.42),
+                  blurRadius: isDark ? 6 : 10,
                   offset: const Offset(0, 2),
                 ),
               ],
             ),
-            child: Icon(icon, color: Colors.white.withOpacity(0.78), size: 19),
+            child: Icon(icon, color: iconColor, size: 19),
           ),
         ),
       ),
@@ -3052,11 +4069,14 @@ class _MenuRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final iconTone = isDark ? Colors.white54 : const Color(0xFF324049);
+    final textTone = isDark ? Colors.white70 : const Color(0xFF1D2830);
     return Row(
       children: [
-        Icon(icon, color: Colors.white54, size: 18),
+        Icon(icon, color: iconTone, size: 18),
         const SizedBox(width: 10),
-        Text(label, style: const TextStyle(color: Colors.white70, fontSize: 14)),
+        Text(label, style: TextStyle(color: textTone, fontSize: 14)),
       ],
     );
   }
@@ -3067,22 +4087,67 @@ class _MenuRow extends StatelessWidget {
 class _SettingsSheet extends StatefulWidget {
   final VoidCallback onLocaleChanged;
   final VoidCallback onHowToTap;
-  const _SettingsSheet({required this.onLocaleChanged, required this.onHowToTap});
+  const _SettingsSheet(
+      {required this.onLocaleChanged, required this.onHowToTap});
 
   @override
   State<_SettingsSheet> createState() => _SettingsSheetState();
 }
 
 class _SettingsSheetState extends State<_SettingsSheet> {
-  bool _sound       = true;
-  bool _haptic      = true;
-  bool _notifs      = false;
-  bool _darkMode    = true;
+  bool _sound = true;
+  bool _haptic = true;
+  bool _notifs = false;
+  bool _darkMode = true;
 
   @override
   void initState() {
     super.initState();
     _darkMode = themeNotifier.value == ThemeMode.dark;
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final s = await SettingsService().load();
+    if (!mounted) return;
+    setState(() {
+      _darkMode = s.isDarkMode;
+      _sound = s.soundEnabled;
+      _haptic = s.hapticEnabled;
+    });
+    themeNotifier.value = s.isDarkMode ? ThemeMode.dark : ThemeMode.light;
+    SoundService.instance.setEnabled(s.soundEnabled);
+    HapticService.instance.setEnabled(s.hapticEnabled);
+  }
+
+  Future<void> _setDarkMode(bool value) async {
+    setState(() => _darkMode = value);
+    themeNotifier.value = value ? ThemeMode.dark : ThemeMode.light;
+    final s = await SettingsService().load();
+    s.isDarkMode = value;
+    await SettingsService().save(s);
+  }
+
+  Future<void> _setSound(bool value) async {
+    setState(() => _sound = value);
+    SoundService.instance.setEnabled(value);
+    final s = await SettingsService().load();
+    s.soundEnabled = value;
+    await SettingsService().save(s);
+    if (value) {
+      await SoundService.instance.play(SFX.tilePlace);
+    }
+  }
+
+  Future<void> _setHaptic(bool value) async {
+    setState(() => _haptic = value);
+    HapticService.instance.setEnabled(value);
+    final s = await SettingsService().load();
+    s.hapticEnabled = value;
+    await SettingsService().save(s);
+    if (value) {
+      HapticService.instance.submit();
+    }
   }
 
   void _showAuthScreen(BuildContext ctx) {
@@ -3101,15 +4166,21 @@ class _SettingsSheetState extends State<_SettingsSheet> {
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.of(context).padding.bottom;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sheetBg = isDark ? const Color(0xFF141E2B) : const Color(0xFFE6EEF2);
+    final sheetTop = isDark ? const Color(0xFF1A2535) : const Color(0xFFF4F8FA);
+    final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
+    final handleColor =
+        isDark ? Colors.white24 : const Color(0xFF73818B).withOpacity(0.7);
     return DraggableScrollableSheet(
       initialChildSize: 0.82,
       minChildSize: 0.5,
       maxChildSize: 0.95,
       expand: false,
       builder: (_, scrollCtrl) => Container(
-        decoration: const BoxDecoration(
-          color: Color(0xFF141E2B),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+        decoration: BoxDecoration(
+          color: sheetBg,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
         ),
         child: Column(
           children: [
@@ -3117,29 +4188,44 @@ class _SettingsSheetState extends State<_SettingsSheet> {
             Container(
               padding: const EdgeInsets.fromLTRB(24, 14, 24, 16),
               decoration: BoxDecoration(
-                color: const Color(0xFF1A2535),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 8, offset: const Offset(0, 2))],
+                color: sheetTop,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(26)),
+                boxShadow: [
+                  BoxShadow(
+                      color: Colors.black.withOpacity(isDark ? 0.15 : 0.08),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2))
+                ],
               ),
               child: Column(
                 children: [
                   Container(
-                    width: 36, height: 4,
+                    width: 36,
+                    height: 4,
                     margin: const EdgeInsets.only(bottom: 14),
-                    decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+                    decoration: BoxDecoration(
+                        color: handleColor,
+                        borderRadius: BorderRadius.circular(2)),
                   ),
                   Row(
                     children: [
                       Container(
-                        width: 34, height: 34,
+                        width: 34,
+                        height: 34,
                         decoration: BoxDecoration(
                           color: _kPrimary.withOpacity(0.15),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.settings_rounded, color: _kPrimary, size: 18),
+                        child: const Icon(Icons.settings_rounded,
+                            color: _kPrimary, size: 18),
                       ),
                       const SizedBox(width: 12),
-                      Text(L.settings, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text(L.settings,
+                          style: TextStyle(
+                              color: titleColor,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold)),
                     ],
                   ),
                 ],
@@ -3152,7 +4238,6 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                 controller: scrollCtrl,
                 padding: EdgeInsets.fromLTRB(20, 20, 20, bottom + 24),
                 children: [
-
                   // ── Hesap / Profil ──────────────────────────────
                   _SectionLabel(L.accountProfile),
                   const SizedBox(height: 10),
@@ -3206,17 +4291,14 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                     iconColor: const Color(0xFFFFB74D),
                     label: L.sound,
                     value: _sound,
-                    onChanged: (v) {
-                      setState(() => _sound = v);
-                      SoundService.instance.setEnabled(v);
-                    },
+                    onChanged: _setSound,
                   ),
                   _SettingsToggle(
                     icon: Icons.vibration_rounded,
                     iconColor: const Color(0xFF81C784),
                     label: L.haptic,
                     value: _haptic,
-                    onChanged: (v) => setState(() => _haptic = v),
+                    onChanged: _setHaptic,
                   ),
                   _SettingsToggle(
                     icon: Icons.notifications_rounded,
@@ -3230,10 +4312,7 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                     iconColor: const Color(0xFF4FC3F7),
                     label: _darkMode ? L.darkMode : L.darkModeOff,
                     value: _darkMode,
-                    onChanged: (v) {
-                      setState(() => _darkMode = v);
-                      themeNotifier.value = v ? ThemeMode.dark : ThemeMode.light;
-                    },
+                    onChanged: _setDarkMode,
                   ),
 
                   const SizedBox(height: 24),
@@ -3260,9 +4339,15 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                   ),
                   _SettingsTile(
                     icon: Icons.info_outline_rounded,
-                    iconColor: Colors.white38,
+                    iconColor:
+                        isDark ? Colors.white38 : const Color(0xFF5A6872),
                     label: L.about,
-                    trailing: Text('v1.0.0', style: TextStyle(color: Colors.white.withOpacity(0.28), fontSize: 12)),
+                    trailing: Text('v1.0.0',
+                        style: TextStyle(
+                            color: isDark
+                                ? Colors.white.withOpacity(0.28)
+                                : const Color(0xFF53616A),
+                            fontSize: 12)),
                     onTap: () => _showAbout(context),
                   ),
                 ],
@@ -3287,7 +4372,7 @@ class _ProfileCard extends StatefulWidget {
 
 class _ProfileCardState extends State<_ProfileCard> {
   int _level = 1;
-  int _xp    = 0;
+  int _xp = 0;
   String? _profileName;
 
   @override
@@ -3311,35 +4396,49 @@ class _ProfileCardState extends State<_ProfileCard> {
 
   @override
   Widget build(BuildContext context) {
-    final user       = AuthService.instance.currentUser;
-    final isAnon     = AuthService.instance.isAnonymous;
-    final name       = (user?.displayName?.trim().isNotEmpty == true)
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final user = AuthService.instance.currentUser;
+    final isAnon = AuthService.instance.isAnonymous;
+    final cardBg = isDark ? const Color(0xFF1A2535) : const Color(0xFFF4F8FA);
+    final titleColor = isDark ? Colors.white : const Color(0xFF1C2830);
+    final mutedColor =
+        isDark ? Colors.white.withOpacity(0.38) : const Color(0xFF52606A);
+    final signInAccent = isDark ? _kPrimary : const Color(0xFF145C37);
+    final guestBadgeText = isDark ? Colors.white60 : const Color(0xFF34434C);
+    final guestBadgeBg = isDark
+        ? Colors.white.withOpacity(0.06)
+        : const Color(0xFF9EACB4).withOpacity(0.75);
+    final guestBadgeBorder =
+        isDark ? Colors.white12 : const Color(0xFF6C7B85).withOpacity(0.55);
+    final borderColor = isAnon
+        ? _kPrimary.withOpacity(0.35)
+        : isDark
+            ? Colors.white.withOpacity(0.07)
+            : const Color(0xFF7B8992).withOpacity(0.55);
+    final name = (user?.displayName?.trim().isNotEmpty == true)
         ? user!.displayName!
         : (_profileName?.trim().isNotEmpty == true
             ? _profileName!
             : AuthService.instance.effectiveDisplayName);
-    final email      = user?.email ?? '';
-    final initial    = name.isNotEmpty ? name[0].toUpperCase() : 'P';
-    final photoUrl   = user?.photoURL;
+    final email = user?.email ?? '';
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : 'P';
+    final photoUrl = user?.photoURL;
 
     return GestureDetector(
       onTap: isAnon ? widget.onSignInTap : null,
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFF1A2535),
+          color: cardBg,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isAnon
-                ? _kPrimary.withOpacity(0.3)
-                : Colors.white.withOpacity(0.07),
-          ),
+          border: Border.all(color: borderColor),
         ),
         child: Row(
           children: [
             // Avatar
             Container(
-              width: 54, height: 54,
+              width: 54,
+              height: 54,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
@@ -3357,8 +4456,10 @@ class _ProfileCardState extends State<_ProfileCard> {
                     )
                   : Center(
                       child: Text(initial,
-                          style: const TextStyle(color: Colors.white,
-                              fontSize: 26, fontWeight: FontWeight.bold)),
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 26,
+                              fontWeight: FontWeight.bold)),
                     ),
             ),
             const SizedBox(width: 14),
@@ -3367,35 +4468,37 @@ class _ProfileCardState extends State<_ProfileCard> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(name,
-                      style: const TextStyle(color: Colors.white,
-                          fontSize: 15, fontWeight: FontWeight.bold)),
+                      style: TextStyle(
+                          color: titleColor,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
                   if (email.isNotEmpty)
                     Text(email,
-                        style: TextStyle(
-                            color: Colors.white.withOpacity(0.38), fontSize: 12))
+                        style: TextStyle(color: mutedColor, fontSize: 12))
                   else if (isAnon)
                     Text(L.signInToSaveScores,
                         style: TextStyle(
-                            color: _kPrimary.withOpacity(0.8), fontSize: 11)),
+                            color: signInAccent.withOpacity(0.95),
+                            fontSize: 11)),
                   const SizedBox(height: 6),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: isAnon
-                          ? Colors.white.withOpacity(0.06)
-                          : _kPrimary.withOpacity(0.12),
+                      color:
+                          isAnon ? guestBadgeBg : _kPrimary.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(6),
                       border: Border.all(
                         color: isAnon
-                            ? Colors.white12
+                            ? guestBadgeBorder
                             : _kPrimary.withOpacity(0.3),
                       ),
                     ),
                     child: Text(
                       isAnon ? L.guestBadge : L.levelXp(_level, _xp),
                       style: TextStyle(
-                        color: isAnon ? Colors.white60 : _kPrimary,
+                        color: isAnon ? guestBadgeText : _kPrimary,
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
                       ),
@@ -3406,18 +4509,24 @@ class _ProfileCardState extends State<_ProfileCard> {
             ),
             if (isAnon)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: _kPrimary.withOpacity(0.15),
+                  color: signInAccent.withOpacity(isDark ? 0.15 : 0.18),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: _kPrimary.withOpacity(0.4)),
+                  border: Border.all(color: signInAccent.withOpacity(0.55)),
                 ),
                 child: Text(L.signIn,
-                    style: const TextStyle(color: _kPrimary,
-                        fontSize: 11, fontWeight: FontWeight.bold)),
+                    style: TextStyle(
+                        color: signInAccent,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold)),
               )
             else
-              Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.2)),
+              Icon(Icons.chevron_right_rounded,
+                  color: isDark
+                      ? Colors.white.withOpacity(0.2)
+                      : const Color(0xFF5F6C75)),
           ],
         ),
       ),
@@ -3433,12 +4542,14 @@ class _SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
       padding: const EdgeInsets.only(left: 4, bottom: 4),
       child: Text(
         text.toUpperCase(),
         style: TextStyle(
-          color: Colors.white.withOpacity(0.35),
+          color:
+              isDark ? Colors.white.withOpacity(0.35) : const Color(0xFF46545D),
           fontSize: 11,
           fontWeight: FontWeight.w700,
           letterSpacing: 1.2,
@@ -3465,25 +4576,39 @@ class _SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tileBg = isDark ? const Color(0xFF1A2535) : const Color(0xFFF4F8FA);
+    final borderColor = isDark
+        ? Colors.white.withOpacity(0.06)
+        : const Color(0xFF7B8992).withOpacity(0.55);
+    final textColor = isDark ? Colors.white70 : const Color(0xFF25313A);
+    final chevronColor =
+        isDark ? Colors.white.withOpacity(0.18) : const Color(0xFF5E6B74);
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onTap != null ? () { HapticFeedback.mediumImpact(); onTap!(); } : null,
+        onTap: onTap != null
+            ? () {
+                HapticFeedback.mediumImpact();
+                onTap!();
+              }
+            : null,
         borderRadius: BorderRadius.circular(14),
-        splashColor: Colors.white.withOpacity(0.06),
-        highlightColor: Colors.white.withOpacity(0.03),
+        splashColor: _kPrimary.withOpacity(0.08),
+        highlightColor: _kPrimary.withOpacity(0.03),
         child: Container(
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
           decoration: BoxDecoration(
-            color: const Color(0xFF1A2535),
+            color: tileBg,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white.withOpacity(0.06)),
+            border: Border.all(color: borderColor),
           ),
           child: Row(
             children: [
               Container(
-                width: 34, height: 34,
+                width: 34,
+                height: 34,
                 decoration: BoxDecoration(
                   color: iconColor.withOpacity(0.12),
                   borderRadius: BorderRadius.circular(10),
@@ -3491,8 +4616,12 @@ class _SettingsTile extends StatelessWidget {
                 child: Icon(icon, color: iconColor, size: 17),
               ),
               const SizedBox(width: 14),
-              Expanded(child: Text(label, style: const TextStyle(color: Colors.white70, fontSize: 14))),
-              trailing ?? Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.18), size: 18),
+              Expanded(
+                  child: Text(label,
+                      style: TextStyle(color: textColor, fontSize: 14))),
+              trailing ??
+                  Icon(Icons.chevron_right_rounded,
+                      color: chevronColor, size: 18),
             ],
           ),
         ),
@@ -3516,18 +4645,25 @@ class _SettingsTileTrailing extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tileBg = isDark ? const Color(0xFF1A2535) : const Color(0xFFF4F8FA);
+    final borderColor = isDark
+        ? Colors.white.withOpacity(0.06)
+        : const Color(0xFF7B8992).withOpacity(0.55);
+    final textColor = isDark ? Colors.white70 : const Color(0xFF25313A);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A2535),
+        color: tileBg,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
+        border: Border.all(color: borderColor),
       ),
       child: Row(
         children: [
           Container(
-            width: 34, height: 34,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
               color: iconColor.withOpacity(0.12),
               borderRadius: BorderRadius.circular(10),
@@ -3535,7 +4671,9 @@ class _SettingsTileTrailing extends StatelessWidget {
             child: Icon(icon, color: iconColor, size: 17),
           ),
           const SizedBox(width: 14),
-          Expanded(child: Text(label, style: const TextStyle(color: Colors.white70, fontSize: 14))),
+          Expanded(
+              child: Text(label,
+                  style: TextStyle(color: textColor, fontSize: 14))),
           trailing,
         ],
       ),
@@ -3560,18 +4698,25 @@ class _SettingsToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tileBg = isDark ? const Color(0xFF1A2535) : const Color(0xFFF4F8FA);
+    final borderColor = isDark
+        ? Colors.white.withOpacity(0.06)
+        : const Color(0xFF7B8992).withOpacity(0.55);
+    final textColor = isDark ? Colors.white70 : const Color(0xFF25313A);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A2535),
+        color: tileBg,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.white.withOpacity(0.06)),
+        border: Border.all(color: borderColor),
       ),
       child: Row(
         children: [
           Container(
-            width: 34, height: 34,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
               color: iconColor.withOpacity(0.12),
               borderRadius: BorderRadius.circular(10),
@@ -3579,14 +4724,20 @@ class _SettingsToggle extends StatelessWidget {
             child: Icon(icon, color: iconColor, size: 17),
           ),
           const SizedBox(width: 14),
-          Expanded(child: Text(label, style: const TextStyle(color: Colors.white70, fontSize: 14))),
+          Expanded(
+              child: Text(label,
+                  style: TextStyle(color: textColor, fontSize: 14))),
           Switch(
             value: value,
-            onChanged: (v) { HapticFeedback.mediumImpact(); onChanged(v); },
+            onChanged: (v) {
+              HapticFeedback.mediumImpact();
+              onChanged(v);
+            },
             activeColor: _kPrimary,
             activeTrackColor: _kPrimary.withOpacity(0.3),
             inactiveThumbColor: Colors.white38,
-            inactiveTrackColor: Colors.white12,
+            inactiveTrackColor:
+                isDark ? Colors.white12 : const Color(0xFF89969E),
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
           ),
         ],
@@ -3608,10 +4759,14 @@ class _StatsSheetState extends State<_StatsSheet> {
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.of(context).padding.bottom;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sheetBg = isDark ? const Color(0xFF1A2535) : const Color(0xFFF4F8FA);
+    final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
+    final mutedColor = isDark ? Colors.white54 : const Color(0xFF52636E);
     return Container(
-      decoration: const BoxDecoration(
-        color: Color(0xFF1A2535),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      decoration: BoxDecoration(
+        color: sheetBg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: EdgeInsets.fromLTRB(24, 20, 24, bottom + 28),
       child: FutureBuilder(
@@ -3622,15 +4777,22 @@ class _StatsSheetState extends State<_StatsSheet> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 36, height: 4,
+                width: 36,
+                height: 4,
                 margin: const EdgeInsets.only(bottom: 20),
-                decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2)),
+                decoration: BoxDecoration(
+                    color: isDark ? Colors.white24 : const Color(0xFFC8D4DB),
+                    borderRadius: BorderRadius.circular(2)),
               ),
               Row(
                 children: [
-                  const Icon(Icons.bar_chart_rounded, color: Colors.white54, size: 20),
+                  Icon(Icons.bar_chart_rounded, color: mutedColor, size: 20),
                   const SizedBox(width: 10),
-                  Text(L.statistics, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.bold)),
+                  Text(L.statistics,
+                      style: TextStyle(
+                          color: titleColor,
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold)),
                 ],
               ),
               const SizedBox(height: 24),
@@ -3639,10 +4801,11 @@ class _StatsSheetState extends State<_StatsSheet> {
               else
                 Row(
                   children: [
-                    _StatCell(label: L.totalGames,  value: '${stats.played}'),
-                    _StatCell(label: L.winRate,     value: '${stats.percentWon}%'),
-                    _StatCell(label: L.bestScore,   value: '${stats.highScore}'),
-                    _StatCell(label: 'Streak',      value: '${stats.streak.current}'),
+                    _StatCell(label: L.totalGames, value: '${stats.played}'),
+                    _StatCell(label: L.winRate, value: '${stats.percentWon}%'),
+                    _StatCell(label: L.bestScore, value: '${stats.highScore}'),
+                    _StatCell(
+                        label: 'Streak', value: '${stats.streak.current}'),
                   ],
                 ),
             ],
@@ -3661,20 +4824,34 @@ class _StatCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg =
+        isDark ? Colors.white.withOpacity(0.05) : const Color(0xFFEAF1F4);
+    final borderColor =
+        isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFD6E1E7);
+    final valueColor = isDark ? Colors.white : const Color(0xFF18242C);
+    final labelColor =
+        isDark ? Colors.white.withOpacity(0.4) : const Color(0xFF52636E);
     return Expanded(
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 4),
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
+          color: cardBg,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: Colors.white.withOpacity(0.08)),
+          border: Border.all(color: borderColor),
         ),
         child: Column(
           children: [
-            Text(value, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+            Text(value,
+                style: TextStyle(
+                    color: valueColor,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold)),
             const SizedBox(height: 4),
-            Text(label, style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 10), textAlign: TextAlign.center),
+            Text(label,
+                style: TextStyle(color: labelColor, fontSize: 10),
+                textAlign: TextAlign.center),
           ],
         ),
       ),
@@ -3691,21 +4868,37 @@ class _LangSwitcher extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cur = L.current;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.10),
+        color:
+            isDark ? Colors.white.withOpacity(0.10) : const Color(0xFFD6E1E7),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.20)),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withOpacity(0.20)
+              : const Color(0xFF88949C).withOpacity(0.55),
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _LangBtn(label: 'KU', active: cur == AppLocale.ku,
-              onTap: () { L.set(AppLocale.ku); onChanged(); }),
+          _LangBtn(
+              label: 'KU',
+              active: cur == AppLocale.ku,
+              onTap: () {
+                L.set(AppLocale.ku);
+                onChanged();
+              }),
           const SizedBox(width: 4),
-          _LangBtn(label: 'TR', active: cur == AppLocale.tr,
-              onTap: () { L.set(AppLocale.tr); onChanged(); }),
+          _LangBtn(
+              label: 'TR',
+              active: cur == AppLocale.tr,
+              onTap: () {
+                L.set(AppLocale.tr);
+                onChanged();
+              }),
         ],
       ),
     );
@@ -3716,14 +4909,18 @@ class _LangBtn extends StatelessWidget {
   final String label;
   final bool active;
   final VoidCallback onTap;
-  const _LangBtn({required this.label, required this.active, required this.onTap});
+  const _LangBtn(
+      {required this.label, required this.active, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () { HapticFeedback.selectionClick(); onTap(); },
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
         borderRadius: BorderRadius.circular(8),
         splashColor: _kPrimary.withOpacity(0.2),
         highlightColor: _kPrimary.withOpacity(0.1),
@@ -3737,7 +4934,11 @@ class _LangBtn extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              color: active ? Colors.white : Colors.white54,
+              color: active
+                  ? Colors.white
+                  : Theme.of(context).brightness == Brightness.dark
+                      ? Colors.white54
+                      : const Color(0xFF56616A),
               fontSize: 13,
               fontWeight: active ? FontWeight.bold : FontWeight.normal,
               letterSpacing: 0.5,
@@ -3780,80 +4981,82 @@ class _MenuCard extends StatelessWidget {
         splashColor: Colors.white.withOpacity(0.08),
         highlightColor: Colors.white.withOpacity(0.04),
         child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-        decoration: BoxDecoration(
-          gradient: gradient,
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: borderColor, width: 1.2),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.25),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: iconColor.withOpacity(0.25)),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+          decoration: BoxDecoration(
+            gradient: gradient,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: borderColor, width: 1.2),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.25),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
               ),
-              child: Icon(icon, color: iconColor, size: 26),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (badge != null) ...[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.08),
-                            borderRadius: BorderRadius.circular(8),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: iconColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: iconColor.withOpacity(0.25)),
+                ),
+                child: Icon(icon, color: iconColor, size: 26),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
                           ),
-                          child: Text(
-                            badge!,
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.45),
-                              fontSize: 9,
-                              fontWeight: FontWeight.w600,
+                        ),
+                        if (badge != null) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              badge!,
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.45),
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
-                        ),
+                        ],
                       ],
-                    ],
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.4),
-                      fontSize: 12,
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.4),
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Icon(Icons.chevron_right_rounded, color: Colors.white.withOpacity(0.2), size: 22),
-          ],
-        ),
+              Icon(Icons.chevron_right_rounded,
+                  color: Colors.white.withOpacity(0.2), size: 22),
+            ],
+          ),
         ),
       ),
     );
@@ -3898,253 +5101,267 @@ class _TurnuvaModuCardState extends State<_TurnuvaModuCard>
         return Material(
           color: Colors.transparent,
           child: InkWell(
-          onTap: () { HapticFeedback.mediumImpact(); widget.onTap(); },
-          borderRadius: BorderRadius.circular(22),
-          splashColor: _kGold.withOpacity(0.08),
-          highlightColor: _kGold.withOpacity(0.04),
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFF1F1809), Color(0xFF130C04)],
+            onTap: () {
+              HapticFeedback.mediumImpact();
+              widget.onTap();
+            },
+            borderRadius: BorderRadius.circular(22),
+            splashColor: _kGold.withOpacity(0.08),
+            highlightColor: _kGold.withOpacity(0.04),
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF1F1809), Color(0xFF130C04)],
+                ),
+                borderRadius: BorderRadius.circular(22),
+                border: Border.all(
+                    color: _kGold.withOpacity(0.30 + 0.08 * t), width: 1),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFB8860B).withOpacity(0.18 + 0.06 * t),
+                    blurRadius: 28,
+                    spreadRadius: -4,
+                    offset: const Offset(0, 12),
+                  ),
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.40),
+                    blurRadius: 14,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
               ),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: _kGold.withOpacity(0.30 + 0.08 * t), width: 1),
-              boxShadow: [
-                BoxShadow(
-                  color: const Color(0xFFB8860B).withOpacity(0.18 + 0.06 * t),
-                  blurRadius: 28,
-                  spreadRadius: -4,
-                  offset: const Offset(0, 12),
-                ),
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.40),
-                  blurRadius: 14,
-                  offset: const Offset(0, 6),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                // ── Üst başlık ──────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                  child: Row(
-                    children: [
-                      // Kupa ikonu
-                      Container(
-                        width: 52, height: 52,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              _kGold.withOpacity(0.25 + 0.1 * _pulse.value),
-                              _kGoldDim.withOpacity(0.15),
-                            ],
+              child: Column(
+                children: [
+                  // ── Üst başlık ──────────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                    child: Row(
+                      children: [
+                        // Kupa ikonu
+                        Container(
+                          width: 52,
+                          height: 52,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                _kGold.withOpacity(0.25 + 0.1 * _pulse.value),
+                                _kGoldDim.withOpacity(0.15),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                                color: _kGold
+                                    .withOpacity(0.4 + 0.2 * _pulse.value)),
                           ),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                              color: _kGold.withOpacity(0.4 + 0.2 * _pulse.value)),
+                          child: const Center(
+                            child: Text('🏆', style: TextStyle(fontSize: 26)),
+                          ),
                         ),
-                        child: const Center(
-                          child: Text('🏆', style: TextStyle(fontSize: 26)),
-                        ),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Text(
-                                  L.current == AppLocale.tr
-                                      ? 'Turnuva Modu'
-                                      : 'Moda Turnuvayê',
-                                  style: const TextStyle(
-                                    color: _kGold,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 0.3,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 6, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: _kPrimary.withOpacity(0.15),
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(
-                                        color: _kPrimary.withOpacity(0.4)),
-                                  ),
-                                  child: Text(
-                                    L.current == AppLocale.tr ? 'YENİ' : 'NÛ',
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Text(
+                                    L.current == AppLocale.tr
+                                        ? 'Turnuva Modu'
+                                        : 'Moda Turnuvayê',
                                     style: const TextStyle(
-                                      color: _kPrimary,
-                                      fontSize: 9,
+                                      color: _kGold,
+                                      fontSize: 16,
                                       fontWeight: FontWeight.bold,
+                                      letterSpacing: 0.3,
                                     ),
                                   ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: _kPrimary.withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                          color: _kPrimary.withOpacity(0.4)),
+                                    ),
+                                    child: Text(
+                                      L.current == AppLocale.tr ? 'YENİ' : 'NÛ',
+                                      style: const TextStyle(
+                                        color: _kPrimary,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                L.current == AppLocale.tr
+                                    ? 'Haftalık 8 kişilik eleme turnuvası'
+                                    : 'Turnuvaya hefteyî ya 8 lîstikvan',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.45),
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.chevron_right_rounded,
+                          color: _kGold.withOpacity(0.5),
+                          size: 22,
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // ── Ayraç ──────────────────────────────────────
+                  Container(height: 1, color: _kGold.withOpacity(0.12)),
+
+                  // ── Alt görsel kısım ────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        // Mini bracket görseli
+                        Expanded(child: _MiniBracket()),
+                        const SizedBox(width: 14),
+                        // Sağ: Katılımcı + buton
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            // Oyuncu sayısı
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.people_alt_rounded,
+                                    color: _kGold.withOpacity(0.7), size: 13),
+                                const SizedBox(width: 5),
+                                RichText(
+                                  text: TextSpan(children: [
+                                    const TextSpan(
+                                      text: '6',
+                                      style: TextStyle(
+                                        color: _kGold,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    TextSpan(
+                                      text: '/8',
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.4),
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ]),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 3),
-                            Text(
-                              L.current == AppLocale.tr
-                                  ? 'Haftalık 8 kişilik eleme turnuvası'
-                                  : 'Turnuvaya hefteyî ya 8 lîstikvan',
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.45),
-                                fontSize: 11,
+                            const SizedBox(height: 4),
+                            // Progress bar
+                            SizedBox(
+                              width: 80,
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(3),
+                                child: LinearProgressIndicator(
+                                  value: 6 / 8,
+                                  backgroundColor: Colors.white12,
+                                  color: _kGold,
+                                  minHeight: 5,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            // "Son 2 yer!" uyarısı
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 7, vertical: 3),
+                              decoration: BoxDecoration(
+                                color:
+                                    const Color(0xFFFF3D00).withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                    color: const Color(0xFFFF6E40)
+                                        .withOpacity(0.5)),
+                              ),
+                              child: Text(
+                                L.lastTwoSpots,
+                                style: const TextStyle(
+                                  color: Color(0xFFFF6E40),
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            // Katıl butonu — premium pill
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 8),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Color(0xFFFFD27A),
+                                    Color(0xFFB8860B)
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(11),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFFFFB300)
+                                        .withOpacity(0.30 + 0.12 * t),
+                                    blurRadius: 14,
+                                    spreadRadius: 0,
+                                  ),
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.35),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    L.current == AppLocale.tr
+                                        ? 'Katıl'
+                                        : 'Tevlî bibe',
+                                    style: const TextStyle(
+                                      color: Color(0xFF2A1A00),
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.2,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  const Icon(
+                                    Icons.arrow_forward_rounded,
+                                    size: 13,
+                                    color: Color(0xFF2A1A00),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
-                      ),
-                      Icon(
-                        Icons.chevron_right_rounded,
-                        color: _kGold.withOpacity(0.5),
-                        size: 22,
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-
-                // ── Ayraç ──────────────────────────────────────
-                Container(height: 1, color: _kGold.withOpacity(0.12)),
-
-                // ── Alt görsel kısım ────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      // Mini bracket görseli
-                      Expanded(child: _MiniBracket()),
-                      const SizedBox(width: 14),
-                      // Sağ: Katılımcı + buton
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          // Oyuncu sayısı
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.people_alt_rounded,
-                                  color: _kGold.withOpacity(0.7), size: 13),
-                              const SizedBox(width: 5),
-                              RichText(
-                                text: TextSpan(children: [
-                                  const TextSpan(
-                                    text: '6',
-                                    style: TextStyle(
-                                      color: _kGold,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  TextSpan(
-                                    text: '/8',
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.4),
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ]),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 4),
-                          // Progress bar
-                          SizedBox(
-                            width: 80,
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(3),
-                              child: LinearProgressIndicator(
-                                value: 6 / 8,
-                                backgroundColor: Colors.white12,
-                                color: _kGold,
-                                minHeight: 5,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          // "Son 2 yer!" uyarısı
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 7, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFF3D00).withOpacity(0.15),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(
-                                  color: const Color(0xFFFF6E40).withOpacity(0.5)),
-                            ),
-                            child: Text(
-                              L.lastTwoSpots,
-                              style: const TextStyle(
-                                color: Color(0xFFFF6E40),
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          // Katıl butonu — premium pill
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 8),
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [Color(0xFFFFD27A), Color(0xFFB8860B)],
-                              ),
-                              borderRadius: BorderRadius.circular(11),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFFFFB300).withOpacity(0.30 + 0.12 * t),
-                                  blurRadius: 14,
-                                  spreadRadius: 0,
-                                ),
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.35),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 3),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  L.current == AppLocale.tr ? 'Katıl' : 'Tevlî bibe',
-                                  style: const TextStyle(
-                                    color: Color(0xFF2A1A00),
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 0.2,
-                                  ),
-                                ),
-                                const SizedBox(width: 4),
-                                const Icon(
-                                  Icons.arrow_forward_rounded,
-                                  size: 13,
-                                  color: Color(0xFF2A1A00),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
           ),
         );
       },
@@ -4157,7 +5374,7 @@ class _TurnuvaModuCardState extends State<_TurnuvaModuCard>
 class _MiniBracket extends StatelessWidget {
   const _MiniBracket();
 
-  static const _kGold   = Color(0xFFFFD700);
+  static const _kGold = Color(0xFFFFD700);
   static const _kGoldDim = Color(0xFFB8860B);
 
   @override
@@ -4170,10 +5387,10 @@ class _MiniBracket extends StatelessWidget {
           Column(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _MiniSlot(name: 'Roja',  filled: true),
+              _MiniSlot(name: 'Roja', filled: true),
               _MiniSlot(name: 'Dilan', filled: true),
               _MiniSlot(name: 'Baran', filled: true),
-              _MiniSlot(name: L.you,  filled: true, isMe: true),
+              _MiniSlot(name: L.you, filled: true, isMe: true),
             ],
           ),
           // Bağlantı çizgileri
@@ -4228,10 +5445,11 @@ class _MiniSlot extends StatelessWidget {
   final bool filled;
   final bool isMe;
 
-  static const _kGold   = Color(0xFFFFD700);
+  static const _kGold = Color(0xFFFFD700);
   static const _kPrimary = Color(0xFF4CAF50);
 
-  const _MiniSlot({required this.name, required this.filled, this.isMe = false});
+  const _MiniSlot(
+      {required this.name, required this.filled, this.isMe = false});
 
   @override
   Widget build(BuildContext context) {
@@ -4288,8 +5506,10 @@ class _MiniLinePainter extends CustomPainter {
       final yMid = (y1 + y2) / 2;
       canvas.drawLine(Offset(0, y1), Offset(size.width / 2, y1), paint);
       canvas.drawLine(Offset(0, y2), Offset(size.width / 2, y2), paint);
-      canvas.drawLine(Offset(size.width / 2, y1), Offset(size.width / 2, y2), paint);
-      canvas.drawLine(Offset(size.width / 2, yMid), Offset(size.width, yMid), paint);
+      canvas.drawLine(
+          Offset(size.width / 2, y1), Offset(size.width / 2, y2), paint);
+      canvas.drawLine(
+          Offset(size.width / 2, yMid), Offset(size.width, yMid), paint);
     }
   }
 
@@ -4322,14 +5542,18 @@ class _OyunlarimCardState extends State<_OyunlarimCard> {
     if (uid == null || !FirebaseService.isAvailable) return;
     if (mounted) setState(() => _loadingGames = true);
     final games = await FirestoreService.instance.getRecentGames(uid);
-    if (mounted) setState(() { _firestoreGames = games; _loadingGames = false; });
+    if (mounted)
+      setState(() {
+        _firestoreGames = games;
+        _loadingGames = false;
+      });
   }
 
   String _timeAgo(DateTime dt) {
     final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 1)  return 'Az önce';
+    if (diff.inMinutes < 1) return 'Az önce';
     if (diff.inMinutes < 60) return '${diff.inMinutes} dk önce';
-    if (diff.inHours < 24)   return '${diff.inHours} saat önce';
+    if (diff.inHours < 24) return '${diff.inHours} saat önce';
     return '${diff.inDays} gün önce';
   }
 
@@ -4349,7 +5573,8 @@ class _OyunlarimCardState extends State<_OyunlarimCard> {
     final hasActiveGame = store.activeController != null &&
         store.activeRecord != null &&
         !store.activeRecord!.isFinished;
-    final hasGame = hasActiveGame || _firestoreGames.isNotEmpty || _loadingGames;
+    final hasGame =
+        hasActiveGame || _firestoreGames.isNotEmpty || _loadingGames;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
@@ -4363,14 +5588,18 @@ class _OyunlarimCardState extends State<_OyunlarimCard> {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: _kGold.withOpacity(0.35), width: 1.2),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 12, offset: const Offset(0, 4)),
+          BoxShadow(
+              color: Colors.black.withOpacity(0.25),
+              blurRadius: 12,
+              offset: const Offset(0, 4)),
         ],
       ),
       child: Column(
         children: [
           // Başlık satırı — tıklanabilir
           GestureDetector(
-            onTap: hasGame ? () => setState(() => _expanded = !_expanded) : null,
+            onTap:
+                hasGame ? () => setState(() => _expanded = !_expanded) : null,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
               child: Row(
@@ -4383,7 +5612,8 @@ class _OyunlarimCardState extends State<_OyunlarimCard> {
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(color: _kGold.withOpacity(0.25)),
                     ),
-                    child: const Icon(Icons.grid_view_rounded, color: _kGold, size: 26),
+                    child: const Icon(Icons.grid_view_rounded,
+                        color: _kGold, size: 26),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -4391,15 +5621,21 @@ class _OyunlarimCardState extends State<_OyunlarimCard> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(L.myGames,
-                            style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold)),
                         const SizedBox(height: 3),
                         Text(
                           _loadingGames
                               ? '...'
                               : hasGame
-                                  ? L.gamesCount(_firestoreGames.length + (hasActiveGame ? 1 : 0))
+                                  ? L.gamesCount(_firestoreGames.length +
+                                      (hasActiveGame ? 1 : 0))
                                   : L.noGames,
-                          style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12),
+                          style: TextStyle(
+                              color: Colors.white.withOpacity(0.4),
+                              fontSize: 12),
                         ),
                       ],
                     ),
@@ -4425,51 +5661,65 @@ class _OyunlarimCardState extends State<_OyunlarimCard> {
               Material(
                 color: Colors.transparent,
                 child: InkWell(
-                onTap: store.activeController != null
-                    ? () => widget.onResume(store.activeController)
-                    : null,
-                splashColor: _kPrimary.withOpacity(0.10),
-                highlightColor: _kPrimary.withOpacity(0.05),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
-                  decoration: BoxDecoration(
-                    color: _kGold.withOpacity(0.05),
-                    border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.04))),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 8, height: 8,
-                        decoration: const BoxDecoration(shape: BoxShape.circle, color: _kPrimary),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(L.active,
-                                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 2),
-                            Text(
-                              'Sen ${store.activeRecord!.playerScore} — AI ${store.activeRecord!.aiScore}  •  ${_timeAgo(store.activeRecord!.startedAt)}',
-                              style: const TextStyle(color: Colors.white30, fontSize: 11),
-                            ),
-                          ],
+                  onTap: store.activeController != null
+                      ? () => widget.onResume(store.activeController)
+                      : null,
+                  splashColor: _kPrimary.withOpacity(0.10),
+                  highlightColor: _kPrimary.withOpacity(0.05),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 13),
+                    decoration: BoxDecoration(
+                      color: _kGold.withOpacity(0.05),
+                      border: Border(
+                          bottom: BorderSide(
+                              color: Colors.white.withOpacity(0.04))),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                              shape: BoxShape.circle, color: _kPrimary),
                         ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: _kPrimary.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: _kPrimary.withOpacity(0.4)),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(L.active,
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600)),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Sen ${store.activeRecord!.playerScore} — AI ${store.activeRecord!.aiScore}  •  ${_timeAgo(store.activeRecord!.startedAt)}',
+                                style: const TextStyle(
+                                    color: Colors.white30, fontSize: 11),
+                              ),
+                            ],
+                          ),
                         ),
-                        child: Text(L.resume,
-                            style: const TextStyle(color: _kPrimary, fontSize: 11, fontWeight: FontWeight.w600)),
-                      ),
-                    ],
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: _kPrimary.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(10),
+                            border:
+                                Border.all(color: _kPrimary.withOpacity(0.4)),
+                          ),
+                          child: Text(L.resume,
+                              style: const TextStyle(
+                                  color: _kPrimary,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600)),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
                 ),
               ),
 
@@ -4477,7 +5727,12 @@ class _OyunlarimCardState extends State<_OyunlarimCard> {
             if (_loadingGames)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 14),
-                child: Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: _kGold))),
+                child: Center(
+                    child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: _kGold))),
               ),
 
             // Geçmiş oyunlar — Firestore'dan
@@ -4487,17 +5742,22 @@ class _OyunlarimCardState extends State<_OyunlarimCard> {
               final aiScore = game['aiScore'] as int? ?? 0;
               final timeAgo = _timeAgoFromTimestamp(game['playedAt']);
               return Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
                 decoration: BoxDecoration(
-                  border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.04))),
+                  border: Border(
+                      bottom:
+                          BorderSide(color: Colors.white.withOpacity(0.04))),
                 ),
                 child: Row(
                   children: [
                     Container(
-                      width: 8, height: 8,
+                      width: 8,
+                      height: 8,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: won ? _kPrimary.withOpacity(0.6) : Colors.white24,
+                        color:
+                            won ? _kPrimary.withOpacity(0.6) : Colors.white24,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -4515,7 +5775,8 @@ class _OyunlarimCardState extends State<_OyunlarimCard> {
                           const SizedBox(height: 2),
                           Text(
                             'Sen $playerScore — AI $aiScore${timeAgo.isNotEmpty ? '  •  $timeAgo' : ''}',
-                            style: const TextStyle(color: Colors.white30, fontSize: 11),
+                            style: const TextStyle(
+                                color: Colors.white30, fontSize: 11),
                           ),
                         ],
                       ),
@@ -4563,21 +5824,28 @@ class _InviteBanner extends StatelessWidget {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF64B5F6).withOpacity(0.45), width: 1.5),
+        border: Border.all(
+            color: const Color(0xFF64B5F6).withOpacity(0.45), width: 1.5),
         boxShadow: [
-          BoxShadow(color: const Color(0xFF64B5F6).withOpacity(0.12), blurRadius: 14, offset: const Offset(0, 4)),
+          BoxShadow(
+              color: const Color(0xFF64B5F6).withOpacity(0.12),
+              blurRadius: 14,
+              offset: const Offset(0, 4)),
         ],
       ),
       child: Row(
         children: [
           Container(
-            width: 40, height: 40,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
               color: const Color(0xFF64B5F6).withOpacity(0.15),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: const Color(0xFF64B5F6).withOpacity(0.3)),
+              border:
+                  Border.all(color: const Color(0xFF64B5F6).withOpacity(0.3)),
             ),
-            child: const Icon(Icons.sports_esports_rounded, color: Color(0xFF64B5F6), size: 20),
+            child: const Icon(Icons.sports_esports_rounded,
+                color: Color(0xFF64B5F6), size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -4585,15 +5853,22 @@ class _InviteBanner extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(invite.hostName,
-                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold)),
                 Text(L.inviteFrom,
-                    style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 11)),
+                    style: TextStyle(
+                        color: Colors.white.withOpacity(0.45), fontSize: 11)),
               ],
             ),
           ),
           const SizedBox(width: 8),
           GestureDetector(
-            onTap: () { HapticFeedback.mediumImpact(); onAccept(); },
+            onTap: () {
+              HapticFeedback.mediumImpact();
+              onAccept();
+            },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
               decoration: BoxDecoration(
@@ -4602,12 +5877,18 @@ class _InviteBanner extends StatelessWidget {
                 border: Border.all(color: _kPrimary.withOpacity(0.5)),
               ),
               child: Text(L.accept,
-                  style: const TextStyle(color: _kPrimary, fontSize: 11, fontWeight: FontWeight.bold)),
+                  style: const TextStyle(
+                      color: _kPrimary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold)),
             ),
           ),
           const SizedBox(width: 6),
           GestureDetector(
-            onTap: () { HapticFeedback.selectionClick(); onDecline(); },
+            onTap: () {
+              HapticFeedback.selectionClick();
+              onDecline();
+            },
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
@@ -4616,7 +5897,10 @@ class _InviteBanner extends StatelessWidget {
                 border: Border.all(color: Colors.white12),
               ),
               child: Text(L.decline,
-                  style: TextStyle(color: Colors.white.withOpacity(0.45), fontSize: 11, fontWeight: FontWeight.w600)),
+                  style: TextStyle(
+                      color: Colors.white.withOpacity(0.45),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600)),
             ),
           ),
         ],

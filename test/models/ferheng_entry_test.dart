@@ -4,6 +4,8 @@ import 'package:kurdle_app/services/app_locale.dart';
 
 void main() {
   group('FerhengEntry', () {
+    tearDown(() => L.set(AppLocale.ku));
+
     final fixture = {
       'headword': 'AV',
       'normalized': 'AV',
@@ -77,6 +79,30 @@ void main() {
         definitionsKmr: const [FerhengDefinition(gloss: 'test KMR')],
       );
       expect(entry.displayGloss(AppLocale.tr), 'test KMR');
+    });
+
+    test('displayMeaning keeps missing Turkish message with Kurdish fallback',
+        () {
+      L.set(AppLocale.tr);
+      final entry = FerhengEntry(
+        headword: 'TEST',
+        normalized: 'TEST',
+        definitionsTr: const [],
+        definitionsKmr: const [FerhengDefinition(gloss: 'test KMR')],
+      );
+      expect(
+        entry.displayMeaning(AppLocale.tr),
+        'Türkçe anlam henüz eklenmedi\ntest KMR',
+      );
+    });
+
+    test('displayMeaning explains dictionary entry with no meanings', () {
+      L.set(AppLocale.tr);
+      const entry = FerhengEntry(headword: 'TEST', normalized: 'TEST');
+      expect(
+        entry.displayMeaning(AppLocale.tr),
+        'Bu kelime sözlükte var ancak anlamı henüz eklenmedi',
+      );
     });
 
     test('preserves Kurmanji diacritics through roundtrip', () {

@@ -63,6 +63,7 @@ class FerhengEntry {
   final String sourceUrl;
   final String license;
   final int version;
+  final bool isPlayable;
 
   const FerhengEntry({
     required this.headword,
@@ -81,30 +82,40 @@ class FerhengEntry {
     this.sourceUrl = '',
     this.license = 'CC BY-SA 4.0',
     this.version = 1,
+    this.isPlayable = true,
   });
 
   factory FerhengEntry.fromJson(Map<String, dynamic> json) {
     final defs = (json['definitions'] as Map<String, dynamic>?) ?? const {};
-    List<FerhengDefinition> readDefs(String key) {
+    List<FerhengDefinition> readDefs(String key, String flatKey) {
       final raw = defs[key] as List<dynamic>? ?? const [];
-      return raw
+      final list = raw
           .whereType<Map<String, dynamic>>()
           .map(FerhengDefinition.fromJson)
           .toList(growable: false);
+      if (list.isNotEmpty) return list;
+      final flat = (json[flatKey] ?? '').toString().trim();
+      if (flat.isEmpty) return const [];
+      return [FerhengDefinition(gloss: flat)];
     }
 
-    List<String> readStrList(dynamic raw) =>
-        (raw as List<dynamic>? ?? const []).map((e) => e.toString()).toList(growable: false);
+    List<String> readStrList(dynamic raw) => (raw as List<dynamic>? ?? const [])
+        .map((e) => e.toString())
+        .toList(growable: false);
+
+    final headword = (json['headword'] ?? json['word'] ?? '') as String;
+    final normalized =
+        (json['normalized'] ?? json['normalizedWord'] ?? '').toString();
 
     return FerhengEntry(
-      headword: (json['headword'] ?? '') as String,
-      normalized: (json['normalized'] ?? '') as String,
+      headword: headword,
+      normalized: normalized.isNotEmpty ? normalized : headword.toUpperCase(),
       prefixes: readStrList(json['prefixes']),
       dialect: (json['dialect'] ?? 'kmr') as String,
       pos: readStrList(json['pos']),
       ipa: (json['ipa'] ?? '') as String,
-      definitionsKmr: readDefs('kmr'),
-      definitionsTr: readDefs('tr'),
+      definitionsKmr: readDefs('kmr', 'kuMeaning'),
+      definitionsTr: readDefs('tr', 'trMeaning'),
       etymology: (json['etymology'] ?? '') as String,
       categories: readStrList(json['categories']),
       related: readStrList(json['related']),
@@ -113,12 +124,15 @@ class FerhengEntry {
       sourceUrl: (json['sourceUrl'] ?? '') as String,
       license: (json['license'] ?? 'CC BY-SA 4.0') as String,
       version: (json['version'] ?? 1) as int,
+      isPlayable: (json['isPlayable'] ?? true) as bool,
     );
   }
 
   Map<String, dynamic> toJson() => {
         'headword': headword,
         'normalized': normalized,
+        'word': headword,
+        'normalizedWord': normalized,
         'prefixes': prefixes,
         'dialect': dialect,
         'pos': pos,
@@ -127,6 +141,9 @@ class FerhengEntry {
           'kmr': definitionsKmr.map((d) => d.toJson()).toList(),
           'tr': definitionsTr.map((d) => d.toJson()).toList(),
         },
+        'kuMeaning':
+            definitionsKmr.isNotEmpty ? definitionsKmr.first.gloss : '',
+        'trMeaning': definitionsTr.isNotEmpty ? definitionsTr.first.gloss : '',
         'etymology': etymology,
         'categories': categories,
         'related': related,
@@ -135,6 +152,7 @@ class FerhengEntry {
         'sourceUrl': sourceUrl,
         'license': license,
         'version': version,
+        'isPlayable': isPlayable,
       };
 
   /// Kullanıcının seçtiği dile göre ana tanımı döndürür.
@@ -145,6 +163,19 @@ class FerhengEntry {
     if (preferred.isNotEmpty) return preferred.first.gloss;
     if (fallback.isNotEmpty) return fallback.first.gloss;
     return '';
+  }
+
+  String displayMeaning(AppLocale locale) {
+    final preferred = locale == AppLocale.tr ? definitionsTr : definitionsKmr;
+    final fallback = locale == AppLocale.tr ? definitionsKmr : definitionsTr;
+    if (preferred.isNotEmpty) return preferred.first.gloss;
+    if (fallback.isNotEmpty) {
+      final prefix = locale == AppLocale.tr
+          ? L.missingTurkishMeaning
+          : L.missingKurdishMeaning;
+      return '$prefix\n${fallback.first.gloss}';
+    }
+    return L.dictionaryEntryMissingMeaning;
   }
 
   List<FerhengDefinition> definitionsFor(AppLocale locale) =>

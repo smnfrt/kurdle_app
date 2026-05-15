@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:kurdle_app/models/ferheng_entry.dart';
+import 'package:kurdle_app/services/word_normalizer.dart';
 
 /// Saf Firestore katmanı — cache yok, fallback yok. `FerhengService` üstte oturur.
 class FerhengRepository {
@@ -14,7 +15,10 @@ class FerhengRepository {
 
   /// Tek kelimeyi normalized id ile getirir.
   Future<FerhengEntry?> fetch(String normalizedId) async {
-    final snap = await _db.collection(_entriesCollection).doc(normalizedId).get();
+    final snap = await _db
+        .collection(_entriesCollection)
+        .doc(WordNormalizer.normalize(normalizedId))
+        .get();
     final data = snap.data();
     if (data == null) return null;
     return FerhengEntry.fromJson(data);
@@ -27,8 +31,9 @@ class FerhengRepository {
     String dialect = 'kmr',
     int limit = 20,
   }) async {
-    if (prefix.isEmpty) return const [];
-    final p = prefix.length > 4 ? prefix.substring(0, 4) : prefix;
+    final normalized = WordNormalizer.normalize(prefix);
+    if (normalized.isEmpty) return const [];
+    final p = normalized.length > 4 ? normalized.substring(0, 4) : normalized;
     final q = await _db
         .collection(_entriesCollection)
         .where('dialect', isEqualTo: dialect)
@@ -37,9 +42,9 @@ class FerhengRepository {
         .get();
     final entries = q.docs.map((d) => FerhengEntry.fromJson(d.data())).toList();
     // Eğer kullanıcı 4'ten uzun yazdıysa client-side'da daha sıkı filtreyle daralt.
-    if (prefix.length > 4) {
+    if (normalized.length > 4) {
       return entries
-          .where((e) => e.normalized.startsWith(prefix))
+          .where((e) => e.normalized.startsWith(normalized))
           .toList(growable: false);
     }
     return entries;
@@ -70,7 +75,7 @@ class FerhengRepository {
     final q = await _db
         .collection(_entriesCollection)
         .where('dialect', isEqualTo: dialect)
-        .where('prefixes', arrayContains: letter.toUpperCase())
+        .where('prefixes', arrayContains: WordNormalizer.normalize(letter))
         .orderBy('normalized')
         .limit(limit)
         .get();
@@ -86,10 +91,8 @@ class FerhengRepository {
 
   // ── Kullanıcı favorileri ────────────────────────────────────────
 
-  CollectionReference<Map<String, dynamic>> _favCol(String uid) => _db
-      .collection('users')
-      .doc(uid)
-      .collection(_favoritesSubcollection);
+  CollectionReference<Map<String, dynamic>> _favCol(String uid) =>
+      _db.collection('users').doc(uid).collection(_favoritesSubcollection);
 
   Future<List<String>> listFavoriteIds(String uid, {int limit = 200}) async {
     final snap = await _favCol(uid)

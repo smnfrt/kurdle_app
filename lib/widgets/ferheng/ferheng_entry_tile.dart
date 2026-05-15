@@ -20,7 +20,7 @@ class FerhengEntryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gloss = entry.displayGloss(displayLanguage);
+    final gloss = entry.displayMeaning(displayLanguage);
     return Material(
       color: Colors.transparent,
       child: InkWell(

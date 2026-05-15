@@ -3,6 +3,8 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter_animator/flutter_animator.dart';
 import 'package:kurdle_app/domain.dart';
 import 'package:kurdle_app/services/context_service.dart';
+import 'package:kurdle_app/services/achievement_service.dart';
+import 'package:kurdle_app/services/daily_streak_service.dart';
 import 'package:kurdle_app/services/daily_word_service.dart';
 import 'package:kurdle_app/services/keyboard_service.dart';
 import 'package:kurdle_app/services/matching_service.dart';
@@ -50,8 +52,10 @@ class Kurdle {
     for (var i = 0; i < guess.length; i++) {
       for (var x = 0; x < keys.length; x++) {
         for (var y = 0; y < keys[x].length; y++) {
-          if (keys[x][y].value == guess[i].value && keys[x][y].color.index < guess[i].color.index) {
-            keys[x][y] = Letter(value: guess[i].value, color: guess[i].color, isKey: true);
+          if (keys[x][y].value == guess[i].value &&
+              keys[x][y].color.index < guess[i].color.index) {
+            keys[x][y] = Letter(
+                value: guess[i].value, color: guess[i].color, isKey: true);
           }
         }
       }
@@ -84,6 +88,13 @@ class Kurdle {
 
     await _wordService.init();
 
+    // Günlük "her gün oynama" streak'i (fire-and-forget) — Wordle açıldığında
+    // de streak korunur.
+    DailyStreakService.instance.markPlayedToday().then((streak) {
+      AchievementService.instance.onGameStarted();
+      AchievementService.instance.onStreakChanged(streak.current);
+    });
+
     // Çok cihaz: Firestore'da bugün oynadıysa yerel bağlamı sıfırla
     final playedOnCloud = await DailyWordService.instance.hasPlayedToday();
 
@@ -101,8 +112,17 @@ class Kurdle {
 
   Future<void> _initContext() async {
     var board = Board(List.filled(boardSize, Letter(), growable: false));
-    _context = Context(board, KeyboardService.init(keyboardLayout: _settings.keyboardLayout).keys,
-        '', '', [], TurnResult.unset, totalTries, 'Good Luck!', 0, DateTime.now());
+    _context = Context(
+        board,
+        KeyboardService.init(keyboardLayout: _settings.keyboardLayout).keys,
+        '',
+        '',
+        [],
+        TurnResult.unset,
+        totalTries,
+        'Good Luck!',
+        0,
+        DateTime.now());
     SemanticsService.announce(_context.message, TextDirection.ltr);
 
     // Admin'in belirlediği kelime varsa onu kullan, yoksa deterministik kelime
@@ -144,7 +164,8 @@ class Kurdle {
 
   String _getShareableBoard(int index) {
     String board = '';
-    int endingIndex = ((totalTries - _context.remainingTries) * rowLength) + rowLength;
+    int endingIndex =
+        ((totalTries - _context.remainingTries) * rowLength) + rowLength;
     for (int i = 0; i < endingIndex; i++) {
       if (i > 0 && i % rowLength == 0) {
         board += '\n';
@@ -155,8 +176,8 @@ class Kurdle {
   }
 
   Future<Stats> _updateStats(bool won, int remainingTries) async {
-    return await _statsService.updateStats(
-        _stats, won, (remainingTries - totalTries).abs(), _getShareableBoard, gameNumber,
+    return await _statsService.updateStats(_stats, won,
+        (remainingTries - totalTries).abs(), _getShareableBoard, gameNumber,
         word: won ? _context.answer : '');
   }
 
@@ -169,8 +190,9 @@ class Kurdle {
         SemanticsService.announce(_context.message, TextDirection.ltr);
         _context.turnResult = TurnResult.unsuccessful;
       } else if (_wordService.isValidGuess(_context.guess)) {
-        _context.attempt =
-            MatchingService.matches(_context.guess.toUpperCase(), _context.answer.toUpperCase()).toList();
+        _context.attempt = MatchingService.matches(
+                _context.guess.toUpperCase(), _context.answer.toUpperCase())
+            .toList();
         if (_settings.isHardMode) {
           var unusedLetter = _checkHardMode();
           if (unusedLetter.isNotEmpty) {
@@ -221,6 +243,9 @@ class Kurdle {
       var won = didWin(_context.attempt);
       if (won || _context.remainingTries == 1) {
         _stats = await _updateStats(won, _context.remainingTries);
+        if (won) {
+          AchievementService.instance.onGameWon();
+        }
       }
       var remaining = _context.remainingTries - 1;
       _context.guess = '';
@@ -246,10 +271,12 @@ class Kurdle {
 
   String _checkHardMode() {
     var previousMatches = _context.board.tiles
-        .where((l) => l.color == GameColor.correct || l.color == GameColor.present)
+        .where(
+            (l) => l.color == GameColor.correct || l.color == GameColor.present)
         .map((l) => l.value);
     var currentMatches = _context.attempt
-        .where((l) => l.color == GameColor.correct || l.color == GameColor.present)
+        .where(
+            (l) => l.color == GameColor.correct || l.color == GameColor.present)
         .map((l) => l.value);
 
     if (previousMatches.isNotEmpty) {
@@ -263,7 +290,8 @@ class Kurdle {
   }
 
   void updateKeyboardLayout() {
-    var keys = KeyboardService.init(keyboardLayout: _settings.keyboardLayout).keys;
+    var keys =
+        KeyboardService.init(keyboardLayout: _settings.keyboardLayout).keys;
     for (var row in _context.keys) {
       for (var key in row) {
         keyLoop:

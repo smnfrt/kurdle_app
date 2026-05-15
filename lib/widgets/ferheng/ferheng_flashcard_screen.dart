@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kurdle_app/models/ferheng_entry.dart';
+import 'package:kurdle_app/services/achievement_service.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/ferheng_service.dart';
 import 'package:kurdle_app/widgets/ferheng/ferheng_design.dart';
@@ -35,11 +36,15 @@ class _FerhengFlashcardScreenState extends State<FerhengFlashcardScreen> {
   }
 
   void _answer(bool known) {
+    final completed = _index + 1 >= _cards.length;
     setState(() {
       if (known) _correct++;
       _index++;
       _flipped = false;
     });
+    if (completed) {
+      AchievementService.instance.onFlashcardCompleted();
+    }
   }
 
   @override
@@ -143,8 +148,7 @@ class _FerhengFlashcardScreenState extends State<FerhengFlashcardScreen> {
                       style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.redAccent,
                         side: const BorderSide(color: Colors.redAccent),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 14),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                       onPressed: () => _answer(false),
                       child: Text(L.ferhengFlashcardUnknown),
@@ -156,8 +160,7 @@ class _FerhengFlashcardScreenState extends State<FerhengFlashcardScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: FerhengDesign.primary,
                         foregroundColor: Colors.black,
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 14),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                       onPressed: () => _answer(true),
                       child: Text(L.ferhengFlashcardKnown),

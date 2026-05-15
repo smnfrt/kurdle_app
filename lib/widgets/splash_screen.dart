@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:kurdle_app/services/firebase_service.dart';
+import 'package:kurdle_app/services/haptic_service.dart';
+import 'package:kurdle_app/services/language_config.dart';
 import 'package:kurdle_app/services/notification_service.dart';
 import 'package:kurdle_app/services/sound_service.dart';
+import 'package:kurdle_app/services/word_validator_service.dart';
+import 'package:kurdle_app/services/wordlist_loader.dart';
 import 'package:kurdle_app/widgets/home_screen.dart';
 
-const _kBg      = Color(0xFF0F1923);
+const _kBg = Color(0xFF0F1923);
 const _kPrimary = Color(0xFF4CAF50);
 
 class SplashScreen extends StatefulWidget {
@@ -16,7 +20,6 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with TickerProviderStateMixin {
-
   late AnimationController _logoCtrl;
   late AnimationController _textCtrl;
   late Animation<double> _logoScale;
@@ -42,7 +45,8 @@ class _SplashScreenState extends State<SplashScreen>
 
     _textOpacity = CurvedAnimation(parent: _textCtrl, curve: Curves.easeOut);
     _textSlide = Tween<Offset>(begin: const Offset(0, 0.4), end: Offset.zero)
-        .animate(CurvedAnimation(parent: _textCtrl, curve: Curves.easeOutCubic));
+        .animate(
+            CurvedAnimation(parent: _textCtrl, curve: Curves.easeOutCubic));
 
     _runSequence();
   }
@@ -55,10 +59,24 @@ class _SplashScreenState extends State<SplashScreen>
     // Metin animasyonu
     _textCtrl.forward();
 
+    // Wordlist'i fire-and-forget olarak ön-yükle — splash beklemez,
+    // arkaplan'da gziplenmiş 1.5M kelime decompress edilir. Ayrıca
+    // WordValidatorService'i de warm-up et (Set + length-index inşası
+    // ~500-1000ms blok). User oyuna girene kadar genelde hazır olur.
+    WordlistLoader.loadAssets(LanguageConfig.kurdish.wordAssets).then((list) {
+      // Factory cache'i sıcaklandır
+      WordValidatorService(list);
+    }).catchError((e) {
+      debugPrint('Wordlist preload failed: $e');
+    });
+
     // Init işlemleri paralel çalışsın — herhangi bir init hatası splash'i kilitlemesin
     await Future.wait([
       SoundService.instance.init().catchError((e) {
         debugPrint('SoundService init failed: $e');
+      }),
+      HapticService.instance.init().catchError((e) {
+        debugPrint('HapticService init failed: $e');
       }),
       FirebaseService.init().then((_) async {
         if (FirebaseService.isAvailable) {

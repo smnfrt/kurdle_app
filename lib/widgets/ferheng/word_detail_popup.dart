@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kurdle_app/controllers/ferheng_controller.dart';
+import 'package:kurdle_app/services/achievement_service.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/widgets/ferheng/ferheng_design.dart';
 import 'package:kurdle_app/widgets/ferheng/ferheng_detail_screen.dart';
@@ -18,8 +19,7 @@ class WordDetailPopup extends StatefulWidget {
       backgroundColor: FerhengDesign.bg,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (_) => WordDetailPopup(word: word),
     );
@@ -36,6 +36,7 @@ class _WordDetailPopupState extends State<WordDetailPopup> {
   void initState() {
     super.initState();
     _controller = FerhengController()..openEntry(widget.word);
+    AchievementService.instance.onFerhengEntryViewed();
   }
 
   @override

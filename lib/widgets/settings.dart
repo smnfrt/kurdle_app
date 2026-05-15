@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:kurdle_app/app_theme.dart';
 import 'package:kurdle_app/domain.dart';
 import 'package:kurdle_app/domain.dart' as domain;
 import 'package:kurdle_app/services/settings_service.dart';
@@ -12,7 +13,9 @@ class SettingsWidget extends StatefulWidget {
   final Settings _settings;
   final PackageInfo _packageInfo;
 
-  const SettingsWidget(this.close, this.streamController, this._settings, this._packageInfo, {Key? key})
+  const SettingsWidget(
+      this.close, this.streamController, this._settings, this._packageInfo,
+      {Key? key})
       : super(key: key);
 
   @override
@@ -22,10 +25,12 @@ class SettingsWidget extends StatefulWidget {
 class _SettingsState extends State<SettingsWidget> {
   @override
   Widget build(BuildContext context) {
-    var keyboardOptions = KeyboardLayout.values.map((k) => DropdownMenuItem(
-          child: Text(k.name),
-          value: k,
-        )).toList();
+    var keyboardOptions = KeyboardLayout.values
+        .map((k) => DropdownMenuItem(
+              child: Text(k.name),
+              value: k,
+            ))
+        .toList();
     return Material(
         shadowColor: Colors.black12,
         child: BlockSemantics(
@@ -47,13 +52,16 @@ class _SettingsState extends State<SettingsWidget> {
                                 children: [
                                   const Spacer(),
                                   TextButton(
-                                      onPressed: () =>
-                                          widget.close(domain.Dialog.settings, show: false),
+                                      onPressed: () => widget.close(
+                                          domain.Dialog.settings,
+                                          show: false),
                                       child: Semantics(
                                         label: 'Close settings.',
                                         child: const ExcludeSemantics(
                                             excluding: true,
-                                            child: Text('X', style: TextStyle(fontSize: 20))),
+                                            child: Text('X',
+                                                style:
+                                                    TextStyle(fontSize: 20))),
                                       ))
                                 ],
                               ),
@@ -82,8 +90,10 @@ class _SettingsState extends State<SettingsWidget> {
                                       value: widget._settings.isHardMode,
                                       onChanged: (bool value) {
                                         widget._settings.isHardMode = value;
-                                        SettingsService().save(widget._settings);
-                                        widget.streamController.add(widget._settings);
+                                        SettingsService()
+                                            .save(widget._settings);
+                                        widget.streamController
+                                            .add(widget._settings);
                                         setState(() {
                                           widget._settings.isHardMode = value;
                                         });
@@ -97,8 +107,13 @@ class _SettingsState extends State<SettingsWidget> {
                                       value: widget._settings.isDarkMode,
                                       onChanged: (bool value) {
                                         widget._settings.isDarkMode = value;
-                                        SettingsService().save(widget._settings);
-                                        widget.streamController.add(widget._settings);
+                                        themeNotifier.value = value
+                                            ? ThemeMode.dark
+                                            : ThemeMode.light;
+                                        SettingsService()
+                                            .save(widget._settings);
+                                        widget.streamController
+                                            .add(widget._settings);
                                         setState(
                                           () {
                                             widget._settings.isDarkMode = value;
@@ -107,7 +122,8 @@ class _SettingsState extends State<SettingsWidget> {
                                       },
                                     ),
                                     SwitchListTile(
-                                      subtitle: const Text("For improved color vision"),
+                                      subtitle: const Text(
+                                          "For improved color vision"),
                                       title: const Text("High Contrast Mode",
                                           style: TextStyle(
                                             fontSize: 18,
@@ -115,10 +131,13 @@ class _SettingsState extends State<SettingsWidget> {
                                       value: widget._settings.isHighContrast,
                                       onChanged: (bool value) {
                                         widget._settings.isHighContrast = value;
-                                        SettingsService().save(widget._settings);
-                                        widget.streamController.add(widget._settings);
+                                        SettingsService()
+                                            .save(widget._settings);
+                                        widget.streamController
+                                            .add(widget._settings);
                                         setState(() {
-                                          widget._settings.isHighContrast = value;
+                                          widget._settings.isHighContrast =
+                                              value;
                                         });
                                       },
                                     ),
@@ -128,16 +147,20 @@ class _SettingsState extends State<SettingsWidget> {
                                         style: TextStyle(fontSize: 18),
                                       ),
                                       trailing: Padding(
-                                        padding: const EdgeInsets.only(right: 16.0),
+                                        padding:
+                                            const EdgeInsets.only(right: 16.0),
                                         child: DropdownButton(
-                                          value: widget._settings.keyboardLayout,
+                                          value:
+                                              widget._settings.keyboardLayout,
                                           items: keyboardOptions,
                                           onChanged: (KeyboardLayout? layout) {
-                                            widget.streamController.add(widget._settings);
-                                            widget._settings.keyboardLayout = layout!;
-                                            SettingsService().save(widget._settings);
-                                            setState(() {
-                                            });
+                                            widget.streamController
+                                                .add(widget._settings);
+                                            widget._settings.keyboardLayout =
+                                                layout!;
+                                            SettingsService()
+                                                .save(widget._settings);
+                                            setState(() {});
                                           },
                                         ),
                                       ),
@@ -147,7 +170,8 @@ class _SettingsState extends State<SettingsWidget> {
                               ),
                               Padding(
                                 padding: const EdgeInsets.all(16.0),
-                                child: Text('Version ${widget._packageInfo.version} - Build ${widget._packageInfo.buildNumber}'),
+                                child: Text(
+                                    'Version ${widget._packageInfo.version} - Build ${widget._packageInfo.buildNumber}'),
                               )
                             ])))
                   ]))),

@@ -8,15 +8,16 @@ import 'package:kurdle_app/services/firestore_service.dart';
 import 'package:kurdle_app/services/multiplayer_service.dart';
 import 'package:kurdle_app/widgets/friend_game_screen.dart';
 
-const _kBg      = Color(0xFF0D1520);
-const _kCard    = Color(0xFF162030);
-const _kBorder  = Color(0xFF243650);
+const _kBg = Color(0xFF0D1520);
+const _kCard = Color(0xFF162030);
+const _kBorder = Color(0xFF243650);
 const _kPrimary = Color(0xFF4CAF50);
-const _kBlue    = Color(0xFF64B5F6);
+const _kBlue = Color(0xFF64B5F6);
 
 class FriendLobbyScreen extends StatefulWidget {
   final int? turnTimeLimitSeconds;
-  const FriendLobbyScreen({Key? key, this.turnTimeLimitSeconds}) : super(key: key);
+  const FriendLobbyScreen({Key? key, this.turnTimeLimitSeconds})
+      : super(key: key);
 
   @override
   State<FriendLobbyScreen> createState() => _FriendLobbyScreenState();
@@ -60,17 +61,24 @@ class _FriendLobbyScreenState extends State<FriendLobbyScreen>
       String name = AuthService.instance.effectiveDisplayName;
       if (AuthService.instance.currentUser != null) {
         final profile = await FirestoreService.instance.getProfile(uid);
-        name = profile?.displayName ?? AuthService.instance.currentUser!.displayName ?? name;
+        name = profile?.displayName ??
+            AuthService.instance.currentUser!.displayName ??
+            name;
       }
       final code = await MultiplayerService.instance.createRoom(uid, name);
-      setState(() { _myCode = code; _creating = false; });
+      setState(() {
+        _myCode = code;
+        _creating = false;
+      });
 
       _waitSub = MultiplayerService.instance.roomStream(code).listen((room) {
         if (room?.status == 'active' && mounted) {
           _waitSub?.cancel();
-          Navigator.pushReplacement(context, _slide(
-            FriendGameScreen(roomCode: code, myUid: uid),
-          ));
+          Navigator.pushReplacement(
+              context,
+              _slide(
+                FriendGameScreen(roomCode: code, myUid: uid),
+              ));
         }
       });
     } catch (e) {
@@ -89,7 +97,10 @@ class _FriendLobbyScreenState extends State<FriendLobbyScreen>
         AuthService.instance.effectiveUid ?? '',
       );
     }
-    setState(() { _myCode = null; _creating = false; });
+    setState(() {
+      _myCode = null;
+      _creating = false;
+    });
   }
 
   // ── Join ────────────────────────────────────────────────────────
@@ -100,26 +111,40 @@ class _FriendLobbyScreenState extends State<FriendLobbyScreen>
       setState(() => _joinError = '6 karakterli kodu girin');
       return;
     }
-    setState(() { _joining = true; _joinError = ''; });
+    setState(() {
+      _joining = true;
+      _joinError = '';
+    });
     try {
       final uid = AuthService.instance.effectiveUid;
       if (uid == null) throw Exception('Lütfen giriş yapın');
       String name = AuthService.instance.effectiveDisplayName;
       if (AuthService.instance.currentUser != null) {
         final profile = await FirestoreService.instance.getProfile(uid);
-        name = profile?.displayName ?? AuthService.instance.currentUser!.displayName ?? name;
+        name = profile?.displayName ??
+            AuthService.instance.currentUser!.displayName ??
+            name;
       }
       final err = await MultiplayerService.instance.joinRoom(code, uid, name);
       if (!mounted) return;
       if (err != null) {
-        setState(() { _joinError = err; _joining = false; });
+        setState(() {
+          _joinError = err;
+          _joining = false;
+        });
         return;
       }
-      Navigator.pushReplacement(context, _slide(
-        FriendGameScreen(roomCode: code, myUid: uid),
-      ));
+      Navigator.pushReplacement(
+          context,
+          _slide(
+            FriendGameScreen(roomCode: code, myUid: uid),
+          ));
     } catch (e) {
-      if (mounted) setState(() { _joinError = e.toString(); _joining = false; });
+      if (mounted)
+        setState(() {
+          _joinError = e.toString();
+          _joining = false;
+        });
     }
   }
 
@@ -132,33 +157,39 @@ class _FriendLobbyScreenState extends State<FriendLobbyScreen>
   }
 
   Route _slide(Widget page) => PageRouteBuilder(
-    pageBuilder: (_, __, ___) => page,
-    transitionsBuilder: (_, anim, __, child) =>
-        SlideTransition(position: Tween(begin: const Offset(1, 0), end: Offset.zero)
-            .animate(CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)), child: child),
-  );
+        pageBuilder: (_, __, ___) => page,
+        transitionsBuilder: (_, anim, __, child) => SlideTransition(
+            position: Tween(begin: const Offset(1, 0), end: Offset.zero)
+                .animate(
+                    CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
+            child: child),
+      );
 
   // ── Build ────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? _kBg : const Color(0xFFE6EEF2);
+    final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
+    final mutedColor = isDark ? Colors.white38 : const Color(0xFF667681);
     return Scaffold(
-      backgroundColor: _kBg,
+      backgroundColor: bg,
       appBar: AppBar(
-        backgroundColor: _kBg,
+        backgroundColor: bg,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white70),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: mutedColor),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           L.friendPlay,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(color: titleColor, fontWeight: FontWeight.bold),
         ),
         bottom: TabBar(
           controller: _tab,
           labelColor: _kPrimary,
-          unselectedLabelColor: Colors.white38,
+          unselectedLabelColor: mutedColor,
           indicatorColor: _kPrimary,
           indicatorSize: TabBarIndicatorSize.label,
           tabs: [
@@ -206,6 +237,8 @@ class _CreateTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (myCode != null) return _WaitingView(code: myCode!, onCancel: onCancel);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final mutedColor = isDark ? Colors.white54 : const Color(0xFF52636E);
 
     return Center(
       child: Padding(
@@ -214,19 +247,21 @@ class _CreateTab extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 80, height: 80,
+              width: 80,
+              height: 80,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: _kPrimary.withOpacity(0.15),
                 border: Border.all(color: _kPrimary.withOpacity(0.4), width: 2),
               ),
-              child: const Icon(Icons.group_add_rounded, color: _kPrimary, size: 36),
+              child: const Icon(Icons.group_add_rounded,
+                  color: _kPrimary, size: 36),
             ),
             const SizedBox(height: 24),
             Text(
               L.createRoomDesc,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white54, fontSize: 14, height: 1.5),
+              style: TextStyle(color: mutedColor, fontSize: 14, height: 1.5),
             ),
             const SizedBox(height: 32),
             SizedBox(
@@ -237,14 +272,19 @@ class _CreateTab extends StatelessWidget {
                   backgroundColor: _kPrimary,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
                   disabledBackgroundColor: _kPrimary.withOpacity(0.4),
                 ),
                 child: creating
-                    ? const SizedBox(width: 22, height: 22,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2.5))
                     : Text(L.createRoom,
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
           ],
@@ -272,7 +312,8 @@ class _WaitingViewState extends State<_WaitingView>
   @override
   void initState() {
     super.initState();
-    _pulse = AnimationController(vsync: this, duration: const Duration(milliseconds: 1200))
+    _pulse = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 1200))
       ..repeat(reverse: true);
     _scale = Tween(begin: 0.95, end: 1.05)
         .animate(CurvedAnimation(parent: _pulse, curve: Curves.easeInOut));
@@ -286,6 +327,11 @@ class _WaitingViewState extends State<_WaitingView>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? _kCard : const Color(0xFFF4F8FA);
+    final borderColor = isDark ? _kBorder : const Color(0xFFD6E1E7);
+    final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
+    final mutedColor = isDark ? Colors.white38 : const Color(0xFF52636E);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -295,36 +341,38 @@ class _WaitingViewState extends State<_WaitingView>
             ScaleTransition(
               scale: _scale,
               child: Container(
-                width: 80, height: 80,
+                width: 80,
+                height: 80,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: _kBlue.withOpacity(0.15),
                   border: Border.all(color: _kBlue.withOpacity(0.5), width: 2),
                 ),
-                child: const Icon(Icons.hourglass_top_rounded, color: _kBlue, size: 36),
+                child: const Icon(Icons.hourglass_top_rounded,
+                    color: _kBlue, size: 36),
               ),
             ),
             const SizedBox(height: 24),
             Text(L.waitingForOpponent,
-                style: const TextStyle(color: Colors.white70, fontSize: 15)),
+                style: TextStyle(color: mutedColor, fontSize: 15)),
             const SizedBox(height: 24),
             // Code display
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
               decoration: BoxDecoration(
-                color: _kCard,
+                color: cardBg,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: _kBorder),
+                border: Border.all(color: borderColor),
               ),
               child: Column(
                 children: [
                   Text(L.roomCodeLabel,
-                      style: const TextStyle(color: Colors.white38, fontSize: 12)),
+                      style: TextStyle(color: mutedColor, fontSize: 12)),
                   const SizedBox(height: 8),
                   Text(
                     widget.code,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: titleColor,
                       fontSize: 36,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 10,
@@ -340,7 +388,9 @@ class _WaitingViewState extends State<_WaitingView>
                         onTap: () {
                           Clipboard.setData(ClipboardData(text: widget.code));
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(L.codeCopied), duration: const Duration(seconds: 2)),
+                            SnackBar(
+                                content: Text(L.codeCopied),
+                                duration: const Duration(seconds: 2)),
                           );
                         },
                       ),
@@ -366,7 +416,8 @@ class _WaitingViewState extends State<_WaitingView>
             const SizedBox(height: 24),
             TextButton(
               onPressed: widget.onCancel,
-              child: Text(L.cancelRoom, style: const TextStyle(color: Colors.red)),
+              child:
+                  Text(L.cancelRoom, style: const TextStyle(color: Colors.red)),
             ),
           ],
         ),
@@ -380,25 +431,31 @@ class _CodeBtn extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
-  const _CodeBtn({required this.icon, required this.label, required this.onTap});
+  const _CodeBtn(
+      {required this.icon, required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg =
+        isDark ? Colors.white.withOpacity(0.07) : const Color(0xFFEAF1F4);
+    final borderColor = isDark ? _kBorder : const Color(0xFFD6E1E7);
+    final fg = isDark ? Colors.white60 : const Color(0xFF52636E);
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.07),
+          color: bg,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: _kBorder),
+          border: Border.all(color: borderColor),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: Colors.white60, size: 16),
+            Icon(icon, color: fg, size: 16),
             const SizedBox(width: 6),
-            Text(label, style: const TextStyle(color: Colors.white60, fontSize: 13)),
+            Text(label, style: TextStyle(color: fg, fontSize: 13)),
           ],
         ),
       ),
@@ -423,6 +480,12 @@ class _JoinTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? _kCard : const Color(0xFFF4F8FA);
+    final borderColor = isDark ? _kBorder : const Color(0xFFD6E1E7);
+    final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
+    final mutedColor = isDark ? Colors.white54 : const Color(0xFF52636E);
+    final hintColor = isDark ? Colors.white24 : const Color(0xFF9AABB5);
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -430,7 +493,8 @@ class _JoinTab extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 80, height: 80,
+              width: 80,
+              height: 80,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: _kBlue.withOpacity(0.15),
@@ -442,7 +506,7 @@ class _JoinTab extends StatelessWidget {
             Text(
               L.joinRoomDesc,
               textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white54, fontSize: 14, height: 1.5),
+              style: TextStyle(color: mutedColor, fontSize: 14, height: 1.5),
             ),
             const SizedBox(height: 28),
             TextField(
@@ -450,8 +514,8 @@ class _JoinTab extends StatelessWidget {
               textCapitalization: TextCapitalization.characters,
               textAlign: TextAlign.center,
               maxLength: 6,
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: titleColor,
                 fontSize: 28,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 8,
@@ -459,16 +523,17 @@ class _JoinTab extends StatelessWidget {
               decoration: InputDecoration(
                 counterText: '',
                 hintText: 'ABC123',
-                hintStyle: const TextStyle(color: Colors.white24, fontSize: 28, letterSpacing: 8),
+                hintStyle:
+                    TextStyle(color: hintColor, fontSize: 28, letterSpacing: 8),
                 filled: true,
-                fillColor: _kCard,
+                fillColor: cardBg,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: _kBorder),
+                  borderSide: BorderSide(color: borderColor),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: _kBorder),
+                  borderSide: BorderSide(color: borderColor),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
@@ -486,14 +551,19 @@ class _JoinTab extends StatelessWidget {
                   backgroundColor: _kBlue,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
                   disabledBackgroundColor: _kBlue.withOpacity(0.4),
                 ),
                 child: joining
-                    ? const SizedBox(width: 22, height: 22,
-                        child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                            color: Colors.white, strokeWidth: 2.5))
                     : Text(L.joinRoom,
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
           ],

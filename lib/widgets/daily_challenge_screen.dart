@@ -2,12 +2,14 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kurdle_app/services/app_locale.dart';
+import 'package:kurdle_app/services/achievement_service.dart';
 import 'package:kurdle_app/services/daily_challenge_service.dart';
+import 'package:kurdle_app/services/daily_streak_service.dart';
 import 'package:kurdle_app/services/daily_word_service.dart';
 import 'package:kurdle_app/services/game_store.dart';
 
 // ── Renkler ────────────────────────────────────────────────────────
-const _kBg   = Color(0xFF0F1923);
+const _kBg = Color(0xFF0F1923);
 const _kCard = Color(0xFF1A2535);
 
 const _kStageColors = [
@@ -54,6 +56,11 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen>
   void initState() {
     super.initState();
     _words = DailyChallengeService.getTodaysWords();
+    // Günlük streak işareti (fire-and-forget)
+    DailyStreakService.instance.markPlayedToday().then((streak) {
+      AchievementService.instance.onGameStarted();
+      AchievementService.instance.onStreakChanged(streak.current);
+    });
 
     _timerCtrl = AnimationController(vsync: this);
     _timerCtrl.addStatusListener(_onTimerStatus);
@@ -72,9 +79,9 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen>
 
     _stageInCtrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 320));
-    _stageSlide = Tween<Offset>(
-            begin: const Offset(1.0, 0), end: Offset.zero)
-        .animate(CurvedAnimation(parent: _stageInCtrl, curve: Curves.easeOutCubic));
+    _stageSlide = Tween<Offset>(begin: const Offset(1.0, 0), end: Offset.zero)
+        .animate(
+            CurvedAnimation(parent: _stageInCtrl, curve: Curves.easeOutCubic));
 
     _startStage();
   }
@@ -119,8 +126,8 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen>
 
   void _onBackspace() {
     if (_phase != _Phase.playing || _inputLetters.isEmpty) return;
-    setState(
-        () => _inputLetters = _inputLetters.sublist(0, _inputLetters.length - 1));
+    setState(() =>
+        _inputLetters = _inputLetters.sublist(0, _inputLetters.length - 1));
     HapticFeedback.lightImpact();
   }
 
@@ -208,13 +215,6 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen>
   Color get _stageColor => _kStageColors[_stageIndex];
   ChallengeWord get _currentWord => _words[_stageIndex];
 
-  int get _remainingSeconds {
-    if (_timerCtrl.duration == null) return 0;
-    return (_timerCtrl.duration!.inMilliseconds * (1.0 - _timerCtrl.value) / 1000)
-        .ceil()
-        .clamp(0, _timerCtrl.duration!.inSeconds);
-  }
-
   // ── Build ─────────────────────────────────────────────────────────
 
   @override
@@ -230,92 +230,92 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen>
 
     final topPad = MediaQuery.of(context).padding.top;
     final botPad = MediaQuery.of(context).padding.bottom;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? _kBg : const Color(0xFFE6EEF2);
+    final feedbackBg =
+        isDark ? const Color(0xFF201017) : const Color(0xFFFFEEF2);
+    final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
+    final mutedColor =
+        isDark ? Colors.white.withValues(alpha: 0.55) : const Color(0xFF52636E);
 
     return Scaffold(
-      backgroundColor: _kBg,
-      body: AnimatedBuilder(
-        animation: Listenable.merge([_timerCtrl, _shakeCtrl, _feedbackCtrl]),
-        builder: (context, _) {
-          final bgFlash = _phase == _Phase.correctFeedback
-              ? Color.lerp(
-                      _kBg,
-                      _stageColor.withValues(alpha: 0.12),
-                      _feedbackCtrl.value)!
-              : (_phase == _Phase.wrongFeedback || _phase == _Phase.timeoutFeedback)
-                  ? Color.lerp(_kBg, const Color(0xFFEF5350).withValues(alpha: 0.08), 1.0)!
-                  : _kBg;
-
-          return Container(
-            color: bgFlash,
-            child: Column(
-              children: [
-                // ── App bar ──────────────────────────────────────────
-                Padding(
-                  padding: EdgeInsets.fromLTRB(16, topPad + 14, 16, 0),
-                  child: Row(
-                    children: [
-                      _CircleBtn(
-                        icon: Icons.close_rounded,
-                        onTap: () => Navigator.of(context).pop(),
-                      ),
-                      Expanded(
-                        child: Text(
-                          L.wordOfDay,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.3),
-                        ),
-                      ),
-                      _StageDots(
-                        stageIndex: _stageIndex,
-                        stageScores: _stageScores,
-                        colors: _kStageColors,
-                      ),
-                    ],
+      backgroundColor: bgColor,
+      body: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        color:
+            (_phase == _Phase.wrongFeedback || _phase == _Phase.timeoutFeedback)
+                ? feedbackBg
+                : bgColor,
+        child: Column(
+          children: [
+            // ── App bar ──────────────────────────────────────────
+            Padding(
+              padding: EdgeInsets.fromLTRB(16, topPad + 14, 16, 0),
+              child: Row(
+                children: [
+                  _CircleBtn(
+                    icon: Icons.close_rounded,
+                    onTap: () => Navigator.of(context).pop(),
                   ),
-                ),
-
-                const SizedBox(height: 30),
-
-                // ── Countdown arc ────────────────────────────────────
-                _CountdownArc(
-                  progress: 1.0 - _timerCtrl.value,
-                  seconds: _remainingSeconds,
-                  stageColor: _stageColor,
-                  warn: _remainingSeconds <= 3,
-                ),
-
-                const SizedBox(height: 22),
-
-                // ── Meaning hint ─────────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 40),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.translate_rounded,
-                          color: _stageColor.withValues(alpha: 0.7), size: 13),
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          _currentWord.meaning,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.55),
-                              fontSize: 13),
-                        ),
-                      ),
-                    ],
+                  Expanded(
+                    child: Text(
+                      L.wordOfDay,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          color: titleColor,
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.3),
+                    ),
                   ),
-                ),
+                  _StageDots(
+                    stageIndex: _stageIndex,
+                    stageScores: _stageScores,
+                    colors: _kStageColors,
+                  ),
+                ],
+              ),
+            ),
 
-                const SizedBox(height: 22),
+            const SizedBox(height: 30),
 
-                // ── Word display with shake ───────────────────────────
-                Transform.translate(
+            // ── Countdown arc ────────────────────────────────────
+            RepaintBoundary(
+              child: _TimerCountdown(
+                controller: _timerCtrl,
+                stageColor: _stageColor,
+              ),
+            ),
+
+            const SizedBox(height: 22),
+
+            // ── Meaning hint ─────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 40),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.translate_rounded,
+                      color: _stageColor.withValues(alpha: 0.7), size: 13),
+                  const SizedBox(width: 6),
+                  Flexible(
+                    child: Text(
+                      _currentWord.meaning,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(color: mutedColor, fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 22),
+
+            // ── Word display with shake ───────────────────────────
+            RepaintBoundary(
+              child: AnimatedBuilder(
+                animation: Listenable.merge([_shakeCtrl, _feedbackCtrl]),
+                builder: (_, __) => Transform.translate(
                   offset: Offset(_shakeAnim.value, 0),
                   child: SlideTransition(
                     position: _stageSlide,
@@ -328,63 +328,72 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen>
                     ),
                   ),
                 ),
-
-                const SizedBox(height: 14),
-
-                // ── Feedback text ────────────────────────────────────
-                SizedBox(
-                  height: 24,
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 200),
-                    child: _feedbackText(),
-                  ),
-                ),
-
-                // ── Backspace ────────────────────────────────────────
-                const SizedBox(height: 10),
-                if (_phase == _Phase.playing && _inputLetters.isNotEmpty)
-                  GestureDetector(
-                    onTap: _onBackspace,
-                    child: Container(
-                      padding:
-                          const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.05),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.white12),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.backspace_outlined,
-                              color: Colors.white38, size: 14),
-                          const SizedBox(width: 6),
-                          Text('Sil',
-                              style: TextStyle(
-                                  color: Colors.white38, fontSize: 12)),
-                        ],
-                      ),
-                    ),
-                  )
-                else
-                  const SizedBox(height: 30),
-
-                const Spacer(),
-
-                // ── Options grid ─────────────────────────────────────
-                Padding(
-                  padding: EdgeInsets.fromLTRB(20, 0, 20, botPad + 36),
-                  child: _OptionsGrid(
-                    word: _currentWord,
-                    onTap: _onLetterTap,
-                    stageColor: _stageColor,
-                    enabled: _phase == _Phase.playing,
-                  ),
-                ),
-              ],
+              ),
             ),
-          );
-        },
+
+            const SizedBox(height: 14),
+
+            // ── Feedback text ────────────────────────────────────
+            SizedBox(
+              height: 24,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 200),
+                child: _feedbackText(),
+              ),
+            ),
+
+            // ── Backspace ────────────────────────────────────────
+            const SizedBox(height: 10),
+            if (_phase == _Phase.playing && _inputLetters.isNotEmpty)
+              GestureDetector(
+                onTap: _onBackspace,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.05)
+                        : const Color(0xFFF4F8FA),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                        color:
+                            isDark ? Colors.white12 : const Color(0xFFD6E1E7)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.backspace_outlined,
+                          color:
+                              isDark ? Colors.white38 : const Color(0xFF667681),
+                          size: 14),
+                      const SizedBox(width: 6),
+                      Text('Sil',
+                          style: TextStyle(
+                              color: isDark
+                                  ? Colors.white38
+                                  : const Color(0xFF667681),
+                              fontSize: 12)),
+                    ],
+                  ),
+                ),
+              )
+            else
+              const SizedBox(height: 30),
+
+            const Spacer(),
+
+            // ── Options grid ─────────────────────────────────────
+            Padding(
+              padding: EdgeInsets.fromLTRB(20, 0, 20, botPad + 36),
+              child: _OptionsGrid(
+                word: _currentWord,
+                onTap: _onLetterTap,
+                stageColor: _stageColor,
+                enabled: _phase == _Phase.playing,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -420,6 +429,37 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen>
   }
 }
 
+class _TimerCountdown extends StatelessWidget {
+  final AnimationController controller;
+  final Color stageColor;
+
+  const _TimerCountdown({
+    required this.controller,
+    required this.stageColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: controller,
+      builder: (_, __) {
+        final duration = controller.duration ?? Duration.zero;
+        final seconds = duration == Duration.zero
+            ? 0
+            : (duration.inMilliseconds * (1.0 - controller.value) / 1000)
+                .ceil()
+                .clamp(0, duration.inSeconds);
+        return _CountdownArc(
+          progress: 1.0 - controller.value,
+          seconds: seconds,
+          stageColor: stageColor,
+          warn: seconds <= 3,
+        );
+      },
+    );
+  }
+}
+
 // ── Stage dots ────────────────────────────────────────────────────
 
 class _StageDots extends StatelessWidget {
@@ -434,6 +474,7 @@ class _StageDots extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: List.generate(3, (i) {
@@ -450,17 +491,22 @@ class _StageDots extends StatelessWidget {
                 ? color.withValues(alpha: 0.85)
                 : isActive
                     ? color.withValues(alpha: 0.18)
-                    : Colors.white.withValues(alpha: 0.07),
+                    : (isDark
+                        ? Colors.white.withValues(alpha: 0.07)
+                        : const Color(0xFFF4F8FA)),
             border: Border.all(
               color: isDone
                   ? color
                   : isActive
                       ? color.withValues(alpha: 0.8)
-                      : Colors.white24,
+                      : (isDark ? Colors.white24 : const Color(0xFFD6E1E7)),
               width: isActive ? 1.8 : 1.2,
             ),
             boxShadow: isActive
-                ? [BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 8)]
+                ? [
+                    BoxShadow(
+                        color: color.withValues(alpha: 0.4), blurRadius: 8)
+                  ]
                 : null,
           ),
           child: isDone
@@ -497,6 +543,11 @@ class _CountdownArc extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = warn ? _kTimerWarn : stageColor;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final trackColor =
+        isDark ? Colors.white.withValues(alpha: 0.07) : const Color(0xFFC8D4DB);
+    final textColor =
+        warn ? _kTimerWarn : (isDark ? Colors.white : const Color(0xFF18242C));
     return SizedBox(
       width: 74,
       height: 74,
@@ -505,12 +556,13 @@ class _CountdownArc extends StatelessWidget {
         children: [
           CustomPaint(
             size: const Size(74, 74),
-            painter: _ArcPainter(progress: progress, color: color),
+            painter: _ArcPainter(
+                progress: progress, color: color, trackColor: trackColor),
           ),
           AnimatedDefaultTextStyle(
             duration: const Duration(milliseconds: 200),
             style: TextStyle(
-              color: warn ? _kTimerWarn : Colors.white,
+              color: textColor,
               fontSize: 22,
               fontWeight: FontWeight.bold,
               height: 1,
@@ -526,8 +578,13 @@ class _CountdownArc extends StatelessWidget {
 class _ArcPainter extends CustomPainter {
   final double progress;
   final Color color;
+  final Color trackColor;
 
-  const _ArcPainter({required this.progress, required this.color});
+  const _ArcPainter({
+    required this.progress,
+    required this.color,
+    required this.trackColor,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -539,7 +596,7 @@ class _ArcPainter extends CustomPainter {
         center,
         radius,
         Paint()
-          ..color = Colors.white.withValues(alpha: 0.07)
+          ..color = trackColor
           ..style = PaintingStyle.stroke
           ..strokeWidth = 5
           ..strokeCap = StrokeCap.round);
@@ -562,7 +619,9 @@ class _ArcPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ArcPainter old) =>
-      old.progress != progress || old.color != color;
+      old.progress != progress ||
+      old.color != color ||
+      old.trackColor != trackColor;
 }
 
 // ── Word display ─────────────────────────────────────────────────
@@ -643,18 +702,25 @@ class _LetterBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     Color bg;
     Color border;
     Color textColor;
 
     switch (state) {
       case _BoxState.revealed:
-        bg = Colors.white.withValues(alpha: 0.06);
-        border = Colors.white.withValues(alpha: 0.15);
-        textColor = Colors.white;
+        bg = isDark
+            ? Colors.white.withValues(alpha: 0.06)
+            : const Color(0xFFF4F8FA);
+        border = isDark
+            ? Colors.white.withValues(alpha: 0.15)
+            : const Color(0xFFD6E1E7);
+        textColor = isDark ? Colors.white : const Color(0xFF25313A);
       case _BoxState.blank:
         bg = Colors.transparent;
-        border = Colors.white.withValues(alpha: 0.2);
+        border = isDark
+            ? Colors.white.withValues(alpha: 0.2)
+            : const Color(0xFFB8C8D0);
         textColor = Colors.transparent;
       case _BoxState.filled:
         bg = color.withValues(alpha: 0.12);
@@ -665,7 +731,7 @@ class _LetterBox extends StatelessWidget {
         bg = Color.lerp(
             color.withValues(alpha: 0.12), color.withValues(alpha: 0.35), v)!;
         border = color;
-        textColor = Colors.white;
+        textColor = isDark ? Colors.white : const Color(0xFF18242C);
       case _BoxState.wrong:
         bg = const Color(0xFFEF5350).withValues(alpha: 0.15);
         border = const Color(0xFFEF5350);
@@ -775,6 +841,7 @@ class _OptionBtnState extends State<_OptionBtn>
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTapDown: (_) => _press.forward(),
       onTapUp: (_) => _press.reverse(),
@@ -790,12 +857,14 @@ class _OptionBtnState extends State<_OptionBtn>
             decoration: BoxDecoration(
               color: widget.enabled
                   ? widget.color.withValues(alpha: 0.12)
-                  : Colors.white.withValues(alpha: 0.04),
+                  : (isDark
+                      ? Colors.white.withValues(alpha: 0.04)
+                      : const Color(0xFFEAF1F4)),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: widget.enabled
                     ? widget.color.withValues(alpha: 0.55)
-                    : Colors.white12,
+                    : (isDark ? Colors.white12 : const Color(0xFFD6E1E7)),
                 width: 1.4,
               ),
               boxShadow: widget.enabled
@@ -810,7 +879,9 @@ class _OptionBtnState extends State<_OptionBtn>
               child: Text(
                 widget.letter,
                 style: TextStyle(
-                  color: widget.enabled ? widget.color : Colors.white24,
+                  color: widget.enabled
+                      ? widget.color
+                      : (isDark ? Colors.white24 : const Color(0xFF9AABB5)),
                   fontSize: 18,
                   fontWeight: FontWeight.w900,
                   height: 1,
@@ -834,17 +905,22 @@ class _CircleBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: 38,
         height: 38,
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.07),
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.07)
+              : const Color(0xFFF4F8FA),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white12),
+          border: Border.all(
+              color: isDark ? Colors.white12 : const Color(0xFFD6E1E7)),
         ),
-        child: Icon(icon, color: Colors.white54, size: 20),
+        child: Icon(icon,
+            color: isDark ? Colors.white54 : const Color(0xFF52636E), size: 20),
       ),
     );
   }
@@ -882,7 +958,8 @@ class _ResultScreenState extends State<_ResultScreen>
         vsync: this, duration: const Duration(milliseconds: 500));
     _fadeAnim = CurvedAnimation(parent: _enterCtrl, curve: Curves.easeOut);
     _slideAnim = Tween<Offset>(begin: const Offset(0, 0.15), end: Offset.zero)
-        .animate(CurvedAnimation(parent: _enterCtrl, curve: Curves.easeOutCubic));
+        .animate(
+            CurvedAnimation(parent: _enterCtrl, curve: Curves.easeOutCubic));
     _enterCtrl.forward();
   }
 
@@ -899,9 +976,16 @@ class _ResultScreenState extends State<_ResultScreen>
   Widget build(BuildContext context) {
     final topPad = MediaQuery.of(context).padding.top;
     final botPad = MediaQuery.of(context).padding.bottom;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? _kBg : const Color(0xFFE6EEF2);
+    final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
+    final mutedColor = isDark ? Colors.white38 : const Color(0xFF52636E);
+    final cardColor = isDark ? _kCard : const Color(0xFFF4F8FA);
+    final cardBorderColor =
+        isDark ? Colors.white.withValues(alpha: 0.07) : const Color(0xFFD6E1E7);
 
     return Scaffold(
-      backgroundColor: _kBg,
+      backgroundColor: bgColor,
       body: FadeTransition(
         opacity: _fadeAnim,
         child: SlideTransition(
@@ -912,7 +996,13 @@ class _ResultScreenState extends State<_ResultScreen>
 
               // ── Trophy / Emoji ──────────────────────────────────
               Text(
-                _isPerfect ? '🏆' : _stagesCompleted >= 2 ? '🎯' : _stagesCompleted == 1 ? '👍' : '😔',
+                _isPerfect
+                    ? '🏆'
+                    : _stagesCompleted >= 2
+                        ? '🎯'
+                        : _stagesCompleted == 1
+                            ? '👍'
+                            : '😔',
                 style: const TextStyle(fontSize: 64),
               ),
 
@@ -920,11 +1010,9 @@ class _ResultScreenState extends State<_ResultScreen>
 
               // ── Title ───────────────────────────────────────────
               Text(
-                _isPerfect
-                    ? L.perfectBonus
-                    : L.stagesResult(_stagesCompleted),
-                style: const TextStyle(
-                    color: Colors.white,
+                _isPerfect ? L.perfectBonus : L.stagesResult(_stagesCompleted),
+                style: TextStyle(
+                    color: titleColor,
                     fontSize: 20,
                     fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
@@ -971,7 +1059,8 @@ class _ResultScreenState extends State<_ResultScreen>
                   children: List.generate(3, (i) {
                     final score = widget.stageScores[i];
                     final color = _kStageColors[i];
-                    final diffLabel = [L.stageEasy, L.stageMedium, L.stageHard][i];
+                    final diffLabel =
+                        [L.stageEasy, L.stageMedium, L.stageHard][i];
                     final word = widget.words[i];
 
                     return Container(
@@ -979,22 +1068,27 @@ class _ResultScreenState extends State<_ResultScreen>
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
-                        color: _kCard,
+                        color: cardColor,
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
                           color: score != null
                               ? color.withValues(alpha: 0.4)
-                              : Colors.white.withValues(alpha: 0.07),
+                              : cardBorderColor,
                         ),
                       ),
                       child: Row(
                         children: [
                           // Stage color dot
                           Container(
-                            width: 10, height: 10,
+                            width: 10,
+                            height: 10,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: score != null ? color : Colors.white24,
+                              color: score != null
+                                  ? color
+                                  : (isDark
+                                      ? Colors.white24
+                                      : const Color(0xFF9AABB5)),
                             ),
                           ),
                           const SizedBox(width: 10),
@@ -1002,7 +1096,7 @@ class _ResultScreenState extends State<_ResultScreen>
                           // Diff label
                           Text(diffLabel,
                               style: TextStyle(
-                                  color: score != null ? color : Colors.white38,
+                                  color: score != null ? color : mutedColor,
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600)),
 
@@ -1013,9 +1107,8 @@ class _ResultScreenState extends State<_ResultScreen>
                             child: Text(
                               word.original,
                               style: TextStyle(
-                                  color: score != null
-                                      ? Colors.white
-                                      : Colors.white38,
+                                  color:
+                                      score != null ? titleColor : mutedColor,
                                   fontSize: 14,
                                   fontWeight: FontWeight.bold,
                                   letterSpacing: 1.2),
@@ -1030,8 +1123,11 @@ class _ResultScreenState extends State<_ResultScreen>
                                     fontSize: 14,
                                     fontWeight: FontWeight.bold))
                           else
-                            const Icon(Icons.close_rounded,
-                                color: Colors.white24, size: 18),
+                            Icon(Icons.close_rounded,
+                                color: isDark
+                                    ? Colors.white24
+                                    : const Color(0xFF9AABB5),
+                                size: 18),
                         ],
                       ),
                     );
