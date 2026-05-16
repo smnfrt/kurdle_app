@@ -8,12 +8,11 @@ import 'package:kurdle_app/services/multiplayer_service.dart';
 import 'package:kurdle_app/widgets/friend_game_screen.dart';
 
 const _kBg = Color(0xFF080E18);
-const _kSurface = Color(0xFF141E2B);
 const _kPrimary = Color(0xFF4CAF50);
 const _kBlue = Color(0xFF64B5F6);
 
 class RandomMatchScreen extends StatefulWidget {
-  const RandomMatchScreen({Key? key}) : super(key: key);
+  const RandomMatchScreen({super.key});
 
   @override
   State<RandomMatchScreen> createState() => _RandomMatchScreenState();
@@ -164,7 +163,7 @@ class _RandomMatchScreenState extends State<RandomMatchScreen>
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(isDark ? 0.38 : 0.10),
+                      color: Colors.black.withValues(alpha: isDark ? 0.38 : 0.10),
                       blurRadius: 12,
                       offset: const Offset(0, 3),
                     )
@@ -179,7 +178,7 @@ class _RandomMatchScreenState extends State<RandomMatchScreen>
                         height: 40,
                         decoration: BoxDecoration(
                           color: isDark
-                              ? Colors.white.withOpacity(0.07)
+                              ? Colors.white.withValues(alpha: 0.07)
                               : const Color(0xFFF4F8FA),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
@@ -189,7 +188,7 @@ class _RandomMatchScreenState extends State<RandomMatchScreen>
                         ),
                         child: Icon(Icons.close_rounded,
                             color: _found
-                                ? mutedColor.withOpacity(0.35)
+                                ? mutedColor.withValues(alpha: 0.35)
                                 : mutedColor,
                             size: 20),
                       ),
@@ -231,7 +230,7 @@ class _RandomMatchScreenState extends State<RandomMatchScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
     final mutedColor =
-        isDark ? Colors.white.withOpacity(0.4) : const Color(0xFF667681);
+        isDark ? Colors.white.withValues(alpha: 0.4) : const Color(0xFF667681);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -256,10 +255,10 @@ class _RandomMatchScreenState extends State<RandomMatchScreen>
                     ),
                     shape: BoxShape.circle,
                     border:
-                        Border.all(color: _kBlue.withOpacity(0.5), width: 2),
+                        Border.all(color: _kBlue.withValues(alpha: 0.5), width: 2),
                     boxShadow: [
                       BoxShadow(
-                          color: _kBlue.withOpacity(0.25),
+                          color: _kBlue.withValues(alpha: 0.25),
                           blurRadius: 18,
                           spreadRadius: 2),
                     ],
@@ -312,7 +311,7 @@ class _RandomMatchScreenState extends State<RandomMatchScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
     final mutedColor =
-        isDark ? Colors.white.withOpacity(0.4) : const Color(0xFF667681);
+        isDark ? Colors.white.withValues(alpha: 0.4) : const Color(0xFF667681);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -332,7 +331,7 @@ class _RandomMatchScreenState extends State<RandomMatchScreen>
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                      color: _kPrimary.withOpacity(0.4),
+                      color: _kPrimary.withValues(alpha: 0.4),
                       blurRadius: 22,
                       spreadRadius: 3),
                 ],
@@ -351,9 +350,9 @@ class _RandomMatchScreenState extends State<RandomMatchScreen>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
             decoration: BoxDecoration(
-              color: _kPrimary.withOpacity(0.12),
+              color: _kPrimary.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _kPrimary.withOpacity(0.35)),
+              border: Border.all(color: _kPrimary.withValues(alpha: 0.35)),
             ),
             child: Text(
               _opponentName,
@@ -380,7 +379,7 @@ class _RandomMatchScreenState extends State<RandomMatchScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.wifi_off_rounded,
-                color: mutedColor.withOpacity(0.5), size: 56),
+                color: mutedColor.withValues(alpha: 0.5), size: 56),
             const SizedBox(height: 20),
             Text(_error!,
                 textAlign: TextAlign.center,
@@ -419,7 +418,7 @@ class _SonarRing extends StatelessWidget {
           height: size,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(color: color.withOpacity(opacity), width: 1.5),
+            border: Border.all(color: color.withValues(alpha: opacity), width: 1.5),
           ),
         );
       },
@@ -465,7 +464,7 @@ class _SearchTimerState extends State<_SearchTimer> {
       label,
       style: TextStyle(
           color:
-              isDark ? Colors.white.withOpacity(0.25) : const Color(0xFF667681),
+              isDark ? Colors.white.withValues(alpha: 0.25) : const Color(0xFF667681),
           fontSize: 14,
           fontFamily: 'monospace'),
     );
@@ -487,7 +486,7 @@ class _CancelBtn extends StatelessWidget {
         onPressed: onTap,
         style: TextButton.styleFrom(
           backgroundColor:
-              isDark ? Colors.white.withOpacity(0.06) : const Color(0xFFF4F8FA),
+              isDark ? Colors.white.withValues(alpha: 0.06) : const Color(0xFFF4F8FA),
           foregroundColor: isDark ? Colors.white54 : const Color(0xFF52636E),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),

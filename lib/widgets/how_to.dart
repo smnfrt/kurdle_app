@@ -7,7 +7,7 @@ import 'package:kurdle_app/services/app_locale.dart';
 class HowTo extends StatelessWidget {
   final void Function(domain.Dialog dialog, {bool show}) close;
 
-  const HowTo(this.close, this._settings, {Key? key}) : super(key: key);
+  const HowTo(this.close, this._settings, {super.key});
 
   final Settings _settings;
 
@@ -66,7 +66,7 @@ class HowTo extends StatelessWidget {
                                         TextSpan(text: L.howToIntroSuffix),
                                       ],
                                     ),
-                                    textScaleFactor: 1.25),
+                                    textScaler: TextScaler.linear(1.25)),
                               ),
                             ],
                           ),
@@ -78,7 +78,7 @@ class HowTo extends StatelessWidget {
                             padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
                             child: Text.rich(
                                 TextSpan(text: L.howToRule2),
-                                textScaleFactor: 1.25),
+                                textScaler: TextScaler.linear(1.25)),
                           ),
                           Padding(
                             padding: const EdgeInsets.only(left: 16, right: 16),
@@ -92,7 +92,7 @@ class HowTo extends StatelessWidget {
                                       TextSpan(
                                           text: L.howToExamples,
                                           style: const TextStyle(fontSize: 18)),
-                                      textScaleFactor: 1.25)),
+                                      textScaler: TextScaler.linear(1.25))),
                             ],
                           ),
                           // Örnek 1: B doğru yerde
@@ -132,7 +132,7 @@ class HowTo extends StatelessWidget {
                                         TextSpan(text: ' ${L.howToCorrect}'),
                                       ],
                                     ),
-                                    textScaleFactor: 1.25),
+                                    textScaler: TextScaler.linear(1.25)),
                               ),
                             ],
                           ),
@@ -173,7 +173,7 @@ class HowTo extends StatelessWidget {
                                         TextSpan(text: ' ${L.howToPresent}'),
                                       ],
                                     ),
-                                    textScaleFactor: 1.25),
+                                    textScaler: TextScaler.linear(1.25)),
                               ),
                             ],
                           ),
@@ -214,7 +214,7 @@ class HowTo extends StatelessWidget {
                                         TextSpan(text: ' ${L.howToAbsent}'),
                                       ],
                                     ),
-                                    textScaleFactor: 1.25),
+                                    textScaler: TextScaler.linear(1.25)),
                               ),
                             ],
                           ),
@@ -236,7 +236,7 @@ class HowTo extends StatelessWidget {
                                         TextSpan(text: L.howToDailySuffix),
                                       ],
                                     ),
-                                    textScaleFactor: 1.25),
+                                    textScaler: TextScaler.linear(1.25)),
                               ),
                             ],
                           ),

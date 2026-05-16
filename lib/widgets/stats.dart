@@ -7,8 +7,7 @@ import 'package:kurdle_app/widgets/countdown.dart';
 import 'package:share_plus/share_plus.dart';
 
 class StatsWidget extends StatefulWidget {
-  const StatsWidget(this._stats, this._settings, this._close, this._newGame, {Key? key})
-      : super(key: key);
+  const StatsWidget(this._stats, this._settings, this._close, this._newGame, {super.key});
 
   final Stats _stats;
   final Settings _settings;
@@ -79,10 +78,10 @@ class _StatsState extends State<StatsWidget> {
                                   child: Container(
                                     padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFF538d4e).withOpacity(0.15),
+                                      color: const Color(0xFF538d4e).withValues(alpha: 0.15),
                                       borderRadius: BorderRadius.circular(8),
                                       border: Border.all(
-                                        color: const Color(0xFF538d4e).withOpacity(0.4),
+                                        color: const Color(0xFF538d4e).withValues(alpha: 0.4),
                                       ),
                                     ),
                                     child: Row(
@@ -102,7 +101,7 @@ class _StatsState extends State<StatsWidget> {
                                               style: TextStyle(fontSize: 11)),
                                         ]),
                                         Container(width: 1, height: 40,
-                                            color: const Color(0xFF538d4e).withOpacity(0.4)),
+                                            color: const Color(0xFF538d4e).withValues(alpha: 0.4)),
                                         Column(children: [
                                           const Text('🏆', style: TextStyle(fontSize: 20)),
                                           Text(
@@ -116,7 +115,7 @@ class _StatsState extends State<StatsWidget> {
                                               style: TextStyle(fontSize: 11)),
                                         ]),
                                         Container(width: 1, height: 40,
-                                            color: const Color(0xFF538d4e).withOpacity(0.4)),
+                                            color: const Color(0xFF538d4e).withValues(alpha: 0.4)),
                                         Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: const [

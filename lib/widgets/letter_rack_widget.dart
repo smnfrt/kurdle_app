@@ -10,12 +10,12 @@ class LetterRackWidget extends StatelessWidget {
   final void Function(GameTile)? onTileTap;
 
   const LetterRackWidget({
-    Key? key,
+    super.key,
     required this.tiles,
     this.enabled = true,
     this.selectedTileId,
     this.onTileTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -36,12 +36,12 @@ class LetterRackWidget extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.45),
+            color: Colors.black.withValues(alpha: 0.45),
             blurRadius: 12,
             offset: const Offset(0, 5),
           ),
           BoxShadow(
-            color: Colors.white.withOpacity(0.04),
+            color: Colors.white.withValues(alpha: 0.04),
             blurRadius: 1,
             offset: const Offset(0, 1),
           ),
@@ -58,9 +58,9 @@ class LetterRackWidget extends StatelessWidget {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    Colors.white.withOpacity(0),
-                    Colors.white.withOpacity(0.18),
-                    Colors.white.withOpacity(0),
+                    Colors.white.withValues(alpha: 0),
+                    Colors.white.withValues(alpha: 0.18),
+                    Colors.white.withValues(alpha: 0),
                   ],
                 ),
               ),
@@ -193,21 +193,21 @@ class _TileWidgetState extends State<_TileWidget> with TickerProviderStateMixin 
         boxShadow: [
           // Derin gölge
           BoxShadow(
-            color: Colors.black.withOpacity(isFeedback ? 0.50 : 0.42),
+            color: Colors.black.withValues(alpha: isFeedback ? 0.50 : 0.42),
             blurRadius: isFeedback ? 12 * scale : 5 * scale,
             offset: Offset(isFeedback ? 4 * scale : 1.5 * scale,
                 isFeedback ? 8 * scale : 3 * scale),
           ),
           // İç parlama (rim light)
           BoxShadow(
-            color: Colors.white.withOpacity(0.15),
+            color: Colors.white.withValues(alpha: 0.15),
             blurRadius: 1,
             offset: const Offset(0, -0.5),
             spreadRadius: -1,
           ),
           if (selected)
             BoxShadow(
-              color: const Color(0xFFFFC107).withOpacity(0.55),
+              color: const Color(0xFFFFC107).withValues(alpha: 0.55),
               blurRadius: 12 * scale,
               spreadRadius: 1,
             ),
@@ -227,8 +227,8 @@ class _TileWidgetState extends State<_TileWidget> with TickerProviderStateMixin 
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    Colors.white.withOpacity(0.55),
-                    Colors.white.withOpacity(0),
+                    Colors.white.withValues(alpha: 0.55),
+                    Colors.white.withValues(alpha: 0),
                   ],
                 ),
               ),
@@ -242,7 +242,7 @@ class _TileWidgetState extends State<_TileWidget> with TickerProviderStateMixin 
             child: Container(
               height: 1,
               decoration: BoxDecoration(
-                color: const Color(0xFF8B5A1F).withOpacity(0.18),
+                color: const Color(0xFF8B5A1F).withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(0.5),
               ),
             ),
@@ -260,7 +260,7 @@ class _TileWidgetState extends State<_TileWidget> with TickerProviderStateMixin 
                   letterSpacing: -0.3,
                   shadows: [
                     Shadow(
-                      color: Colors.white.withOpacity(0.35),
+                      color: Colors.white.withValues(alpha: 0.35),
                       offset: const Offset(0, 1),
                       blurRadius: 0,
                     ),

@@ -104,6 +104,10 @@ class DailyChallengeService {
   }
 
   static List<ChallengeWord> getTodaysWords() {
+    // KurdishMeanings sync API; FerhengService async — bu çağıran daily
+    // challenge sırasında sync veri istiyor. P1+ refactor sırasında
+    // FerhengService.allEntries() sync getter eklenip migrate edilecek.
+    // ignore: deprecated_member_use_from_same_package
     final entries = KurdishMeanings.allEntries;
     final seed = _todaySeed();
 

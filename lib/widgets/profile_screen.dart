@@ -61,7 +61,7 @@ int _xpToNextLevel(int xp, int level) {
 }
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({Key? key}) : super(key: key);
+  const ProfileScreen({super.key});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -183,7 +183,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     width: 38,
                     height: 38,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.07),
+                      color: Colors.white.withValues(alpha: 0.07),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: Colors.white12),
                     ),
@@ -243,7 +243,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       decoration: BoxDecoration(
         color: _kSurface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.07)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
       ),
       child: Column(
         children: [
@@ -258,7 +258,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               borderRadius: BorderRadius.circular(22),
               boxShadow: [
                 BoxShadow(
-                    color: _kPrimary.withOpacity(0.3),
+                    color: _kPrimary.withValues(alpha: 0.3),
                     blurRadius: 12,
                     offset: const Offset(0, 4))
               ],
@@ -290,11 +290,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     cursorColor: _kPrimary,
                     decoration: InputDecoration(
                       filled: true,
-                      fillColor: Colors.white.withOpacity(0.07),
+                      fillColor: Colors.white.withValues(alpha: 0.07),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide:
-                            BorderSide(color: _kPrimary.withOpacity(0.5)),
+                            BorderSide(color: _kPrimary.withValues(alpha: 0.5)),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
@@ -333,7 +333,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.07),
+                      color: Colors.white.withValues(alpha: 0.07),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(Icons.close_rounded,
@@ -361,9 +361,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.08),
+                      color: Colors.white.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.white.withOpacity(0.18)),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
                     ),
                     child: const Text('Misafir',
                         style: TextStyle(
@@ -377,7 +377,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 GestureDetector(
                   onTap: () => setState(() => _editing = true),
                   child: Icon(Icons.edit_rounded,
-                      color: Colors.white.withOpacity(0.35), size: 16),
+                      color: Colors.white.withValues(alpha: 0.35), size: 16),
                 ),
               ],
             ),
@@ -386,7 +386,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Text(
             isAnon ? 'Anonim Kullanıcı' : (user?.email ?? ''),
             style:
-                TextStyle(color: Colors.white.withOpacity(0.35), fontSize: 12),
+                TextStyle(color: Colors.white.withValues(alpha: 0.35), fontSize: 12),
           ),
         ],
       ),
@@ -404,7 +404,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       decoration: BoxDecoration(
         color: _kSurface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _kGold.withOpacity(0.2)),
+        border: Border.all(color: _kGold.withValues(alpha: 0.2)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -415,9 +415,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: _kGold.withOpacity(0.12),
+                  color: _kGold.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _kGold.withOpacity(0.3)),
+                  border: Border.all(color: _kGold.withValues(alpha: 0.3)),
                 ),
                 child: Text('Seviye $level',
                     style: const TextStyle(
@@ -428,7 +428,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(width: 10),
               Text(_levelTitle(level),
                   style: TextStyle(
-                      color: Colors.white.withOpacity(0.6), fontSize: 13)),
+                      color: Colors.white.withValues(alpha: 0.6), fontSize: 13)),
               const Spacer(),
               Text('$xp XP',
                   style: const TextStyle(
@@ -446,7 +446,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               borderRadius: BorderRadius.circular(6),
               child: LinearProgressIndicator(
                 value: value,
-                backgroundColor: Colors.white.withOpacity(0.08),
+                backgroundColor: Colors.white.withValues(alpha: 0.08),
                 valueColor: const AlwaysStoppedAnimation(_kGold),
                 minHeight: 8,
               ),
@@ -455,7 +455,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           const SizedBox(height: 8),
           Text('Sonraki seviyeye $toNext XP',
               style: TextStyle(
-                  color: Colors.white.withOpacity(0.3), fontSize: 11)),
+                  color: Colors.white.withValues(alpha: 0.3), fontSize: 11)),
         ],
       ),
     );
@@ -497,14 +497,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
       decoration: BoxDecoration(
         color: _kSurface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withOpacity(0.07)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('İstatistikler',
               style: TextStyle(
-                  color: Colors.white.withOpacity(0.4),
+                  color: Colors.white.withValues(alpha: 0.4),
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0.5)),
@@ -518,7 +518,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             width: 44,
                             height: 44,
                             decoration: BoxDecoration(
-                              color: item.color.withOpacity(0.12),
+                              color: item.color.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Icon(item.icon, color: item.color, size: 22),
@@ -532,7 +532,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           const SizedBox(height: 3),
                           Text(item.label,
                               style: TextStyle(
-                                  color: Colors.white.withOpacity(0.35),
+                                  color: Colors.white.withValues(alpha: 0.35),
                                   fontSize: 10)),
                         ],
                       ),
@@ -556,7 +556,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       decoration: BoxDecoration(
         color: _kSurface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withOpacity(0.07)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -565,7 +565,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               Text('Rozetler',
                   style: TextStyle(
-                      color: Colors.white.withOpacity(0.4),
+                      color: Colors.white.withValues(alpha: 0.4),
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                       letterSpacing: 0.5)),
@@ -598,11 +598,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
       decoration: BoxDecoration(
         color: _kSurface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withOpacity(0.07)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
       ),
       child: Text(
         'Firebase bağlantısı yok — profil bilgileri görüntülenemiyor.',
-        style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 13),
+        style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 13),
         textAlign: TextAlign.center,
       ),
     );
@@ -633,13 +633,13 @@ class _AchievementRow extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: state.unlocked
-            ? def.tierColor.withOpacity(0.10)
-            : Colors.white.withOpacity(0.04),
+            ? def.tierColor.withValues(alpha: 0.10)
+            : Colors.white.withValues(alpha: 0.04),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
           color: state.unlocked
-              ? def.tierColor.withOpacity(0.35)
-              : Colors.white.withOpacity(0.06),
+              ? def.tierColor.withValues(alpha: 0.35)
+              : Colors.white.withValues(alpha: 0.06),
         ),
       ),
       child: Row(
@@ -648,7 +648,7 @@ class _AchievementRow extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: color.withOpacity(state.unlocked ? 0.18 : 0.08),
+              color: color.withValues(alpha: state.unlocked ? 0.18 : 0.08),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
@@ -678,7 +678,7 @@ class _AchievementRow extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.38),
+                    color: Colors.white.withValues(alpha: 0.38),
                     fontSize: 11.5,
                   ),
                 ),
@@ -689,7 +689,7 @@ class _AchievementRow extends StatelessWidget {
                     child: LinearProgressIndicator(
                       value: progress,
                       minHeight: 5,
-                      backgroundColor: Colors.white.withOpacity(0.08),
+                      backgroundColor: Colors.white.withValues(alpha: 0.08),
                       valueColor: AlwaysStoppedAnimation(def.tierColor),
                     ),
                   ),

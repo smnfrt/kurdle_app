@@ -15,8 +15,7 @@ class BoardWidget extends StatelessWidget {
   final int _rowLength;
 
   const BoardWidget(this._game, this._rowLength, this._shakeKeys, this._bounceKeys, this._settings,
-      {Key? key})
-      : super(key: key);
+      {super.key});
 
   List<Widget> _buildRows() {
     final rows = <Widget>[];
@@ -48,8 +47,8 @@ class BoardWidget extends StatelessWidget {
                 ? ''
                 : _convertNumber(x + 1),
             child: Flex(
-              children: cells,
               direction: Axis.horizontal,
+              children: cells,
             ),
           )));
     }
@@ -81,9 +80,9 @@ class BoardWidget extends StatelessWidget {
       transitionBuilder: _transitionBuilder,
       layoutBuilder: (widget, list) =>
           Stack(children: widget != null ? [widget, ...list] : [...list]),
-      child: TileBuilder.build(letter, _settings),
       switchInCurve: Curves.easeInBack,
       switchOutCurve: Curves.easeInBack.flipped,
+      child: TileBuilder.build(letter, _settings),
     );
   }
 
@@ -98,8 +97,8 @@ class BoardWidget extends StatelessWidget {
         final value = min(rotateAnim.value, pi / 2);
         return Transform(
           transform: (Matrix4.rotationX(value)..setEntry(3, 1, tilt)),
-          child: widget,
           alignment: Alignment.center,
+          child: widget,
         );
       },
     );

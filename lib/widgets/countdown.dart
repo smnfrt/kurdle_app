@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 class CountdownWidget extends StatefulWidget {
   final Function newGame;
 
-  const CountdownWidget(this.newGame, {Key? key}) : super(key: key);
+  const CountdownWidget(this.newGame, {super.key});
 
   @override
   State<StatefulWidget> createState() => _CountdownState();

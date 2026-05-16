@@ -11,12 +11,10 @@ import 'package:kurdle_app/widgets/scrabble_game_screen.dart';
 
 const _kBg      = Color(0xFF0D0A00);
 const _kGold    = Color(0xFFFFD700);
-const _kGoldDim = Color(0xFFB8860B);
-const _kSurface = Color(0xFF1C1400);
 const _kPrimary = Color(0xFF4CAF50);
 
 class TournamentScreen extends StatefulWidget {
-  const TournamentScreen({Key? key}) : super(key: key);
+  const TournamentScreen({super.key});
 
   @override
   State<TournamentScreen> createState() => _TournamentScreenState();
@@ -173,7 +171,7 @@ class _TournamentScreenState extends State<TournamentScreen>
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: _kGold.withOpacity(0.5)),
+              side: BorderSide(color: _kGold.withValues(alpha: 0.5)),
             ),
             margin: const EdgeInsets.all(16),
             duration: const Duration(seconds: 3),
@@ -248,12 +246,12 @@ class _TournamentScreenState extends State<TournamentScreen>
           const SizedBox(height: 16),
           Text(
             'Şu an aktif turnuva yok',
-            style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 16),
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 16),
           ),
           const SizedBox(height: 8),
           Text(
             'Yakında yeni turnuva başlayacak',
-            style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 12),
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 12),
           ),
         ],
       ),
@@ -275,7 +273,7 @@ class _TournamentScreenState extends State<TournamentScreen>
             ),
             boxShadow: [
               BoxShadow(
-                color: _kGold.withOpacity(glowOpacity),
+                color: _kGold.withValues(alpha: glowOpacity),
                 blurRadius: 24,
                 offset: const Offset(0, 4),
               ),
@@ -288,7 +286,7 @@ class _TournamentScreenState extends State<TournamentScreen>
                 child: Container(
                   width: 38, height: 38,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.07),
+                    color: Colors.white.withValues(alpha: 0.07),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(color: Colors.white12),
                   ),
@@ -320,7 +318,7 @@ class _TournamentScreenState extends State<TournamentScreen>
                     Text(
                       _TL.tournamentSubtitle,
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.45),
+                        color: Colors.white.withValues(alpha: 0.45),
                         fontSize: 11,
                       ),
                     ),
@@ -333,7 +331,7 @@ class _TournamentScreenState extends State<TournamentScreen>
                 decoration: BoxDecoration(
                   color: Colors.black38,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _kGold.withOpacity(0.4)),
+                  border: Border.all(color: _kGold.withValues(alpha: 0.4)),
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -350,7 +348,7 @@ class _TournamentScreenState extends State<TournamentScreen>
                     Text(
                       _TL.tournamentStartsIn,
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.35),
+                        color: Colors.white.withValues(alpha: 0.35),
                         fontSize: 8,
                         letterSpacing: 0.3,
                       ),
@@ -374,10 +372,10 @@ class _TournamentScreenState extends State<TournamentScreen>
           colors: [Color(0xFF3D2800), Color(0xFF1C1400)],
         ),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _kGold.withOpacity(0.5), width: 1.5),
+        border: Border.all(color: _kGold.withValues(alpha: 0.5), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: _kGold.withOpacity(0.12),
+            color: _kGold.withValues(alpha: 0.12),
             blurRadius: 16,
             offset: const Offset(0, 4),
           ),
@@ -390,7 +388,7 @@ class _TournamentScreenState extends State<TournamentScreen>
             Text(
               _TL.prizePool,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
+                color: Colors.white.withValues(alpha: 0.5),
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 1,
@@ -408,12 +406,12 @@ class _TournamentScreenState extends State<TournamentScreen>
               ],
             ),
             const SizedBox(height: 12),
-            Container(height: 1, color: Colors.white.withOpacity(0.07)),
+            Container(height: 1, color: Colors.white.withValues(alpha: 0.07)),
             const SizedBox(height: 10),
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.people_alt_rounded, color: _kGold.withOpacity(0.7), size: 14),
+                Icon(Icons.people_alt_rounded, color: _kGold.withValues(alpha: 0.7), size: 14),
                 const SizedBox(width: 6),
                 RichText(
                   text: TextSpan(
@@ -429,7 +427,7 @@ class _TournamentScreenState extends State<TournamentScreen>
                       TextSpan(
                         text: ' / $_maxPlayers  ${_TL.playersJoined}',
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.45),
+                          color: Colors.white.withValues(alpha: 0.45),
                           fontSize: 12,
                         ),
                       ),
@@ -461,7 +459,7 @@ class _TournamentScreenState extends State<TournamentScreen>
       decoration: BoxDecoration(
         color: const Color(0xFF141000),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _kGold.withOpacity(0.2), width: 1),
+        border: Border.all(color: _kGold.withValues(alpha: 0.2), width: 1),
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -484,9 +482,9 @@ class _TournamentScreenState extends State<TournamentScreen>
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: _kPrimary.withOpacity(0.12),
+                  color: _kPrimary.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _kPrimary.withOpacity(0.3)),
+                  border: Border.all(color: _kPrimary.withValues(alpha: 0.3)),
                 ),
                 child: Text(
                   _TL.waitingToStart,
@@ -546,13 +544,13 @@ class _TournamentScreenState extends State<TournamentScreen>
               ),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: _joined ? _kPrimary.withOpacity(0.6) : _kGold.withOpacity(0.6 + 0.3 * _glow.value),
+                color: _joined ? _kPrimary.withValues(alpha: 0.6) : _kGold.withValues(alpha: 0.6 + 0.3 * _glow.value),
                 width: 1.5,
               ),
               boxShadow: [
                 BoxShadow(
                   color: (_joined ? _kPrimary : _kGold)
-                      .withOpacity(0.25 + 0.15 * _glow.value),
+                      .withValues(alpha: 0.25 + 0.15 * _glow.value),
                   blurRadius: 16,
                   offset: const Offset(0, 4),
                 ),
@@ -595,7 +593,7 @@ class _TournamentScreenState extends State<TournamentScreen>
       decoration: BoxDecoration(
         color: const Color(0xFF141000),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.07)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -612,7 +610,7 @@ class _TournamentScreenState extends State<TournamentScreen>
                     Container(
                       width: 32, height: 32,
                       decoration: BoxDecoration(
-                        color: r.color.withOpacity(0.12),
+                        color: r.color.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Icon(r.icon, color: r.color, size: 16),
@@ -621,7 +619,7 @@ class _TournamentScreenState extends State<TournamentScreen>
                     Expanded(
                       child: Text(r.text,
                           style: TextStyle(
-                              color: Colors.white.withOpacity(0.55), fontSize: 12)),
+                              color: Colors.white.withValues(alpha: 0.55), fontSize: 12)),
                     ),
                   ],
                 ),
@@ -653,7 +651,7 @@ class _PrizeTile extends StatelessWidget {
         const SizedBox(height: 2),
         Text(label,
             style: TextStyle(
-                color: Colors.white.withOpacity(0.4), fontSize: 10)),
+                color: Colors.white.withValues(alpha: 0.4), fontSize: 10)),
       ],
     );
   }
@@ -687,7 +685,7 @@ class _BracketWidget extends StatelessWidget {
             children: [
               Text(_TL.quarterFinal,
                   style: TextStyle(
-                      color: Colors.white.withOpacity(0.3),
+                      color: Colors.white.withValues(alpha: 0.3),
                       fontSize: 9,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 0.5)),
@@ -720,7 +718,7 @@ class _BracketWidget extends StatelessWidget {
             children: [
               Text(_TL.semiFinal,
                   style: TextStyle(
-                      color: Colors.white.withOpacity(0.3),
+                      color: Colors.white.withValues(alpha: 0.3),
                       fontSize: 9,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 0.5)),
@@ -753,7 +751,7 @@ class _BracketWidget extends StatelessWidget {
             children: [
               Text(_TL.final_,
                   style: TextStyle(
-                      color: Colors.white.withOpacity(0.3),
+                      color: Colors.white.withValues(alpha: 0.3),
                       fontSize: 9,
                       fontWeight: FontWeight.bold,
                       letterSpacing: 0.5)),
@@ -805,17 +803,17 @@ class _PlayerSlot extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       decoration: BoxDecoration(
         color: isEmpty
-            ? Colors.white.withOpacity(0.03)
+            ? Colors.white.withValues(alpha: 0.03)
             : isMe
-                ? _kPrimary.withOpacity(0.15)
-                : Colors.white.withOpacity(0.07),
+                ? _kPrimary.withValues(alpha: 0.15)
+                : Colors.white.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
           color: isEmpty
               ? Colors.white12
               : isMe
-                  ? _kPrimary.withOpacity(0.5)
-                  : Colors.white.withOpacity(0.15),
+                  ? _kPrimary.withValues(alpha: 0.5)
+                  : Colors.white.withValues(alpha: 0.15),
           width: 0.8,
         ),
       ),
@@ -829,7 +827,7 @@ class _PlayerSlot extends StatelessWidget {
                   ? Colors.white24
                   : isMe
                       ? _kPrimary
-                      : _kGold.withOpacity(0.7),
+                      : _kGold.withValues(alpha: 0.7),
             ),
           ),
           const SizedBox(width: 5),
@@ -863,10 +861,10 @@ class _EmptySlot extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.03),
+        color: Colors.white.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
-          color: isWinner ? _kGold.withOpacity(0.4) : Colors.white12,
+          color: isWinner ? _kGold.withValues(alpha: 0.4) : Colors.white12,
           width: 0.8,
         ),
       ),
@@ -876,14 +874,14 @@ class _EmptySlot extends StatelessWidget {
             width: 6, height: 6,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: isWinner ? _kGold.withOpacity(0.5) : Colors.white24,
+              color: isWinner ? _kGold.withValues(alpha: 0.5) : Colors.white24,
             ),
           ),
           const SizedBox(width: 5),
           Text(
             '???',
             style: TextStyle(
-              color: isWinner ? _kGold.withOpacity(0.4) : Colors.white24,
+              color: isWinner ? _kGold.withValues(alpha: 0.4) : Colors.white24,
               fontSize: 10,
             ),
           ),
@@ -902,7 +900,7 @@ class _BracketLinesPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFFB8860B).withOpacity(0.4)
+      ..color = const Color(0xFFB8860B).withValues(alpha: 0.4)
       ..strokeWidth = 1.0
       ..style = PaintingStyle.stroke;
 

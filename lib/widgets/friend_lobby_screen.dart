@@ -16,8 +16,7 @@ const _kBlue = Color(0xFF64B5F6);
 
 class FriendLobbyScreen extends StatefulWidget {
   final int? turnTimeLimitSeconds;
-  const FriendLobbyScreen({Key? key, this.turnTimeLimitSeconds})
-      : super(key: key);
+  const FriendLobbyScreen({super.key, this.turnTimeLimitSeconds});
 
   @override
   State<FriendLobbyScreen> createState() => _FriendLobbyScreenState();
@@ -140,11 +139,12 @@ class _FriendLobbyScreenState extends State<FriendLobbyScreen>
             FriendGameScreen(roomCode: code, myUid: uid),
           ));
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _joinError = e.toString();
           _joining = false;
         });
+      }
     }
   }
 
@@ -261,8 +261,8 @@ class _CreateTab extends StatelessWidget {
               height: 80,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: _kPrimary.withOpacity(0.15),
-                border: Border.all(color: _kPrimary.withOpacity(0.4), width: 2),
+                color: _kPrimary.withValues(alpha: 0.15),
+                border: Border.all(color: _kPrimary.withValues(alpha: 0.4), width: 2),
               ),
               child: const Icon(Icons.group_add_rounded,
                   color: _kPrimary, size: 36),
@@ -284,7 +284,7 @@ class _CreateTab extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14)),
-                  disabledBackgroundColor: _kPrimary.withOpacity(0.4),
+                  disabledBackgroundColor: _kPrimary.withValues(alpha: 0.4),
                 ),
                 child: creating
                     ? const SizedBox(
@@ -355,8 +355,8 @@ class _WaitingViewState extends State<_WaitingView>
                 height: 80,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: _kBlue.withOpacity(0.15),
-                  border: Border.all(color: _kBlue.withOpacity(0.5), width: 2),
+                  color: _kBlue.withValues(alpha: 0.15),
+                  border: Border.all(color: _kBlue.withValues(alpha: 0.5), width: 2),
                 ),
                 child: const Icon(Icons.hourglass_top_rounded,
                     color: _kBlue, size: 36),
@@ -448,7 +448,7 @@ class _CodeBtn extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg =
-        isDark ? Colors.white.withOpacity(0.07) : const Color(0xFFEAF1F4);
+        isDark ? Colors.white.withValues(alpha: 0.07) : const Color(0xFFEAF1F4);
     final borderColor = isDark ? _kBorder : const Color(0xFFD6E1E7);
     final fg = isDark ? Colors.white60 : const Color(0xFF52636E);
     return GestureDetector(
@@ -507,8 +507,8 @@ class _JoinTab extends StatelessWidget {
               height: 80,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: _kBlue.withOpacity(0.15),
-                border: Border.all(color: _kBlue.withOpacity(0.4), width: 2),
+                color: _kBlue.withValues(alpha: 0.15),
+                border: Border.all(color: _kBlue.withValues(alpha: 0.4), width: 2),
               ),
               child: const Icon(Icons.login_rounded, color: _kBlue, size: 36),
             ),
@@ -563,7 +563,7 @@ class _JoinTab extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14)),
-                  disabledBackgroundColor: _kBlue.withOpacity(0.4),
+                  disabledBackgroundColor: _kBlue.withValues(alpha: 0.4),
                 ),
                 child: joining
                     ? const SizedBox(

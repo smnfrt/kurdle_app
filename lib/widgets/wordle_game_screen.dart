@@ -12,7 +12,7 @@ import 'package:kurdle_app/widgets/settings.dart';
 import 'package:kurdle_app/widgets/stats.dart';
 
 class WordleGameScreen extends StatefulWidget {
-  const WordleGameScreen({Key? key}) : super(key: key);
+  const WordleGameScreen({super.key});
 
   @override
   State<WordleGameScreen> createState() => _WordleGameScreenState();

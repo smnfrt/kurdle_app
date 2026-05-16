@@ -61,7 +61,7 @@ class ScrabbleBoardWidget extends StatelessWidget {
   final bool isDarkMode;
 
   const ScrabbleBoardWidget({
-    Key? key,
+    super.key,
     required this.board,
     this.onTileDrop,
     this.onCellTap,
@@ -73,7 +73,7 @@ class ScrabbleBoardWidget extends StatelessWidget {
     this.meaningWords = const [],
     this.onMeaningTap,
     this.isDarkMode = true,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

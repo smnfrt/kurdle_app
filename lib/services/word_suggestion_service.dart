@@ -9,7 +9,6 @@
 //   print(svc.isValidWord('ŞIVAN'));      // true/false
 //   print(svc.suggestWord('SIVAN'));      // 'ŞIVAN'
 
-import 'package:characters/characters.dart';
 import 'package:flutter/material.dart';
 import 'package:kurdle_app/models/word_suggestion.dart';
 import 'package:kurdle_app/services/app_locale.dart';

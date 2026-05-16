@@ -7,7 +7,7 @@ class Keyboard extends StatelessWidget {
   final ValueSetter<String> _onKeyPressed;
   final Settings _settings;
 
-  const Keyboard(this._keys, this._settings, this._onKeyPressed, {Key? key}) : super(key: key);
+  const Keyboard(this._keys, this._settings, this._onKeyPressed, {super.key});
 
   Color _toColor(GameColor color) {
     switch (color) {
@@ -97,7 +97,7 @@ class Keyboard extends StatelessWidget {
       }
       rows.add(FittedBox(
         fit: BoxFit.scaleDown,
-        child: Row(children: cells, mainAxisAlignment: MainAxisAlignment.center),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: cells),
       ));
     }
     return rows;

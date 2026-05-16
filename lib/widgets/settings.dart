@@ -15,8 +15,7 @@ class SettingsWidget extends StatefulWidget {
 
   const SettingsWidget(
       this.close, this.streamController, this._settings, this._packageInfo,
-      {Key? key})
-      : super(key: key);
+      {super.key});
 
   @override
   State<StatefulWidget> createState() => _SettingsState();
@@ -27,8 +26,8 @@ class _SettingsState extends State<SettingsWidget> {
   Widget build(BuildContext context) {
     var keyboardOptions = KeyboardLayout.values
         .map((k) => DropdownMenuItem(
-              child: Text(k.name),
               value: k,
+              child: Text(k.name),
             ))
         .toList();
     return Material(

@@ -176,7 +176,7 @@ class FirestoreService {
       if (update.isNotEmpty) await ref.update(update);
     }
     // Firebase Auth profilini de senkronize tut — currentUser.displayName her yerde aynı görünsün.
-    if (finalName != null && (firebaseUser.displayName ?? '') != finalName) {
+    if ((firebaseUser.displayName ?? '') != finalName) {
       try {
         await firebaseUser.updateDisplayName(finalName);
       } catch (e) {
@@ -215,7 +215,7 @@ class FirestoreService {
     try {
       final snap = await _users
           .where('displayNameLower', isGreaterThanOrEqualTo: q)
-          .where('displayNameLower', isLessThan: q + '\uf8ff')
+          .where('displayNameLower', isLessThan: '$q\uf8ff')
           .limit(12)
           .get();
       return snap.docs
@@ -533,7 +533,6 @@ class FirestoreService {
 
       // Sonraki tur veya turnuva finali
       final winners = roundMatches.map((m) => m['winner'] as String).toList();
-      final players = List<Map<String, dynamic>>.from(data['players'] ?? []);
 
       if (winners.length == 1) {
         // Final bitti — turnuvayı kapat ve XP ver

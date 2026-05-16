@@ -8,7 +8,6 @@ import 'package:kurdle_app/services/logging_service.dart';
 const _kBg = Color(0xFF0F1923);
 const _kSurface = Color(0xFF1A2533);
 const _kPrimary = Color(0xFF4CAF50);
-const _kGold = Color(0xFFFFD700);
 const _kLightBgTop = Color(0xFFF4F8FA);
 const _kLightBgBottom = Color(0xFFE6EEF2);
 const _kLightSurface = Color(0xFFF4F8FA);
@@ -17,7 +16,7 @@ const _kLightMuted = Color(0xFF52636E);
 
 class AuthScreen extends StatefulWidget {
   final VoidCallback onSuccess;
-  const AuthScreen({Key? key, required this.onSuccess}) : super(key: key);
+  const AuthScreen({super.key, required this.onSuccess});
 
   @override
   State<AuthScreen> createState() => _AuthScreenState();
@@ -166,9 +165,9 @@ class _AuthScreenState extends State<AuthScreen>
     final bottom = MediaQuery.of(context).padding.bottom;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark ? Colors.white : _kLightText;
-    final bodyColor = isDark ? Colors.white.withOpacity(0.4) : _kLightMuted;
+    final bodyColor = isDark ? Colors.white.withValues(alpha: 0.4) : _kLightMuted;
     final dividerColor =
-        isDark ? Colors.white12 : const Color(0xFF74838C).withOpacity(0.55);
+        isDark ? Colors.white12 : const Color(0xFF74838C).withValues(alpha: 0.55);
     final fieldIconColor = isDark ? Colors.white38 : const Color(0xFF4A5963);
 
     return Scaffold(
@@ -210,7 +209,7 @@ class _AuthScreenState extends State<AuthScreen>
                               borderRadius: BorderRadius.circular(20),
                               boxShadow: [
                                 BoxShadow(
-                                  color: _kPrimary.withOpacity(0.4),
+                                  color: _kPrimary.withValues(alpha: 0.4),
                                   blurRadius: 20,
                                   offset: const Offset(0, 6),
                                 ),
@@ -275,7 +274,7 @@ class _AuthScreenState extends State<AuthScreen>
                           padding: const EdgeInsets.symmetric(horizontal: 14),
                           child: Text('veya',
                               style: TextStyle(
-                                  color: bodyColor.withOpacity(0.85),
+                                  color: bodyColor.withValues(alpha: 0.85),
                                   fontSize: 12)),
                         ),
                         Expanded(
@@ -336,7 +335,7 @@ class _AuthScreenState extends State<AuthScreen>
                           onTap: _showForgotPassword,
                           child: Text('Şifremi Unuttum',
                               style: TextStyle(
-                                  color: _kPrimary.withOpacity(0.8),
+                                  color: _kPrimary.withValues(alpha: 0.8),
                                   fontSize: 12)),
                         ),
                       ),
@@ -349,10 +348,10 @@ class _AuthScreenState extends State<AuthScreen>
                         padding: const EdgeInsets.symmetric(
                             horizontal: 14, vertical: 10),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFFF6B6B).withOpacity(0.1),
+                          color: const Color(0xFFFF6B6B).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                              color: const Color(0xFFFF6B6B).withOpacity(0.4)),
+                              color: const Color(0xFFFF6B6B).withValues(alpha: 0.4)),
                         ),
                         child: Row(
                           children: [
@@ -439,26 +438,26 @@ class _AuthScreenState extends State<AuthScreen>
                           height: 50,
                           decoration: BoxDecoration(
                             color: isDark
-                                ? Colors.white.withOpacity(0.08)
-                                : const Color(0xFF9CABAD).withOpacity(0.75),
+                                ? Colors.white.withValues(alpha: 0.08)
+                                : const Color(0xFF9CABAD).withValues(alpha: 0.75),
                             borderRadius: BorderRadius.circular(14),
                             border: Border.all(
                                 color: isDark
-                                    ? Colors.white.withOpacity(0.25)
+                                    ? Colors.white.withValues(alpha: 0.25)
                                     : const Color(0xFF60717C)
-                                        .withOpacity(0.55)),
+                                        .withValues(alpha: 0.55)),
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Icon(Icons.person_outline_rounded,
-                                  color: titleColor.withOpacity(0.78),
+                                  color: titleColor.withValues(alpha: 0.78),
                                   size: 18),
                               const SizedBox(width: 10),
                               Text(
                                 'Misafir olarak devam et',
                                 style: TextStyle(
-                                  color: titleColor.withOpacity(0.82),
+                                  color: titleColor.withValues(alpha: 0.82),
                                   fontSize: 14,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -483,7 +482,7 @@ class _AuthScreenState extends State<AuthScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final dialogBg = isDark ? _kSurface : _kLightSurface;
     final titleColor = isDark ? Colors.white : _kLightText;
-    final bodyColor = isDark ? Colors.white.withOpacity(0.55) : _kLightMuted;
+    final bodyColor = isDark ? Colors.white.withValues(alpha: 0.55) : _kLightMuted;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -510,16 +509,18 @@ class _AuthScreenState extends State<AuthScreen>
             child: Text('İptal',
                 style: TextStyle(
                     color: isDark
-                        ? Colors.white.withOpacity(0.4)
+                        ? Colors.white.withValues(alpha: 0.4)
                         : const Color(0xFF4F5E68))),
           ),
           ElevatedButton(
             onPressed: () async {
+              final messenger = ScaffoldMessenger.of(context);
+              final nav = Navigator.of(ctx);
               final err = await AuthService.instance
                   .sendPasswordReset(emailCtrl.text.trim());
               if (!mounted) return;
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              nav.pop();
+              messenger.showSnackBar(SnackBar(
                 content: Text(err ?? 'Sıfırlama e-postası gönderildi!'),
                 backgroundColor:
                     err != null ? Colors.red.shade800 : Colors.green.shade800,
@@ -562,7 +563,7 @@ class _GoogleBtn extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
             boxShadow: [
               BoxShadow(
-                  color: Colors.black.withOpacity(0.15),
+                  color: Colors.black.withValues(alpha: 0.15),
                   blurRadius: 8,
                   offset: const Offset(0, 3)),
             ],
@@ -667,12 +668,12 @@ class _Field extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : _kLightText;
     final labelColor =
-        isDark ? Colors.white.withOpacity(0.45) : const Color(0xFF53636D);
+        isDark ? Colors.white.withValues(alpha: 0.45) : const Color(0xFF53636D);
     final iconColor = isDark ? Colors.white38 : const Color(0xFF4A5963);
     final fillColor = isDark ? const Color(0xFF1A2535) : _kLightSurface;
     final borderColor = isDark
-        ? Colors.white.withOpacity(0.08)
-        : const Color(0xFF6E7D86).withOpacity(0.55);
+        ? Colors.white.withValues(alpha: 0.08)
+        : const Color(0xFF6E7D86).withValues(alpha: 0.55);
     return TextField(
       controller: controller,
       obscureText: obscureText,

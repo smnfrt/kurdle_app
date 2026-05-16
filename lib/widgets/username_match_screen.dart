@@ -10,13 +10,12 @@ import 'package:kurdle_app/services/multiplayer_service.dart';
 import 'package:kurdle_app/widgets/friend_game_screen.dart';
 
 const _kBg = Color(0xFF080E18);
-const _kSurface = Color(0xFF141E2B);
 const _kCard = Color(0xFF1A2535);
 const _kPrimary = Color(0xFF4CAF50);
 const _kBlue = Color(0xFF64B5F6);
 
 class UsernameMatchScreen extends StatefulWidget {
-  const UsernameMatchScreen({Key? key}) : super(key: key);
+  const UsernameMatchScreen({super.key});
 
   @override
   State<UsernameMatchScreen> createState() => _UsernameMatchScreenState();
@@ -76,11 +75,12 @@ class _UsernameMatchScreenState extends State<UsernameMatchScreen> {
     final myUid = AuthService.instance.effectiveUid;
     final results = await FirestoreService.instance
         .searchUsersByName(query, excludeUid: myUid);
-    if (mounted)
+    if (mounted) {
       setState(() {
         _results = results;
         _searching = false;
       });
+    }
   }
 
   // ── Davet ────────────────────────────────────────────────────────
@@ -193,7 +193,7 @@ class _UsernameMatchScreenState extends State<UsernameMatchScreen> {
     final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
     final mutedColor = isDark ? Colors.white54 : const Color(0xFF52636E);
     final buttonBg =
-        isDark ? Colors.white.withOpacity(0.07) : const Color(0xFFF4F8FA);
+        isDark ? Colors.white.withValues(alpha: 0.07) : const Color(0xFFF4F8FA);
     final borderColor = isDark ? Colors.white12 : const Color(0xFFD6E1E7);
     return Container(
       padding: EdgeInsets.fromLTRB(16, top + 12, 16, 16),
@@ -207,7 +207,7 @@ class _UsernameMatchScreenState extends State<UsernameMatchScreen> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.38 : 0.10),
+            color: Colors.black.withValues(alpha: isDark ? 0.38 : 0.10),
             blurRadius: 12,
             offset: const Offset(0, 3),
           )
@@ -252,10 +252,10 @@ class _UsernameMatchScreenState extends State<UsernameMatchScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? _kCard : const Color(0xFFF4F8FA);
     final borderColor =
-        isDark ? Colors.white.withOpacity(0.10) : const Color(0xFFD6E1E7);
+        isDark ? Colors.white.withValues(alpha: 0.10) : const Color(0xFFD6E1E7);
     final textColor = isDark ? Colors.white : const Color(0xFF18242C);
     final mutedColor =
-        isDark ? Colors.white.withOpacity(0.35) : const Color(0xFF667681);
+        isDark ? Colors.white.withValues(alpha: 0.35) : const Color(0xFF667681);
     return Column(
       children: [
         // Arama kutusu
@@ -326,13 +326,13 @@ class _UsernameMatchScreenState extends State<UsernameMatchScreen> {
   Widget _buildEmpty() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final mutedColor =
-        isDark ? Colors.white.withOpacity(0.35) : const Color(0xFF667681);
+        isDark ? Colors.white.withValues(alpha: 0.35) : const Color(0xFF667681);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.person_off_rounded,
-              color: mutedColor.withOpacity(0.45), size: 52),
+              color: mutedColor.withValues(alpha: 0.45), size: 52),
           const SizedBox(height: 14),
           Text(L.noUsersFound,
               style: TextStyle(color: mutedColor, fontSize: 14)),
@@ -346,7 +346,7 @@ class _UsernameMatchScreenState extends State<UsernameMatchScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
     final mutedColor =
-        isDark ? Colors.white.withOpacity(0.35) : const Color(0xFF667681);
+        isDark ? Colors.white.withValues(alpha: 0.35) : const Color(0xFF667681);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -362,7 +362,7 @@ class _UsernameMatchScreenState extends State<UsernameMatchScreen> {
               borderRadius: BorderRadius.circular(22),
               boxShadow: [
                 BoxShadow(
-                    color: _kBlue.withOpacity(0.35),
+                    color: _kBlue.withValues(alpha: 0.35),
                     blurRadius: 18,
                     offset: const Offset(0, 4)),
               ],
@@ -402,7 +402,7 @@ class _UsernameMatchScreenState extends State<UsernameMatchScreen> {
                 onPressed: _cancelInvite,
                 style: TextButton.styleFrom(
                   backgroundColor: isDark
-                      ? Colors.white.withOpacity(0.06)
+                      ? Colors.white.withValues(alpha: 0.06)
                       : const Color(0xFFF4F8FA),
                   foregroundColor:
                       isDark ? Colors.white54 : const Color(0xFF52636E),
@@ -436,10 +436,10 @@ class _UserTile extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? _kCard : const Color(0xFFF4F8FA);
     final borderColor =
-        isDark ? Colors.white.withOpacity(0.07) : const Color(0xFFD6E1E7);
+        isDark ? Colors.white.withValues(alpha: 0.07) : const Color(0xFFD6E1E7);
     final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
     final mutedColor =
-        isDark ? Colors.white.withOpacity(0.35) : const Color(0xFF667681);
+        isDark ? Colors.white.withValues(alpha: 0.35) : const Color(0xFF667681);
 
     return Container(
       decoration: BoxDecoration(
@@ -499,9 +499,9 @@ class _UserTile extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
-                  color: _kPrimary.withOpacity(0.15),
+                  color: _kPrimary.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: _kPrimary.withOpacity(0.4)),
+                  border: Border.all(color: _kPrimary.withValues(alpha: 0.4)),
                 ),
                 child: Text(L.invitePlayer,
                     style: const TextStyle(
@@ -552,8 +552,8 @@ class _AnimatedDotsState extends State<_AnimatedDots>
         return Text(dots,
             style: TextStyle(
                 color: isDark
-                    ? Colors.white.withOpacity(0.3)
-                    : const Color(0xFF667681).withOpacity(0.65),
+                    ? Colors.white.withValues(alpha: 0.3)
+                    : const Color(0xFF667681).withValues(alpha: 0.65),
                 fontSize: 22,
                 letterSpacing: 4));
       },

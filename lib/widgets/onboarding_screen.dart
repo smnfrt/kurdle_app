@@ -7,7 +7,7 @@ const _kPrimary = Color(0xFF4CAF50);
 
 class OnboardingScreen extends StatefulWidget {
   final VoidCallback onDone;
-  const OnboardingScreen({Key? key, required this.onDone}) : super(key: key);
+  const OnboardingScreen({super.key, required this.onDone});
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -83,7 +83,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               height: 300,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: _kPrimary.withOpacity(0.06),
+                color: _kPrimary.withValues(alpha: 0.06),
               ),
             ),
           ),
@@ -98,7 +98,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 child: Text(
                   'Derbas bike',
                   style: TextStyle(
-                      color: Colors.white.withOpacity(0.35), fontSize: 13),
+                      color: Colors.white.withValues(alpha: 0.35), fontSize: 13),
                 ),
               ),
             ),
@@ -135,7 +135,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16)),
                       elevation: 6,
-                      shadowColor: _kPrimary.withOpacity(0.4),
+                      shadowColor: _kPrimary.withValues(alpha: 0.4),
                     ),
                     child: Text(
                       isLast ? 'Destpê bike' : 'Berdewam bike',
@@ -167,9 +167,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               height: 100,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: _kPrimary.withOpacity(0.12),
+                color: _kPrimary.withValues(alpha: 0.12),
                 border: Border.all(
-                    color: _kPrimary.withOpacity(0.3), width: 1.5),
+                    color: _kPrimary.withValues(alpha: 0.3), width: 1.5),
               ),
               child: Icon(data.icon!, color: _kPrimary, size: 44),
             ),
@@ -188,7 +188,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             data.subtitle,
             textAlign: TextAlign.center,
             style: TextStyle(
-                color: Colors.white.withOpacity(0.5),
+                color: Colors.white.withValues(alpha: 0.5),
                 fontSize: 14,
                 height: 1.6),
           ),
@@ -215,7 +215,7 @@ class _LogoWidget extends StatelessWidget {
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-              color: _kPrimary.withOpacity(0.35),
+              color: _kPrimary.withValues(alpha: 0.35),
               blurRadius: 28,
               offset: const Offset(0, 10)),
         ],
@@ -325,7 +325,7 @@ class _ColorHints extends StatelessWidget {
           decoration: BoxDecoration(
             color: _kSurface,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white.withOpacity(0.06)),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
           ),
           child: Row(
             children: [
@@ -376,7 +376,7 @@ class _Dots extends StatelessWidget {
           width: active ? 24 : 8,
           height: 8,
           decoration: BoxDecoration(
-            color: active ? _kPrimary : Colors.white.withOpacity(0.2),
+            color: active ? _kPrimary : Colors.white.withValues(alpha: 0.2),
             borderRadius: BorderRadius.circular(4),
           ),
         );

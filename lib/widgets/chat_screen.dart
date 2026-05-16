@@ -16,7 +16,7 @@ class ChatMessage {
 }
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({Key? key}) : super(key: key);
+  const ChatScreen({super.key});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -144,7 +144,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     hintText: 'Bir şey sor…',
                     hintStyle: const TextStyle(color: Colors.white30, fontSize: 14),
                     filled: true,
-                    fillColor: Colors.white.withOpacity(0.07),
+                    fillColor: Colors.white.withValues(alpha: 0.07),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(24),
@@ -156,7 +156,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(24),
-                      borderSide: BorderSide(color: _kPrimary.withOpacity(0.6), width: 1.5),
+                      borderSide: BorderSide(color: _kPrimary.withValues(alpha: 0.6), width: 1.5),
                     ),
                   ),
                   onSubmitted: _send,
@@ -202,9 +202,9 @@ class _ChatScreenState extends State<ChatScreen> {
                   width: 38,
                   height: 38,
                   decoration: BoxDecoration(
-                    color: _kPrimary.withOpacity(0.2),
+                    color: _kPrimary.withValues(alpha: 0.2),
                     shape: BoxShape.circle,
-                    border: Border.all(color: _kPrimary.withOpacity(0.5)),
+                    border: Border.all(color: _kPrimary.withValues(alpha: 0.5)),
                   ),
                   child: const Icon(Icons.smart_toy_rounded, color: _kPrimary, size: 20),
                 ),
@@ -287,9 +287,9 @@ class _BubbleView extends StatelessWidget {
               height: 28,
               margin: const EdgeInsets.only(right: 8),
               decoration: BoxDecoration(
-                color: _kPrimary.withOpacity(0.2),
+                color: _kPrimary.withValues(alpha: 0.2),
                 shape: BoxShape.circle,
-                border: Border.all(color: _kPrimary.withOpacity(0.4)),
+                border: Border.all(color: _kPrimary.withValues(alpha: 0.4)),
               ),
               child: const Icon(Icons.smart_toy_rounded, color: _kPrimary, size: 14),
             ),
@@ -310,8 +310,8 @@ class _BubbleView extends StatelessWidget {
                     ),
                     border: Border.all(
                       color: isMe
-                          ? _kPrimary.withOpacity(0.25)
-                          : Colors.white.withOpacity(0.07),
+                          ? _kPrimary.withValues(alpha: 0.25)
+                          : Colors.white.withValues(alpha: 0.07),
                     ),
                   ),
                   child: Text(

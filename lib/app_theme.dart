@@ -138,7 +138,7 @@ class AppTheme {
     ),
     iconTheme: const IconThemeData(color: Colors.white70),
     dividerTheme: DividerThemeData(
-      color: Colors.white.withOpacity(0.08),
+      color: Colors.white.withValues(alpha: 0.08),
       thickness: 1,
       space: 0,
     ),
@@ -156,21 +156,21 @@ class AppTheme {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: Colors.white.withOpacity(0.06),
+      fillColor: Colors.white.withValues(alpha: 0.06),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.white.withOpacity(0.12)),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
       ),
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.white.withOpacity(0.12)),
+        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
       ),
       focusedBorder: const OutlineInputBorder(
         borderRadius: BorderRadius.all(Radius.circular(12)),
         borderSide: BorderSide(color: _primary, width: 1.5),
       ),
-      labelStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
-      hintStyle: TextStyle(color: Colors.white.withOpacity(0.3)),
+      labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
+      hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
     ),
     textTheme: AppTokens.buildTextTheme(Typography.whiteMountainView),
   );

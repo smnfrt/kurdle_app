@@ -99,7 +99,9 @@ class VersionService {
 
   static List<int> _parse(String v) {
     final parts = v.split('.').map((p) => int.tryParse(p) ?? 0).toList();
-    while (parts.length < 3) parts.add(0);
+    while (parts.length < 3) {
+      parts.add(0);
+    }
     return parts;
   }
 }

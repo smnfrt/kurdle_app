@@ -9,7 +9,6 @@ const _kBg = Color(0xFF0F1923);
 const _kSurface = Color(0xFF1A2535);
 const _kPrimary = Color(0xFF4CAF50);
 const _kGold = Color(0xFFFFD700);
-const _kError = Color(0xFFEF5350);
 
 bool _isDark(BuildContext context) =>
     Theme.of(context).brightness == Brightness.dark;
@@ -22,14 +21,14 @@ Color _helpSurfaceAlt(BuildContext context) =>
 Color _helpTitle(BuildContext context) =>
     _isDark(context) ? Colors.white : const Color(0xFF18242C);
 Color _helpMuted(BuildContext context) =>
-    _isDark(context) ? Colors.white.withOpacity(0.5) : const Color(0xFF52636E);
+    _isDark(context) ? Colors.white.withValues(alpha: 0.5) : const Color(0xFF52636E);
 Color _helpWeak(BuildContext context) =>
-    _isDark(context) ? Colors.white.withOpacity(0.35) : const Color(0xFF667681);
+    _isDark(context) ? Colors.white.withValues(alpha: 0.35) : const Color(0xFF667681);
 Color _helpBorder(BuildContext context) =>
-    _isDark(context) ? Colors.white.withOpacity(0.08) : const Color(0xFFD6E1E7);
+    _isDark(context) ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFD6E1E7);
 
 class HowToPlayScreen extends StatefulWidget {
-  const HowToPlayScreen({Key? key}) : super(key: key);
+  const HowToPlayScreen({super.key});
 
   @override
   State<HowToPlayScreen> createState() => _HowToPlayScreenState();
@@ -196,7 +195,7 @@ class _HowToPlayScreenState extends State<HowToPlayScreen>
               color: _helpSurface(context),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(isDark ? 0.38 : 0.10),
+                  color: Colors.black.withValues(alpha: isDark ? 0.38 : 0.10),
                   blurRadius: 10,
                   offset: const Offset(0, 2),
                 )
@@ -211,7 +210,7 @@ class _HowToPlayScreenState extends State<HowToPlayScreen>
                     height: 40,
                     decoration: BoxDecoration(
                       color: isDark
-                          ? Colors.white.withOpacity(0.07)
+                          ? Colors.white.withValues(alpha: 0.07)
                           : const Color(0xFFEAF1F4),
                       borderRadius: BorderRadius.circular(12),
                     ),
@@ -381,14 +380,14 @@ class _DemoCard extends StatelessWidget {
         ),
         borderRadius: BorderRadius.circular(22),
         border: Border.all(
-          color: wordValid ? _kPrimary.withOpacity(0.5) : _helpBorder(context),
+          color: wordValid ? _kPrimary.withValues(alpha: 0.5) : _helpBorder(context),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
             color: wordValid
-                ? _kPrimary.withOpacity(0.15)
-                : Colors.black.withOpacity(isDark ? 0.2 : 0.08),
+                ? _kPrimary.withValues(alpha: 0.15)
+                : Colors.black.withValues(alpha: isDark ? 0.2 : 0.08),
             blurRadius: 20,
             offset: const Offset(0, 6),
           ),
@@ -411,7 +410,7 @@ class _DemoCard extends StatelessWidget {
                   boxShadow: wordValid
                       ? [
                           BoxShadow(
-                              color: _kPrimary.withOpacity(0.6), blurRadius: 6)
+                              color: _kPrimary.withValues(alpha: 0.6), blurRadius: 6)
                         ]
                       : [],
                 ),
@@ -443,7 +442,7 @@ class _DemoCard extends StatelessWidget {
                 margin: const EdgeInsets.symmetric(horizontal: 4),
                 decoration: BoxDecoration(
                   color: isDark
-                      ? Colors.white.withOpacity(0.04)
+                      ? Colors.white.withValues(alpha: 0.04)
                       : const Color(0xFFE2EBF0),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: _helpBorder(context), width: 1.5),
@@ -480,9 +479,9 @@ class _DemoCard extends StatelessWidget {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: _kPrimary.withOpacity(0.12),
+                      color: _kPrimary.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: _kPrimary.withOpacity(0.3)),
+                      border: Border.all(color: _kPrimary.withValues(alpha: 0.3)),
                     ),
                     child: Text(L.validWord,
                         style: const TextStyle(
@@ -507,7 +506,7 @@ class _DemoCard extends StatelessWidget {
 
 class _AnimatedTileWidget extends StatefulWidget {
   final _DemoTile tile;
-  const _AnimatedTileWidget({required this.tile, Key? key}) : super(key: key);
+  const _AnimatedTileWidget({required this.tile});
 
   @override
   State<_AnimatedTileWidget> createState() => _AnimatedTileWidgetState();
@@ -572,7 +571,7 @@ class _AnimatedTileWidgetState extends State<_AnimatedTileWidget>
               margin: const EdgeInsets.symmetric(horizontal: 4),
               decoration: BoxDecoration(
                 color: showBack
-                    ? _kPrimary.withOpacity(0.85)
+                    ? _kPrimary.withValues(alpha: 0.85)
                     : (isDark
                         ? const Color(0xFF253345)
                         : const Color(0xFFF4F8FA)),
@@ -581,21 +580,21 @@ class _AnimatedTileWidgetState extends State<_AnimatedTileWidget>
                   color: showBack
                       ? _kPrimary
                       : (isDark
-                          ? Colors.white.withOpacity(0.22)
+                          ? Colors.white.withValues(alpha: 0.22)
                           : const Color(0xFFD6E1E7)),
                   width: 1.8,
                 ),
                 boxShadow: showBack
                     ? [
                         BoxShadow(
-                            color: _kPrimary.withOpacity(0.4),
+                            color: _kPrimary.withValues(alpha: 0.4),
                             blurRadius: 10,
                             offset: const Offset(0, 3))
                       ]
                     : [
                         BoxShadow(
                             color:
-                                Colors.black.withOpacity(isDark ? 0.3 : 0.08),
+                                Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
                             blurRadius: 4,
                             offset: const Offset(0, 2))
                       ],
@@ -609,7 +608,7 @@ class _AnimatedTileWidgetState extends State<_AnimatedTileWidget>
                         color: showBack
                             ? Colors.white
                             : (isDark
-                                ? Colors.white.withOpacity(0.9)
+                                ? Colors.white.withValues(alpha: 0.9)
                                 : const Color(0xFF18242C)),
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
@@ -679,9 +678,9 @@ class _StepCard extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.13),
+                  color: color.withValues(alpha: 0.13),
                   borderRadius: BorderRadius.circular(13),
-                  border: Border.all(color: color.withOpacity(0.3)),
+                  border: Border.all(color: color.withValues(alpha: 0.3)),
                 ),
                 child: Icon(icon, color: color, size: 22),
               ),
@@ -690,7 +689,7 @@ class _StepCard extends StatelessWidget {
                 width: 22,
                 height: 22,
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Center(
@@ -786,9 +785,9 @@ class _PointsLegend extends StatelessWidget {
                   width: 56,
                   padding: const EdgeInsets.symmetric(vertical: 3),
                   decoration: BoxDecoration(
-                    color: g.color.withOpacity(0.12),
+                    color: g.color.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: g.color.withOpacity(0.3)),
+                    border: Border.all(color: g.color.withValues(alpha: 0.3)),
                   ),
                   child: Center(
                     child: Text(g.label,
@@ -853,7 +852,6 @@ class _BoardDemoCardState extends State<_BoardDemoCard>
   Offset _flyFrom = Offset.zero;
   Offset _flyTo = Offset.zero;
   bool _wordValid = false;
-  bool _running = false;
 
   late AnimationController _flyCtrl;
   late Animation<double> _flyAnim;
@@ -886,7 +884,6 @@ class _BoardDemoCardState extends State<_BoardDemoCard>
   Future<void> _runDemo() async {
     if (!mounted) return;
     setState(() {
-      _running = true;
       _grid = List.generate(_gridN, (_) => List.filled(_gridN, ''));
       _wordValid = false;
       _activeTile = -1;
@@ -942,7 +939,6 @@ class _BoardDemoCardState extends State<_BoardDemoCard>
     await Future.delayed(const Duration(milliseconds: 2400));
     if (!mounted) return;
     setState(() {
-      _running = false;
       _wordValid = false;
       _grid = List.generate(_gridN, (_) => List.filled(_gridN, ''));
     });
@@ -969,14 +965,14 @@ class _BoardDemoCardState extends State<_BoardDemoCard>
           borderRadius: BorderRadius.circular(22),
           border: Border.all(
             color:
-                _wordValid ? _kPrimary.withOpacity(0.5) : _helpBorder(context),
+                _wordValid ? _kPrimary.withValues(alpha: 0.5) : _helpBorder(context),
             width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
               color: _wordValid
-                  ? _kPrimary.withOpacity(0.15)
-                  : Colors.black.withOpacity(isDark ? 0.2 : 0.08),
+                  ? _kPrimary.withValues(alpha: 0.15)
+                  : Colors.black.withValues(alpha: isDark ? 0.2 : 0.08),
               blurRadius: 20,
               offset: const Offset(0, 6),
             ),
@@ -1071,7 +1067,7 @@ class _BoardDemoCardState extends State<_BoardDemoCard>
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: [
                         BoxShadow(
-                            color: _kPrimary.withOpacity(0.5), blurRadius: 10)
+                            color: _kPrimary.withValues(alpha: 0.5), blurRadius: 10)
                       ],
                     ),
                     child: Text('+9 ${L.points}',
@@ -1109,10 +1105,10 @@ class _BoardDemoCardState extends State<_BoardDemoCard>
             gradient: isPlaced
                 ? LinearGradient(colors: [
                     isDark
-                        ? Colors.white.withOpacity(0.05)
+                        ? Colors.white.withValues(alpha: 0.05)
                         : const Color(0xFFE2EBF0),
                     isDark
-                        ? Colors.white.withOpacity(0.05)
+                        ? Colors.white.withValues(alpha: 0.05)
                         : const Color(0xFFE2EBF0),
                   ])
                 : LinearGradient(
@@ -1128,13 +1124,13 @@ class _BoardDemoCardState extends State<_BoardDemoCard>
                   ? (isDark ? Colors.white12 : const Color(0xFFD6E1E7))
                   : isActive
                       ? const Color(0xFFB8860B)
-                      : const Color(0xFFB8860B).withOpacity(0.5),
+                      : const Color(0xFFB8860B).withValues(alpha: 0.5),
               width: 1.5,
             ),
             boxShadow: isActive
                 ? [
                     BoxShadow(
-                        color: Colors.black.withOpacity(isDark ? 0.54 : 0.18),
+                        color: Colors.black.withValues(alpha: isDark ? 0.54 : 0.18),
                         blurRadius: 10,
                         offset: const Offset(0, 5))
                   ]
@@ -1371,9 +1367,9 @@ class _SectionHeader extends StatelessWidget {
           width: 32,
           height: 32,
           decoration: BoxDecoration(
-            color: color.withOpacity(0.13),
+            color: color.withValues(alpha: 0.13),
             borderRadius: BorderRadius.circular(9),
-            border: Border.all(color: color.withOpacity(0.3)),
+            border: Border.all(color: color.withValues(alpha: 0.3)),
           ),
           child: Icon(icon, color: color, size: 16),
         ),
@@ -1395,28 +1391,6 @@ class _SectionHeader extends StatelessWidget {
 // ── Wordle demo kartı ─────────────────────────────────────────────
 
 class _WordleDemoCard extends StatelessWidget {
-  static const _exampleRows = [
-    // (letters, colors, exampleWord)
-    (
-      ['R', 'O', 'J', 'A', 'V'],
-      [true, false, false, false, false],
-      true,
-      false
-    ),
-    (
-      ['H', 'E', 'V', 'A', 'L'],
-      [false, false, false, false, true],
-      false,
-      true
-    ),
-    (
-      ['B', 'A', 'J', 'Ê', 'R'],
-      [false, false, false, false, false],
-      false,
-      false
-    ),
-  ];
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1468,9 +1442,9 @@ class _WordleDemoCard extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: _kPrimary.withOpacity(0.08),
+              color: _kPrimary.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _kPrimary.withOpacity(0.2)),
+              border: Border.all(color: _kPrimary.withValues(alpha: 0.2)),
             ),
             child: Row(
               children: [
@@ -1479,7 +1453,7 @@ class _WordleDemoCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(L.wordleTip,
                     style: TextStyle(
-                        color: _kPrimary.withOpacity(0.85), fontSize: 12)),
+                        color: _kPrimary.withValues(alpha: 0.85), fontSize: 12)),
               ],
             ),
           ),
@@ -1513,7 +1487,7 @@ class _WordleHintRow extends StatelessWidget {
             borderRadius: BorderRadius.circular(9),
             boxShadow: [
               BoxShadow(
-                  color: color.withOpacity(0.35),
+                  color: color.withValues(alpha: 0.35),
                   blurRadius: 8,
                   offset: const Offset(0, 3))
             ],

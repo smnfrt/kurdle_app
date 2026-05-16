@@ -12,7 +12,7 @@ const _kBg = Color(0xFF0F1923);
 const _kPrimary = Color(0xFF4CAF50);
 
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({Key? key}) : super(key: key);
+  const SplashScreen({super.key});
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -133,7 +133,7 @@ class _SplashScreenState extends State<SplashScreen>
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    _kPrimary.withOpacity(0.08),
+                    _kPrimary.withValues(alpha: 0.08),
                     Colors.transparent,
                   ],
                 ),
@@ -164,7 +164,7 @@ class _SplashScreenState extends State<SplashScreen>
                           borderRadius: BorderRadius.circular(32),
                           boxShadow: [
                             BoxShadow(
-                              color: _kPrimary.withOpacity(0.4),
+                              color: _kPrimary.withValues(alpha: 0.4),
                               blurRadius: 40,
                               offset: const Offset(0, 12),
                             ),
@@ -208,7 +208,7 @@ class _SplashScreenState extends State<SplashScreen>
                         Text(
                           'Lîstika Peyvan',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.35),
+                            color: Colors.white.withValues(alpha: 0.35),
                             fontSize: 13,
                             letterSpacing: 0.5,
                           ),
@@ -234,7 +234,7 @@ class _SplashScreenState extends State<SplashScreen>
                   height: 24,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: _kPrimary.withOpacity(0.5),
+                    color: _kPrimary.withValues(alpha: 0.5),
                   ),
                 ),
               ),

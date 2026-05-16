@@ -47,7 +47,11 @@ class GameScoreService {
     while (horiz ? c > 0 : r > 0) {
       final prev = b.cellAt(horiz ? r : r - 1, horiz ? c - 1 : c);
       if (!prev.hasLetter) break;
-      if (horiz) c--; else r--;
+      if (horiz) {
+        c--;
+      } else {
+        r--;
+      }
     }
     return horiz ? c : r;
   }
@@ -57,7 +61,11 @@ class GameScoreService {
     while (horiz ? c > 0 : r > 0) {
       final prev = b.cellAt(horiz ? r : r - 1, horiz ? c - 1 : c);
       if (!prev.hasLetter) break;
-      if (horiz) c--; else r--;
+      if (horiz) {
+        c--;
+      } else {
+        r--;
+      }
     }
 
     final cells = <BoardCell>[];
@@ -65,7 +73,11 @@ class GameScoreService {
       final cell = b.cellAt(r, c);
       if (!cell.hasLetter) break;
       cells.add(cell);
-      if (horiz) c++; else r++;
+      if (horiz) {
+        c++;
+      } else {
+        r++;
+      }
     }
 
     if (cells.length < 2) return null;
