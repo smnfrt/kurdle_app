@@ -852,29 +852,32 @@ class _FriendGameScreenState extends State<FriendGameScreen>
                                       onDoubleTapDown: (d) =>
                                           _doubleTapDetails = d,
                                       onDoubleTap: _handleDoubleTap,
-                                      child: InteractiveViewer(
-                                        transformationController:
-                                            _zoomController,
-                                        boundaryMargin: const EdgeInsets.all(
-                                            double.infinity),
-                                        minScale: 1.0,
-                                        maxScale: 4.0,
-                                        panEnabled: _touchCtrl.panEnabled,
-                                        onInteractionStart: (_) =>
-                                            _touchCtrl.onGestureStart(),
-                                        onInteractionEnd: (d) =>
-                                            _touchCtrl.onGestureEnd(
-                                                d.velocity.pixelsPerSecond),
-                                        child: ScrabbleBoardWidget(
-                                          board: _localBoard,
-                                          lastMoveCells:
-                                              room.lastMoveCells.toSet(),
-                                          meaningWords:
-                                              _meaningWordsFromRoom(room),
-                                          onMeaningTap: _showWordMeanings,
-                                          onTileDrop:
-                                              myTurn ? _onTileDrop : null,
-                                          onCellTap: myTurn ? _onCellTap : null,
+                                      child: RepaintBoundary(
+                                        child: InteractiveViewer(
+                                          transformationController:
+                                              _zoomController,
+                                          boundaryMargin: const EdgeInsets.all(
+                                              double.infinity),
+                                          minScale: 1.0,
+                                          maxScale: 4.0,
+                                          panEnabled: _touchCtrl.panEnabled,
+                                          onInteractionStart: (_) =>
+                                              _touchCtrl.onGestureStart(),
+                                          onInteractionEnd: (d) =>
+                                              _touchCtrl.onGestureEnd(
+                                                  d.velocity.pixelsPerSecond),
+                                          child: ScrabbleBoardWidget(
+                                            board: _localBoard,
+                                            lastMoveCells:
+                                                room.lastMoveCells.toSet(),
+                                            meaningWords:
+                                                _meaningWordsFromRoom(room),
+                                            onMeaningTap: _showWordMeanings,
+                                            onTileDrop:
+                                                myTurn ? _onTileDrop : null,
+                                            onCellTap:
+                                                myTurn ? _onCellTap : null,
+                                          ),
                                         ),
                                       ),
                                     ),
@@ -941,64 +944,68 @@ class _FriendGameScreenState extends State<FriendGameScreen>
                         ),
                       ),
                     // Rack
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(10, 2, 10, 2),
-                      child: LetterRackWidget(
-                        tiles: _myRack,
-                        enabled: myTurn && !_submitting,
-                        selectedTileId: _selectedTile?.id,
-                        onTileTap: _onTileTap,
+                    RepaintBoundary(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 2, 10, 2),
+                        child: LetterRackWidget(
+                          tiles: _myRack,
+                          enabled: myTurn && !_submitting,
+                          selectedTileId: _selectedTile?.id,
+                          onTileTap: _onTileTap,
+                        ),
                       ),
                     ),
                     // Action buttons
                     if (myTurn)
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(10, 2, 10, 10),
-                        child: Column(
-                          children: [
-                            // Küçük eylem butonları
-                            Row(
-                              children: [
-                                _SmallBtn(
-                                  label: L.recall,
-                                  icon: Icons.undo_rounded,
-                                  onTap: _submitting ? null : _recallAll,
-                                ),
-                                const SizedBox(width: 8),
-                                _SmallBtn(
-                                  label: L.passTurn,
-                                  icon: Icons.skip_next_rounded,
-                                  onTap: _submitting ? null : _pass,
-                                ),
-                                const SizedBox(width: 8),
-                                _SmallBtn(
-                                  label: _isInStealMode
-                                      ? '⚡ ${L.steal}'
-                                      : '🎯 ${L.steal} ($_myStealsLeft)',
-                                  icon: Icons.auto_awesome_rounded,
-                                  active: _isInStealMode,
-                                  disabled: _myStealsLeft <= 0,
-                                  onTap: (_submitting || _myStealsLeft <= 0)
-                                      ? null
-                                      : () {
-                                          setState(() {
-                                            _isInStealMode = !_isInStealMode;
-                                            if (!_isInStealMode) _recallAll();
-                                          });
-                                          HapticFeedback.mediumImpact();
-                                        },
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            // Oyna butonu — premium gradient + glow
-                            _PlayBtn(
-                              loading: _submitting,
-                              steal: _isInStealMode,
-                              label: L.play,
-                              onTap: _submitting ? null : _submit,
-                            ),
-                          ],
+                      RepaintBoundary(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(10, 2, 10, 10),
+                          child: Column(
+                            children: [
+                              // Küçük eylem butonları
+                              Row(
+                                children: [
+                                  _SmallBtn(
+                                    label: L.recall,
+                                    icon: Icons.undo_rounded,
+                                    onTap: _submitting ? null : _recallAll,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _SmallBtn(
+                                    label: L.passTurn,
+                                    icon: Icons.skip_next_rounded,
+                                    onTap: _submitting ? null : _pass,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  _SmallBtn(
+                                    label: _isInStealMode
+                                        ? '⚡ ${L.steal}'
+                                        : '🎯 ${L.steal} ($_myStealsLeft)',
+                                    icon: Icons.auto_awesome_rounded,
+                                    active: _isInStealMode,
+                                    disabled: _myStealsLeft <= 0,
+                                    onTap: (_submitting || _myStealsLeft <= 0)
+                                        ? null
+                                        : () {
+                                            setState(() {
+                                              _isInStealMode = !_isInStealMode;
+                                              if (!_isInStealMode) _recallAll();
+                                            });
+                                            HapticFeedback.mediumImpact();
+                                          },
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              // Oyna butonu — premium gradient + glow
+                              _PlayBtn(
+                                loading: _submitting,
+                                steal: _isInStealMode,
+                                label: L.play,
+                                onTap: _submitting ? null : _submit,
+                              ),
+                            ],
+                          ),
                         ),
                       )
                     else
