@@ -23,7 +23,10 @@ class VersionService {
   VersionService._();
   static final VersionService instance = VersionService._();
 
-  final _db = FirebaseFirestore.instance;
+  // Lazy: Firebase init'ten önce VersionService.instance erişilirse
+  // (loadVersion() main()'de Firebase'den önce çağrılıyor),
+  // FirebaseFirestore.instance evaluate edilmesin.
+  FirebaseFirestore get _db => FirebaseFirestore.instance;
 
   // pubspec.yaml ile sync kalan, runtime'da bir kez okunan sürüm.
   // main() içinde loadVersion() bekleyince doldurulur; UI bundan okur.
