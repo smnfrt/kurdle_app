@@ -3,6 +3,8 @@
   "source": "manual-curated (user-reported gaps + obvious loanwords)",
   "licenseNote": "Public domain / dictionary terms — common knowledge translations.",
   "entries": {
-    "FAY": { "tr": "fay (jeoloji), deprem çizgisi" }
+    "ENÛ": { "tr": "şimdi, henüz, az önce" },
+    "FAY": { "tr": "fay (jeoloji), deprem çizgisi" },
+    "PÛB": { "tr": "pub, bar, meyhane" }
   }
 }
