@@ -63,6 +63,14 @@ class ScrabbleGameController extends ChangeNotifier {
   Set<String> highlightedCells = {};
   Set<String> lastMoveCells = {};
   List<({String word, Set<String> cells})> lastMoveWords = const [];
+
+  // UI'da meaning popup açıkken AI hamlesini duraklatmak için.
+  // scrabble_game_screen popup aç/kapa sırasında setMeaningPopupOpen()
+  // ile günceller. _doAiTurn bu bayrak true iken bekler.
+  bool _meaningPopupOpen = false;
+  void setMeaningPopupOpen(bool open) {
+    _meaningPopupOpen = open;
+  }
   bool turnForfeited = false;
   WordSuggestion? lastSuggestion;
 
@@ -436,8 +444,28 @@ class ScrabbleGameController extends ChangeNotifier {
   void _doAiTurn() {
     phase = GamePhase.aiTurn;
     notifyListeners();
+    _scheduleAiMove();
+  }
 
-    Future.delayed(const Duration(milliseconds: 800), () {
+  Future<void> _scheduleAiMove() async {
+    // Popup'tan önce thinking delay'i — kullanıcı meaning popup'unu açacak
+    // vakit bulsun. Easy modda snappy kalsın (800ms); normal/hard'da daha
+    // uzun (2.5sn) çünkü oyuncu kelime anlamına bakmak isteyebilir.
+    final thinkingMs =
+        aiDifficulty == AiDifficulty.easy ? 800 : 2500;
+    await Future.delayed(Duration(milliseconds: thinkingMs));
+    while (_meaningPopupOpen) {
+      await Future.delayed(const Duration(milliseconds: 200));
+    }
+    // Bu sırada kullanıcı yeniden açabilir; bir kez daha kontrol et
+    if (_meaningPopupOpen) {
+      _scheduleAiMove();
+      return;
+    }
+    _executeAiMove();
+  }
+
+  void _executeAiMove() {
       final move = _ai.findBestMove(board, aiRack, difficulty: aiDifficulty);
       if (move != null) {
         for (final p in move.placements) {
@@ -474,7 +502,6 @@ class ScrabbleGameController extends ChangeNotifier {
       } else {
         _startTurnTimer();
       }
-    });
   }
 
   // ─── Geliştirme yardımcıları ──────────────────────────────────────

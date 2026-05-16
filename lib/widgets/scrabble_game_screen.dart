@@ -110,6 +110,8 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
     );
 
     var dialogOpen = true;
+    // AI sırasındaysa AI hamlesini popup kapanana kadar duraklat
+    _controller?.setMeaningPopupOpen(true);
     showGeneralDialog<void>(
       context: context,
       barrierDismissible: true,
@@ -127,6 +129,7 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
     ).whenComplete(() {
       dialogOpen = false;
       entries.dispose();
+      _controller?.setMeaningPopupOpen(false);
     });
 
     try {
