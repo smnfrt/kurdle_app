@@ -45,6 +45,8 @@ class L {
   static String get inviteFailed => _s(
       'Davet gönderilemedi. Tekrar dene.',
       'Vexwendin neşê hat şandin. Dîsa biceribîne.');
+  static String get offlineBanner =>
+      _s('İnternet bağlantısı yok', 'Girêdana înternetê tune');
   static String get waitingAccept => _s('Daveti kabul etmesi bekleniyor...',
       'Li bendê ye ku vexwendinê qebûl bike...');
   static String get inviteFrom =>

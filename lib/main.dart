@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:kurdle_app/app_theme.dart';
+import 'package:kurdle_app/services/connectivity_service.dart';
 import 'package:kurdle_app/services/settings_service.dart';
 import 'package:kurdle_app/services/version_service.dart';
+import 'package:kurdle_app/widgets/offline_banner.dart';
 import 'package:kurdle_app/widgets/splash_screen.dart';
 
 void main() async {
@@ -9,6 +11,7 @@ void main() async {
   final settings = await SettingsService().load();
   themeNotifier.value = settings.isDarkMode ? ThemeMode.dark : ThemeMode.light;
   await VersionService.instance.loadVersion();
+  await ConnectivityService.instance.init();
   runApp(const MyApp());
 }
 
@@ -27,6 +30,8 @@ class MyApp extends StatelessWidget {
         themeMode: mode,
         darkTheme: AppTheme.darkTheme,
         home: const SplashScreen(),
+        builder: (context, child) =>
+            OfflineBannerWrapper(child: child ?? const SizedBox.shrink()),
       ),
     );
   }
