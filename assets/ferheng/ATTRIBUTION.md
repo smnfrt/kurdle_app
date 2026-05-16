@@ -34,6 +34,12 @@ Bu sözlük (ferheng) açık-kaynak verilerden derlenmiştir. Lisans gereği aş
 - **Kullanım:** Eksik Türkçe anlamlar için çevrimdışı override tabanı (`assets/ferheng/tr_meaning_overrides.json`).
 - **Yerel kaynak:** `tools/ferheng_pipeline/raw/freedict-kur-tur-0.1.2/kur-tur/README` ve `COPYING`.
 
+## 5. Türetilmiş Çekim Fallback'leri
+
+- **Kaynak:** Bu projedeki açık lisanslı/curated Türkçe anlamların Kurmancî çekimli yüzey formlarına otomatik eşlenmesi.
+- **Araç:** `tool/materialize_inferred_tr_meanings.dart`
+- **Kullanım:** Oyun içinde kabul edilen çekimli kelimelerin Türkçe anlam göstermesi için, kök kelimenin Türkçe anlamı yüzey forma `inferred-inflection:<kök>` kaynak etiketiyle aktarılır.
+
 ---
 
 ## Share-Alike Yükümlülüğü

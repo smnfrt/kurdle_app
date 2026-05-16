@@ -170,12 +170,11 @@ class MultiplayerService {
       await _db.runTransaction((tx) async {
         final ref = _rooms.doc(code);
         final snap = await tx.get(ref);
-        if (!snap.exists) throw Exception('Oda bulunamadı');
+        if (!snap.exists) throw Exception('room_not_found');
         final d = snap.data() as Map<String, dynamic>;
         final status = d['status'] as String? ?? '';
-        if (!status.startsWith('waiting'))
-          throw Exception('Oda dolu veya oyun bitti');
-        if (d['hostUid'] == uid) throw Exception('Kendi odana katılamazsın');
+        if (!status.startsWith('waiting')) throw Exception('room_unavailable');
+        if (d['hostUid'] == uid) throw Exception('cannot_join_own_room');
         tx.update(ref, {
           'guestUid': uid,
           'guestName': displayName,

@@ -70,6 +70,13 @@ class L {
       'Ode çêke, koda bi hevalê xwe re parve bike.');
   static String get joinRoomDesc =>
       _s('Arkadaşınızın oda kodunu girin.', 'Koda hevalê xwe binivîse.');
+  static String get enterSixCharCode =>
+      _s('6 karakterli kodu girin', 'Koda 6 tîpan binivîse');
+  static String get roomNotFound => _s('Oda bulunamadı', 'Ode nehat dîtin');
+  static String get roomUnavailable =>
+      _s('Oda dolu veya oyun bitti', 'Ode tijî ye an lîstik qediya');
+  static String get cannotJoinOwnRoom =>
+      _s('Kendi odana katılamazsın', 'Tu nikarî bikevî odeya xwe');
   static String get waitingForOpponent =>
       _s('Rakip bekleniyor...', 'Li dijberê lix bê...');
   static String get roomCodeLabel => _s('Oda Kodu', 'Koda Odeyê');
@@ -83,6 +90,22 @@ class L {
   static String get cancelRoom => _s('İptal Et', 'Betal bike');
   static String get myScore => _s('Senin Skorun', 'Xala te');
   static String get opponentTurnSuffix => _s('oynuyor...', 'dilîze...');
+  static String get yourTurnShort => _s('Senin sıran', 'Nobeta te');
+  static String get opponentTurnShort => _s('Rakip sırası', 'Nobeta hevrik');
+  static String get opponentFallback => _s('Rakip', 'Hevrik');
+  static String get leaveGameTitle => _s('Oyundan çık?', 'Ji lîstikê derkevî?');
+  static String get leaveGameMessage => _s(
+      'Oyundan ayrılırsanız rakibiniz kazanır.',
+      'Heke ji lîstikê derkevî, hevrikê te bi ser dikeve.');
+  static String get leaveGameAction => _s('Çık', 'Derkeve');
+  static String errorPrefix(String message) =>
+      _s('Hata: $message', 'Xeletî: $message');
+  static String levelGames(int level, int games) =>
+      _s('Seviye $level · $games oyun', 'Ast $level · $games lîstik');
+  static String moveScoreLine(String playerName, int score) {
+    final sign = score >= 0 ? '+' : '';
+    return _s('$playerName: $sign$score puan', '$playerName: $sign$score xal');
+  }
 
   static String get myGames => _s('Oyunlarım', 'Lîstikên min');
   static String get noGames => _s('Henüz oyun yok', 'Hîn lîstik tune');
@@ -163,6 +186,13 @@ class L {
       _s('Hamle Süresi Seç', 'Dema Tevgerê Hilbijêre');
   static String get timePerMove =>
       _s('Hamle başına süre', 'Dem ji bo her tevgerê');
+  static String hoursLabel(int hours) => _s('$hours Saat', '$hours saet');
+  static String minutesLabel(int minutes) =>
+      _s('$minutes Dakika', '$minutes xulek');
+  static String hoursPerMove(int hours) =>
+      _s('Her hamle için $hours saat', 'Ji bo her tevgerê $hours saet');
+  static String get liveFastGame =>
+      _s('Canlı hızlı oyun', 'Lîstika zindî ya bilez');
   static String exchanged(int n) =>
       _s('$n harf değiştirildi', '$n tîp hatin guhertin');
 
@@ -183,6 +213,7 @@ class L {
       _s('$n geliştirme hakkın var', '$n mafê te yê pêşkeftinê heye');
   static String invalidWords(String s) =>
       _s('"$s" geçerli kelime değil!', '"$s" peyva derbasdar nîne!');
+  static String get turnIsYours => _s('Sıra sende!', 'Nobeta te!');
 
   // ── Çalma (steal) ──────────────────────────────────────────────
   static String wordStolen(int score) =>
@@ -196,6 +227,8 @@ class L {
       'Moda dizînê çalak e — peyvê dirêj bike!');
   static String get stealFailed =>
       _s('Çalma başarısız! −5 puan ceza.', 'Dizîn bi ser neket! −5 xal ceza.');
+  static String stealFailedPenalty(int penalty) => _s(
+      'Çalma başarısız! -$penalty puan.', 'Dizîn bi ser neket! -$penalty xal.');
   static String get noStealTarget =>
       _s('Çalınacak kelime bulunamadı!', 'Peyva were dizîn nehat dîtin!');
   static String get steal => _s('Çal', 'Dest Serde');

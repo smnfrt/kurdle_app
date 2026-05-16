@@ -531,7 +531,7 @@ class _MeaningAnchorIcon extends StatelessWidget {
     const boardInset = 8.0;
     final gridSize = size - boardInset * 2;
     final step = gridSize / WordBoard.size;
-    final iconSize = (step * 0.26).clamp(8.0, 11.0).toDouble();
+    final iconSize = (step * 0.36).clamp(12.0, 16.0).toDouble();
     final anchor = _anchorCell(words.first.cells);
     if (anchor == null) return const SizedBox.shrink();
 
@@ -552,7 +552,7 @@ class _MeaningAnchorIcon extends StatelessWidget {
               child: Align(
                 alignment: Alignment.bottomLeft,
                 child: Padding(
-                  padding: const EdgeInsets.only(left: 1.5, bottom: 1),
+                  padding: const EdgeInsets.only(left: 0.5, bottom: 0.5),
                   child: Icon(
                     Icons.star_rounded,
                     size: iconSize,

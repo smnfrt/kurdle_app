@@ -57,7 +57,7 @@ class _FriendLobbyScreenState extends State<FriendLobbyScreen>
     setState(() => _creating = true);
     try {
       final uid = AuthService.instance.effectiveUid;
-      if (uid == null) throw Exception('Lütfen giriş yapın');
+      if (uid == null) throw Exception(L.needSignIn);
       String name = AuthService.instance.effectiveDisplayName;
       if (AuthService.instance.currentUser != null) {
         final profile = await FirestoreService.instance.getProfile(uid);
@@ -108,7 +108,7 @@ class _FriendLobbyScreenState extends State<FriendLobbyScreen>
   Future<void> _joinRoom() async {
     final code = _codeCtrl.text.trim().toUpperCase();
     if (code.length < 6) {
-      setState(() => _joinError = '6 karakterli kodu girin');
+      setState(() => _joinError = L.enterSixCharCode);
       return;
     }
     setState(() {
@@ -117,7 +117,7 @@ class _FriendLobbyScreenState extends State<FriendLobbyScreen>
     });
     try {
       final uid = AuthService.instance.effectiveUid;
-      if (uid == null) throw Exception('Lütfen giriş yapın');
+      if (uid == null) throw Exception(L.needSignIn);
       String name = AuthService.instance.effectiveDisplayName;
       if (AuthService.instance.currentUser != null) {
         final profile = await FirestoreService.instance.getProfile(uid);
@@ -129,7 +129,7 @@ class _FriendLobbyScreenState extends State<FriendLobbyScreen>
       if (!mounted) return;
       if (err != null) {
         setState(() {
-          _joinError = err;
+          _joinError = _localizedRoomError(err);
           _joining = false;
         });
         return;
@@ -154,6 +154,16 @@ class _FriendLobbyScreenState extends State<FriendLobbyScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(msg), backgroundColor: Colors.red.shade700),
     );
+  }
+
+  String _localizedRoomError(String message) {
+    final cleaned = message.replaceAll('Exception: ', '').trim();
+    return switch (cleaned) {
+      'room_not_found' => L.roomNotFound,
+      'room_unavailable' => L.roomUnavailable,
+      'cannot_join_own_room' => L.cannotJoinOwnRoom,
+      _ => cleaned,
+    };
   }
 
   Route _slide(Widget page) => PageRouteBuilder(

@@ -474,7 +474,7 @@ class _UserTile extends StatelessWidget {
                           fontWeight: FontWeight.bold)),
                   const SizedBox(height: 3),
                   Text(
-                    'Lv.${user.level} · ${user.stats.played} oyun',
+                    L.levelGames(user.level, user.stats.played),
                     style: TextStyle(color: mutedColor, fontSize: 11),
                   ),
                 ],

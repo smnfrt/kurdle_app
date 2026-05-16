@@ -3052,12 +3052,12 @@ class _MultiplayerGameCard extends StatelessWidget {
     final isHost = room.hostUid == myUid;
     final myScore = isHost ? room.hostScore : room.guestScore;
     final oppScore = isHost ? room.guestScore : room.hostScore;
-    final oppName = isHost ? (room.guestName ?? 'Rakip') : room.hostName;
+    final oppName =
+        isHost ? (room.guestName ?? L.opponentFallback) : room.hostName;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final dotColor = isMyTurn
         ? _kPrimary
         : (isDark ? Colors.white38 : const Color(0xFF9AABB5));
-    final isTr = L.current == AppLocale.tr;
     final tileColor = isDark
         ? (isMyTurn ? const Color(0xFF1A3A2A) : const Color(0xFF1A2030))
         : (isMyTurn ? const Color(0xFFF4F8FA) : const Color(0xFFEAF1F4));
@@ -3073,10 +3073,8 @@ class _MultiplayerGameCard extends StatelessWidget {
     if (lastBy != null && lastScore != null) {
       final byMe =
           (lastBy == 'host' && isHost) || (lastBy == 'guest' && !isHost);
-      final who = byMe ? (isTr ? 'Sen' : 'Tu') : oppName;
-      final sign = lastScore >= 0 ? '+' : '';
-      lastMoveText =
-          isTr ? '$who: $sign$lastScore puan' : '$who: $sign$lastScore xal';
+      final who = byMe ? L.you : oppName;
+      lastMoveText = L.moveScoreLine(who, lastScore);
     }
 
     return Opacity(
@@ -3137,9 +3135,7 @@ class _MultiplayerGameCard extends StatelessWidget {
                       ],
                       const SizedBox(height: 2),
                       Text(
-                        isMyTurn
-                            ? (isTr ? 'Senin sıran' : 'Nöbeta te')
-                            : (isTr ? 'Rakip sırası' : 'Nöbeta hevrik'),
+                        isMyTurn ? L.yourTurnShort : L.opponentTurnShort,
                         style: TextStyle(
                           color: isMyTurn
                               ? _kPrimary.withOpacity(0.8)
@@ -3162,7 +3158,7 @@ class _MultiplayerGameCard extends StatelessWidget {
                       border: Border.all(color: _kPrimary.withOpacity(0.4)),
                     ),
                     child: Text(
-                      isTr ? 'Oyna' : 'Bilîze',
+                      L.play,
                       style: const TextStyle(
                           color: _kPrimary,
                           fontSize: 11,
@@ -3438,33 +3434,21 @@ class _TimeControlSheet extends StatelessWidget {
 
   static const _options = [
     (
-      label: '48 Saat',
-      sublabel: 'Her hamle için 48 saat',
       seconds: 48 * 3600,
       icon: Icons.calendar_today_rounded,
       color: Color(0xFF64B5F6)
     ),
     (
-      label: '24 Saat',
-      sublabel: 'Her hamle için 24 saat',
       seconds: 24 * 3600,
       icon: Icons.wb_sunny_rounded,
       color: Color(0xFFFFB74D)
     ),
     (
-      label: '12 Saat',
-      sublabel: 'Her hamle için 12 saat',
       seconds: 12 * 3600,
       icon: Icons.schedule_rounded,
       color: Color(0xFFBA68C8)
     ),
-    (
-      label: '5 Dakika',
-      sublabel: 'Canlı hızlı oyun',
-      seconds: 5 * 60,
-      icon: Icons.bolt_rounded,
-      color: Color(0xFFFF5252)
-    ),
+    (seconds: 5 * 60, icon: Icons.bolt_rounded, color: Color(0xFFFF5252)),
   ];
 
   @override
@@ -3566,12 +3550,12 @@ class _TimeControlSheet extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(opt.label,
+                                Text(_timeLabel(opt.seconds),
                                     style: TextStyle(
                                         color: titleColor,
                                         fontSize: 16,
                                         fontWeight: FontWeight.bold)),
-                                Text(opt.sublabel,
+                                Text(_timeSublabel(opt.seconds),
                                     style: TextStyle(
                                         color: mutedColor, fontSize: 12)),
                               ],
@@ -3592,6 +3576,24 @@ class _TimeControlSheet extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _timeLabel(int seconds) {
+    if (seconds >= 3600 && seconds % 3600 == 0) {
+      return L.hoursLabel(seconds ~/ 3600);
+    }
+    if (seconds >= 60 && seconds % 60 == 0) {
+      return L.minutesLabel(seconds ~/ 60);
+    }
+    return '$seconds sn';
+  }
+
+  String _timeSublabel(int seconds) {
+    if (seconds >= 3600 && seconds % 3600 == 0) {
+      return L.hoursPerMove(seconds ~/ 3600);
+    }
+    if (seconds == 5 * 60) return L.liveFastGame;
+    return L.timePerMove;
   }
 }
 

@@ -160,6 +160,12 @@ class FerhengService {
         (entry == null || entry.definitionsTr.isEmpty)) {
       return _entryWithTurkishOverride(entry, word, id, overrideTr);
     }
+    if (entry != null && entry.definitionsTr.isEmpty) {
+      final inheritedTr = _turkishGlossForInflectedBase(id);
+      if (inheritedTr != null && inheritedTr.isNotEmpty) {
+        return _entryWithTurkishOverride(entry, word, id, inheritedTr);
+      }
+    }
     if (entry != null && entry.hasAnyDefinition) return entry;
     final inflectedEntry = entry == null ? _entryForInflectedForm(id) : null;
     if (inflectedEntry != null) return inflectedEntry;
@@ -330,6 +336,19 @@ class FerhengService {
     return null;
   }
 
+  String? _turkishGlossForInflectedBase(String word) {
+    final id = _normalize(word);
+    for (final baseId in _inflectionBaseCandidates(id)) {
+      final overrideTr = _trOverrides?[baseId] ?? _legacy?[baseId];
+      if (overrideTr != null && overrideTr.isNotEmpty) return overrideTr;
+      final base = _byId[baseId];
+      if (base != null && base.definitionsTr.isNotEmpty) {
+        return base.definitionsTr.first.gloss;
+      }
+    }
+    return null;
+  }
+
   Iterable<String> _inflectionBaseCandidates(String id) sync* {
     const suffixes = [
       'TIRÎNAN',
@@ -347,7 +366,21 @@ class FerhengService {
       'TIRÊ',
       'TIRÎ',
       'TIR',
+      'IBÛNAN',
+      'IBÛNE',
+      'IBÛN',
+      'ÎBÛNAN',
+      'ÎBÛNE',
+      'ÎBÛN',
       'INAN',
+      'IYÊN',
+      'IYAN',
+      'IYÊ',
+      'IYA',
+      'ÎYÊN',
+      'ÎYAN',
+      'ÎYÊ',
+      'ÎYA',
       'INE',
       'INO',
       'IN',
@@ -364,6 +397,22 @@ class FerhengService {
       'O',
     ];
     final seen = <String>{};
+    const replacements = <({String suffix, String replacement})>[
+      (suffix: 'IBÛNAN', replacement: 'IN'),
+      (suffix: 'IBÛNE', replacement: 'IN'),
+      (suffix: 'IBÛN', replacement: 'IN'),
+      (suffix: 'ÎBÛNAN', replacement: 'ÎN'),
+      (suffix: 'ÎBÛNE', replacement: 'ÎN'),
+      (suffix: 'ÎBÛN', replacement: 'ÎN'),
+    ];
+    for (final rule in replacements) {
+      if (!id.endsWith(rule.suffix) || id.length <= rule.suffix.length + 2) {
+        continue;
+      }
+      final candidate =
+          '${id.substring(0, id.length - rule.suffix.length)}${rule.replacement}';
+      if (seen.add(candidate)) yield candidate;
+    }
     for (final suffix in suffixes) {
       if (!id.endsWith(suffix) || id.length <= suffix.length + 2) continue;
       final candidate = id.substring(0, id.length - suffix.length);

@@ -213,14 +213,21 @@ class _FriendGameScreenState extends State<FriendGameScreen>
   }
 
   void _showWordMeanings(List<String> words) async {
+    final seen = <String>{};
     final uniqueWords = <String>[
       for (final word in words)
-        if (word.trim().isNotEmpty) word.trim()
+        if (word.trim().isNotEmpty && seen.add(word.trim().toUpperCase()))
+          word.trim()
     ];
     if (uniqueWords.isEmpty) return;
     HapticFeedback.selectionClick();
 
-    final meaning = ValueNotifier<String>(L.meaningLoading);
+    final entries = ValueNotifier<List<_MeaningTabEntry>>(
+      uniqueWords
+          .map(
+              (word) => _MeaningTabEntry(word: word, meaning: L.meaningLoading))
+          .toList(growable: false),
+    );
     var dialogOpen = true;
     showGeneralDialog<void>(
       context: context,
@@ -228,18 +235,18 @@ class _FriendGameScreenState extends State<FriendGameScreen>
       barrierLabel: 'word-meaning',
       barrierColor: Colors.transparent,
       transitionDuration: const Duration(milliseconds: 180),
-      pageBuilder: (dialogContext, _, __) => ValueListenableBuilder<String>(
-        valueListenable: meaning,
+      pageBuilder: (dialogContext, _, __) =>
+          ValueListenableBuilder<List<_MeaningTabEntry>>(
+        valueListenable: entries,
         builder: (_, value, ___) => _WordMeaningBubble(
-          word: uniqueWords.join(', '),
-          meaning: value,
+          entries: value,
           onDismiss: () =>
               Navigator.of(dialogContext, rootNavigator: true).maybePop(),
         ),
       ),
     ).whenComplete(() {
       dialogOpen = false;
-      meaning.dispose();
+      entries.dispose();
     });
 
     try {
@@ -250,16 +257,20 @@ class _FriendGameScreenState extends State<FriendGameScreen>
         ),
       ));
       if (!mounted || !dialogOpen) return;
-      meaning.value = results.map((result) {
+      entries.value = results.map((result) {
         final text = result.displayGameMeaning().trim();
-        return '${result.displayWord}: ${text.isEmpty ? L.dictionaryEntryMissingMeaning : text}';
-      }).join('\n\n');
+        return _MeaningTabEntry(
+          word: result.displayWord,
+          meaning: text.isEmpty ? L.dictionaryEntryMissingMeaning : text,
+        );
+      }).toList(growable: false);
     } catch (e) {
       debugPrint('[dictionary_error] $e');
       if (!mounted || !dialogOpen) return;
-      meaning.value = uniqueWords
-          .map((word) => '$word: ${L.dictionaryWordNotFound}')
-          .join('\n\n');
+      entries.value = uniqueWords
+          .map((word) =>
+              _MeaningTabEntry(word: word, meaning: L.dictionaryWordNotFound))
+          .toList(growable: false);
     }
   }
 
@@ -293,9 +304,7 @@ class _FriendGameScreenState extends State<FriendGameScreen>
       _syncFromRoom(room);
       // Sıra bana geldi: banner + ses
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted)
-          _showTurnBanner(
-              L.current == AppLocale.tr ? 'Sıra sende!' : 'Nöbet te!');
+        if (mounted) _showTurnBanner(L.turnIsYours);
       });
       HapticFeedback.mediumImpact();
     } else if (prev == null) {
@@ -496,15 +505,16 @@ class _FriendGameScreenState extends State<FriendGameScreen>
             moveScore: -penalty,
           );
         } catch (e) {
-          if (mounted)
-            setState(
-                () => _error = 'Hata: ${e.toString().split(']').last.trim()}');
+          if (mounted) {
+            setState(() => _error = L.errorPrefix(_cleanError(e)));
+          }
         }
-        if (mounted)
+        if (mounted) {
           setState(() {
             _submitting = false;
-            _error = 'Çalma başarısız! -$penalty puan.';
+            _error = L.stealFailedPenalty(penalty);
           });
+        }
         return;
       }
       // Başarılı çalma — devam et (steal.bonusScore eklenir aşağıda)
@@ -611,8 +621,9 @@ class _FriendGameScreenState extends State<FriendGameScreen>
         });
       }
     } catch (e) {
-      if (mounted)
-        setState(() => _error = 'Hata: ${e.toString().split(']').last.trim()}');
+      if (mounted) {
+        setState(() => _error = L.errorPrefix(_cleanError(e)));
+      }
     }
 
     if (mounted) setState(() => _submitting = false);
@@ -636,8 +647,9 @@ class _FriendGameScreenState extends State<FriendGameScreen>
         guestScore: room.guestScore,
       );
     } catch (e) {
-      if (mounted)
-        setState(() => _error = 'Hata: ${e.toString().split(']').last.trim()}');
+      if (mounted) {
+        setState(() => _error = L.errorPrefix(_cleanError(e)));
+      }
     }
     if (mounted) setState(() => _submitting = false);
   }
@@ -649,7 +661,8 @@ class _FriendGameScreenState extends State<FriendGameScreen>
     final isHost = room.hostUid == widget.myUid;
     final myScore = isHost ? room.hostScore : room.guestScore;
     final oppScore = isHost ? room.guestScore : room.hostScore;
-    final oppName = isHost ? (room.guestName ?? 'Rakip') : room.hostName;
+    final oppName =
+        isHost ? (room.guestName ?? L.opponentFallback) : room.hostName;
 
     final iWon = room.winner == (isHost ? 'host' : 'guest');
     final isDraw = room.winner == 'draw';
@@ -735,8 +748,9 @@ class _FriendGameScreenState extends State<FriendGameScreen>
 
     final room = _room!;
     final isHost = room.hostUid == widget.myUid;
-    final myName = isHost ? room.hostName : (room.guestName ?? 'Sen');
-    final oppName = isHost ? (room.guestName ?? 'Rakip') : room.hostName;
+    final myName = isHost ? room.hostName : (room.guestName ?? L.you);
+    final oppName =
+        isHost ? (room.guestName ?? L.opponentFallback) : room.hostName;
     final myScore = isHost ? room.hostScore : room.guestScore;
     final oppScore = isHost ? room.guestScore : room.hostScore;
     final myTurn = _isMyTurn;
@@ -1024,11 +1038,11 @@ class _FriendGameScreenState extends State<FriendGameScreen>
             backgroundColor: _kCard,
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: const Text('Oyundan çık?',
-                style: TextStyle(color: Colors.white)),
-            content: const Text(
-              'Oyundan ayrılırsanız rakibiniz kazanır.',
-              style: TextStyle(color: Colors.white54),
+            title: Text(L.leaveGameTitle,
+                style: const TextStyle(color: Colors.white)),
+            content: Text(
+              L.leaveGameMessage,
+              style: const TextStyle(color: Colors.white54),
             ),
             actions: [
               TextButton(
@@ -1038,14 +1052,17 @@ class _FriendGameScreenState extends State<FriendGameScreen>
               ),
               TextButton(
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text('Çık',
-                    style: TextStyle(color: Colors.redAccent)),
+                child: Text(L.leaveGameAction,
+                    style: const TextStyle(color: Colors.redAccent)),
               ),
             ],
           ),
         ) ??
         false;
   }
+
+  String _cleanError(Object error) =>
+      error.toString().replaceAll('Exception: ', '').split(']').last.trim();
 }
 
 // ── Header ────────────────────────────────────────────────────────
@@ -1189,7 +1206,7 @@ class _HeaderState extends State<_Header> with TickerProviderStateMixin {
             icon: Icons.flag_rounded,
             color: const Color(0xFFEF5350).withOpacity(0.85),
             onTap: widget.onForfeit,
-            tooltip: 'Terk et',
+            tooltip: L.leaveGameAction,
           ),
         ],
       ),
@@ -1733,14 +1750,22 @@ class _WordPreviewBar extends StatelessWidget {
   }
 }
 
-class _WordMeaningBubble extends StatefulWidget {
+class _MeaningTabEntry {
   final String word;
   final String meaning;
+
+  const _MeaningTabEntry({
+    required this.word,
+    required this.meaning,
+  });
+}
+
+class _WordMeaningBubble extends StatefulWidget {
+  final List<_MeaningTabEntry> entries;
   final VoidCallback onDismiss;
 
   const _WordMeaningBubble({
-    required this.word,
-    required this.meaning,
+    required this.entries,
     required this.onDismiss,
   });
 
@@ -1753,6 +1778,7 @@ class _WordMeaningBubbleState extends State<_WordMeaningBubble>
   late AnimationController _anim;
   late Animation<double> _scale;
   late Animation<double> _fade;
+  int _selectedIndex = 0;
 
   @override
   void initState() {
@@ -1772,6 +1798,11 @@ class _WordMeaningBubbleState extends State<_WordMeaningBubble>
 
   @override
   Widget build(BuildContext context) {
+    final entries = widget.entries;
+    final selected = entries.isEmpty
+        ? const _MeaningTabEntry(word: '', meaning: '')
+        : entries[_selectedIndex.clamp(0, entries.length - 1)];
+
     return SizedBox.expand(
       child: GestureDetector(
         onTap: widget.onDismiss,
@@ -1784,9 +1815,9 @@ class _WordMeaningBubbleState extends State<_WordMeaningBubble>
               child: Material(
                 color: Colors.transparent,
                 child: Container(
-                  constraints: const BoxConstraints(maxWidth: 280),
+                  constraints: const BoxConstraints(maxWidth: 320),
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   decoration: BoxDecoration(
                     color: _kTopStart,
                     borderRadius: BorderRadius.circular(16),
@@ -1808,33 +1839,64 @@ class _WordMeaningBubbleState extends State<_WordMeaningBubble>
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        widget.word,
-                        style: const TextStyle(
-                          color: _kPrimary,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 2,
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            for (var i = 0; i < entries.length; i++) ...[
+                              _MeaningWordTab(
+                                word: entries[i].word,
+                                selected: i == _selectedIndex,
+                                onTap: () {
+                                  HapticFeedback.selectionClick();
+                                  setState(() => _selectedIndex = i);
+                                },
+                              ),
+                              if (i != entries.length - 1)
+                                const SizedBox(width: 7),
+                            ],
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Container(
+                          height: 1, color: Colors.white.withOpacity(0.08)),
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          selected.word,
+                          style: const TextStyle(
+                            color: Color(0xFF81C784),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.2,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 6),
-                      Container(
-                          height: 1, color: Colors.white.withOpacity(0.08)),
-                      const SizedBox(height: 8),
-                      Text(
-                        widget.meaning,
-                        textAlign: TextAlign.start,
-                        style: const TextStyle(
-                          color: Colors.white70,
-                          fontSize: 15,
-                          height: 1.4,
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 180),
+                        child: Align(
+                          key: ValueKey('${selected.word}-${selected.meaning}'),
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            selected.meaning,
+                            textAlign: TextAlign.start,
+                            style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 15,
+                              height: 1.4,
+                            ),
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       Text(
                         L.current == AppLocale.tr
-                            ? 'Kürmanci • dokunarak kapat'
-                            : 'Kurmancî • destê xwe lê bide da bigire',
+                            ? 'Sekmeye dokun • dışarı dokunarak kapat'
+                            : 'Li peyvê bitikîne • derve bitikîne da bigire',
                         style: TextStyle(
                             color: Colors.white.withOpacity(0.25),
                             fontSize: 10),
@@ -1844,6 +1906,51 @@ class _WordMeaningBubbleState extends State<_WordMeaningBubble>
                 ),
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MeaningWordTab extends StatelessWidget {
+  final String word;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _MeaningWordTab({
+    required this.word,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected
+              ? _kPrimary.withOpacity(0.22)
+              : Colors.white.withOpacity(0.06),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected
+                ? const Color(0xFF81C784)
+                : Colors.white.withOpacity(0.12),
+            width: 1,
+          ),
+        ),
+        child: Text(
+          word,
+          style: TextStyle(
+            color: selected ? const Color(0xFFE8F5E9) : Colors.white60,
+            fontSize: 13,
+            fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
+            letterSpacing: 0.6,
           ),
         ),
       ),
@@ -2551,7 +2658,7 @@ class _GameOverCard extends StatelessWidget {
                       const SizedBox(height: 22),
                       // Score comparison
                       _ScoreCompareRow(
-                        label: L.current == AppLocale.tr ? 'Sen' : 'Ez',
+                        label: L.you,
                         score: myScore,
                         accent: accent,
                         highlight: !isDraw && iWon,
