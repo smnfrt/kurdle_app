@@ -47,6 +47,10 @@ class L {
       'Vexwendin neşê hat şandin. Dîsa biceribîne.');
   static String get offlineBanner =>
       _s('İnternet bağlantısı yok', 'Girêdana înternetê tune');
+  static String get privacyPolicy =>
+      _s('Gizlilik Politikası', 'Polîtîkaya Veşartiyê');
+  static String get privacyPolicyUpdated =>
+      _s('Son güncelleme: 16 Mayıs 2026', 'Nûkirina dawî: 16 Gulan 2026');
   static String get waitingAccept => _s('Daveti kabul etmesi bekleniyor...',
       'Li bendê ye ku vexwendinê qebûl bike...');
   static String get inviteFrom =>

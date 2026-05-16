@@ -19,6 +19,7 @@ import 'package:kurdle_app/widgets/ferheng/ferheng_home_screen.dart';
 import 'package:kurdle_app/widgets/how_to_play_screen.dart';
 import 'package:kurdle_app/widgets/onboarding_screen.dart';
 import 'package:kurdle_app/services/onboarding_service.dart';
+import 'package:kurdle_app/widgets/privacy_policy_screen.dart';
 import 'package:kurdle_app/widgets/profile_screen.dart';
 import 'package:kurdle_app/widgets/scrabble_game_screen.dart';
 import 'package:kurdle_app/widgets/daily_challenge_screen.dart';
@@ -4179,6 +4180,15 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                     iconColor: const Color(0xFFFFD54F),
                     label: L.howToPlayShort,
                     onTap: widget.onHowToTap,
+                  ),
+                  _SettingsTile(
+                    icon: Icons.privacy_tip_outlined,
+                    iconColor: const Color(0xFF7E57C2),
+                    label: L.privacyPolicy,
+                    onTap: () => Navigator.push(
+                      context,
+                      appRoute(const PrivacyPolicyScreen()),
+                    ),
                   ),
                   _SettingsTile(
                     icon: Icons.info_outline_rounded,
