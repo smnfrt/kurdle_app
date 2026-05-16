@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kurdle_app/services/app_locale.dart';
@@ -3970,6 +3971,49 @@ class _SettingsSheetState extends State<_SettingsSheet> {
     await SettingsService().save(s);
   }
 
+  // GEÇİCİ: Crashlytics dashboard'unun crash aldığını doğrulamak için.
+  // Test sonrası bu metod + onTap çağıran SettingsTile + import silinecek.
+  Future<void> _confirmCrash(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1A2535),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Color(0xFFFFA726)),
+            SizedBox(width: 10),
+            Text('Test Crash',
+                style: TextStyle(color: Colors.white, fontSize: 18)),
+          ],
+        ),
+        content: const Text(
+          'Uygulama hemen çökecek. Crashlytics dashboard\'a düşmesi 1-5 dakika sürebilir. '
+          'Sadece release build\'de raporlanır (debug\'da kapalı).',
+          style: TextStyle(color: Colors.white70, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Vazgeç',
+                style: TextStyle(color: Color(0xFF64B5F6))),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFD32F2F),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Crash et'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      FirebaseCrashlytics.instance.crash();
+    }
+  }
+
   Future<void> _setSound(bool value) async {
     setState(() => _sound = value);
     SoundService.instance.setEnabled(value);
@@ -4202,6 +4246,14 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                                 : const Color(0xFF53616A),
                             fontSize: 12)),
                     onTap: () => _showAbout(context),
+                  ),
+                  // GEÇİCİ — Crashlytics dashboard'u doğrulamak için.
+                  // Test sonrası bu tile + import + onay diyalogu silinecek.
+                  _SettingsTile(
+                    icon: Icons.bug_report_rounded,
+                    iconColor: const Color(0xFFD32F2F),
+                    label: 'TEST CRASH (geçici)',
+                    onTap: () => _confirmCrash(context),
                   ),
                 ],
               ),
