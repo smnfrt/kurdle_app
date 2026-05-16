@@ -138,6 +138,9 @@ void main() {
     ...loadPlainWords('assets/answers.txt'),
     ...loadPlainWords('assets/kurdish_dictionary.txt'),
     ...loadEntryWords('assets/ferheng/entries.ndjson.gz'),
+    // 1.5M Hunspell surface form'unu da inheritance candidate olarak ekle —
+    // sözlükte entry'si olmayan kelimeler için de TR fallback üretsin.
+    ...loadGzippedPlainWords('assets/ferheng/wordlist.txt.gz'),
   };
 
   var added = 0;
@@ -183,5 +186,15 @@ Iterable<String> loadEntryWords(String path) sync* {
     final map = json.decode(line) as Map<String, dynamic>;
     final id = normalize((map['normalized'] ?? map['word'] ?? '').toString());
     if (id.isNotEmpty) yield id;
+  }
+}
+
+Iterable<String> loadGzippedPlainWords(String path) sync* {
+  final file = File(path);
+  if (!file.existsSync()) return;
+  final text = utf8.decode(gzip.decode(file.readAsBytesSync()));
+  for (final line in const LineSplitter().convert(text)) {
+    final word = normalize(line);
+    if (word.isNotEmpty) yield word;
   }
 }
