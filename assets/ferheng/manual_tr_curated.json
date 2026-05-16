@@ -1,0 +1,8 @@
+{
+  "version": "1.0.0",
+  "source": "manual-curated (user-reported gaps + obvious loanwords)",
+  "licenseNote": "Public domain / dictionary terms — common knowledge translations.",
+  "entries": {
+    "FAY": { "tr": "fay (jeoloji), deprem çizgisi" }
+  }
+}
