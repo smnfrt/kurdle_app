@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:kurdle_app/models/achievement.dart';
 import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/firebase_service.dart';
+import 'package:kurdle_app/services/logging_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Achievement (rozet) yönetimi.
@@ -241,7 +242,9 @@ class AchievementService {
                 entry.key, entry.value as Map<String, dynamic>);
           }
         }
-      } catch (_) {/* bozuk veri — yoksay */}
+      } catch (e) {
+        Log.warn('AchievementService', 'state JSON parse failed — resetting', e);
+      }
     }
     // Eksik tanımlar için default state
     for (final def in definitions) {
@@ -279,7 +282,9 @@ class AchievementService {
         }
       }
       await batch.commit();
-    } catch (_) {/* offline / izin yok */}
+    } catch (e) {
+      Log.warn('AchievementService', 'Firestore sync failed (offline?)', e);
+    }
   }
 
   // ── Progress kaydı ──────────────────────────────────────────────

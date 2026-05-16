@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -157,7 +158,6 @@ class AuthService {
   }
 
   void _log(String method, String code) {
-    // ignore: avoid_print
-    print('[AuthService] $method error: $code');
+    if (kDebugMode) debugPrint('[AuthService] $method error: $code');
   }
 }

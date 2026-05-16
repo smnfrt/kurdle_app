@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart';
+import 'package:kurdle_app/services/logging_service.dart';
 import 'package:kurdle_app/services/settings_service.dart';
 
 class HapticService {
@@ -21,7 +22,8 @@ class HapticService {
     if (!_enabled) return;
     try {
       await _channel.invokeMethod('vibrate', {'pattern': pattern});
-    } catch (_) {
+    } catch (e) {
+      Log.warn('HapticService', 'native channel failed, using system fallback', e);
       await HapticFeedback.selectionClick();
     }
   }

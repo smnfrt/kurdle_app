@@ -13,6 +13,7 @@ import 'package:kurdle_app/services/stats_service.dart';
 import 'package:kurdle_app/domain.dart' show AiDifficulty;
 import 'package:kurdle_app/services/daily_streak_service.dart';
 import 'package:kurdle_app/services/settings_service.dart';
+import 'package:kurdle_app/services/version_service.dart';
 import 'package:kurdle_app/widgets/auth_screen.dart';
 import 'package:kurdle_app/widgets/ferheng/ferheng_home_screen.dart';
 import 'package:kurdle_app/widgets/how_to_play_screen.dart';
@@ -96,7 +97,7 @@ void _showAboutDialog(BuildContext ctx) {
               children: [
                 Text(L.version,
                     style: TextStyle(color: mutedColor, fontSize: 13)),
-                Text('1.0.0',
+                Text(VersionService.currentVersion,
                     style: TextStyle(
                         color: valueColor,
                         fontSize: 13,
@@ -4184,7 +4185,7 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                     iconColor:
                         isDark ? Colors.white38 : const Color(0xFF5A6872),
                     label: L.about,
-                    trailing: Text('v1.0.0',
+                    trailing: Text('v${VersionService.currentVersion}',
                         style: TextStyle(
                             color: isDark
                                 ? Colors.white.withValues(alpha: 0.28)
@@ -5312,6 +5313,7 @@ class _OyunlarimCardState extends State<_OyunlarimCard> {
       final dt = (ts as dynamic).toDate() as DateTime;
       return _timeAgo(dt);
     } catch (_) {
+      // Firestore Timestamp değil — sessizce boş döndür (yaygın)
       return '';
     }
   }

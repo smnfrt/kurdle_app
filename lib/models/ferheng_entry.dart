@@ -227,6 +227,7 @@ class FerhengMeta {
         final dyn = raw as dynamic;
         return dyn.toDate() as DateTime;
       } catch (_) {
+        // Firestore Timestamp değil — yoksay (yaygın, gürültü yapmasın)
         return null;
       }
     }

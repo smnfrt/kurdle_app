@@ -42,6 +42,9 @@ class L {
       _s('Kullanıcı adı ara...', 'Navê bikarhêner bigere...');
   static String get inviteSent =>
       _s('Davet gönderildi!', 'Vexwendin hat şandin!');
+  static String get inviteFailed => _s(
+      'Davet gönderilemedi. Tekrar dene.',
+      'Vexwendin neşê hat şandin. Dîsa biceribîne.');
   static String get waitingAccept => _s('Daveti kabul etmesi bekleniyor...',
       'Li bendê ye ku vexwendinê qebûl bike...');
   static String get inviteFrom =>

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:kurdle_app/services/app_locale.dart';
+import 'package:kurdle_app/services/logging_service.dart';
 
 // ISO 8601 hafta numarası: "2026-W17" formatında döner
 // Hafta Pazartesi başlar; Perşembe hangi yılda düşüyorsa o yılın haftasıdır.
@@ -176,7 +177,11 @@ class FirestoreService {
     }
     // Firebase Auth profilini de senkronize tut — currentUser.displayName her yerde aynı görünsün.
     if (finalName != null && (firebaseUser.displayName ?? '') != finalName) {
-      try { await firebaseUser.updateDisplayName(finalName); } catch (_) {}
+      try {
+        await firebaseUser.updateDisplayName(finalName);
+      } catch (e) {
+        Log.warn('FirestoreService', 'updateDisplayName auth profile sync failed', e);
+      }
     }
   }
 
@@ -185,7 +190,8 @@ class FirestoreService {
       final doc = await _users.doc(uid).get();
       if (!doc.exists) return null;
       return UserProfile.fromDoc(doc);
-    } catch (_) {
+    } catch (e) {
+      Log.warn('FirestoreService', 'getProfile failed', e);
       return null;
     }
   }
@@ -216,7 +222,8 @@ class FirestoreService {
           .map((d) => UserProfile.fromDoc(d))
           .where((p) => p.uid != excludeUid)
           .toList();
-    } catch (_) {
+    } catch (e) {
+      Log.warn('FirestoreService', 'searchUsersByName failed', e);
       return [];
     }
   }
@@ -341,7 +348,8 @@ class FirestoreService {
       return snap.docs
           .map((d) => d.data() as Map<String, dynamic>)
           .toList();
-    } catch (_) {
+    } catch (e) {
+      Log.warn('FirestoreService', 'getRecentGames failed', e);
       return [];
     }
   }
@@ -366,7 +374,8 @@ class FirestoreService {
       return snap.docs.asMap().entries
           .map((e) => LeaderboardEntry.fromDoc(e.value, e.key + 1))
           .toList();
-    } catch (_) {
+    } catch (e) {
+      Log.warn('FirestoreService', '_getLeaderboard failed', e);
       return [];
     }
   }
@@ -579,7 +588,8 @@ class FirestoreService {
         m['status'] == 'active' &&
         (m['p1'] == uid || m['p2'] == uid),
       ).firstOrNull;
-    } catch (_) {
+    } catch (e) {
+      Log.warn('FirestoreService', 'getActiveTournamentMatch failed', e);
       return null;
     }
   }
@@ -627,7 +637,9 @@ class FirestoreService {
       for (final uid in prizes.keys) {
         await _updateLevel(uid, prizes[uid]!);
       }
-    } catch (_) {}
+    } catch (e) {
+      Log.error('FirestoreService', '_awardTournamentPrizes failed', e);
+    }
   }
 
   int _maxRound(List<Map<String, dynamic>> matches) {

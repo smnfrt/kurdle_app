@@ -57,6 +57,7 @@ class GameStore {
     try {
       return records.firstWhere((r) => r.id == activeRecordId);
     } catch (_) {
+      // firstWhere bulamadı — null
       return null;
     }
   }

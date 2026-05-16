@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/firestore_service.dart';
 import 'package:kurdle_app/services/app_locale.dart';
+import 'package:kurdle_app/services/logging_service.dart';
 
 const _kBg = Color(0xFF0F1923);
 const _kSurface = Color(0xFF1A2533);
@@ -73,7 +74,9 @@ class _AuthScreenState extends State<AuthScreen>
     if (user != null) {
       try {
         await FirestoreService.instance.createUserIfNotExists(user);
-      } catch (_) {}
+      } catch (e) {
+        Log.warn('AuthScreen', 'createUserIfNotExists after Google sign-in failed', e);
+      }
       _finish();
     } else {
       setState(() {
@@ -129,7 +132,9 @@ class _AuthScreenState extends State<AuthScreen>
         if (result.user != null) {
           try {
             await FirestoreService.instance.createUserIfNotExists(result.user!);
-          } catch (_) {}
+          } catch (e) {
+            Log.warn('AuthScreen', 'createUserIfNotExists after register failed', e);
+          }
         }
         _finish();
       }

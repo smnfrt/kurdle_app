@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/firebase_service.dart';
+import 'package:kurdle_app/services/logging_service.dart';
 
 class DailyWordService {
   DailyWordService._();
@@ -22,7 +23,8 @@ class DailyWordService {
       final snap = await _dayRef(_todayKey()).get();
       if (!snap.exists) return null;
       return (snap.data() as Map<String, dynamic>?)?['word'] as String?;
-    } catch (_) {
+    } catch (e) {
+      Log.warn('DailyWordService', 'fetchAdminWord failed', e);
       return null;
     }
   }
@@ -39,7 +41,8 @@ class DailyWordService {
           .doc(_todayKey())
           .get();
       return snap.exists;
-    } catch (_) {
+    } catch (e) {
+      Log.warn('DailyWordService', 'hasPlayedToday check failed', e);
       return false;
     }
   }
@@ -83,7 +86,9 @@ class DailyWordService {
 
     try {
       await batch.commit();
-    } catch (_) {}
+    } catch (e) {
+      Log.warn('DailyWordService', 'recordResult commit failed', e);
+    }
   }
 
   // Lokal oturum bayrağı (Firebase olmasa da replay engeller)
@@ -128,7 +133,9 @@ class DailyWordService {
 
     try {
       await batch.commit();
-    } catch (_) {}
+    } catch (e) {
+      Log.warn('DailyWordService', 'recordChallengeResult commit failed', e);
+    }
   }
 
   // Global istatistik: bugün kaç kişi oynadı, kazanma oranı
@@ -148,7 +155,8 @@ class DailyWordService {
         if (k != null) dist[k] = (e.value as int? ?? 0);
       }
       return (totalPlayed: totalPlayed, totalWon: totalWon, distribution: dist);
-    } catch (_) {
+    } catch (e) {
+      Log.warn('DailyWordService', 'fetchTodayStats failed', e);
       return null;
     }
   }

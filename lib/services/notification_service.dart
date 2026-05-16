@@ -1,6 +1,7 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:kurdle_app/services/logging_service.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -150,7 +151,8 @@ class NotificationService {
         uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.time,
       );
-    } catch (_) {
+    } catch (e) {
+      Log.warn('NotificationService', 'exact daily reminder schedule failed, falling back to inexact', e);
       // Tam zamanlı alarm izni yok — yaklaşık zamanlı ile devam et
       await _local.zonedSchedule(
         0,
@@ -195,7 +197,8 @@ class NotificationService {
             UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.time,
       );
-    } catch (_) {
+    } catch (e) {
+      Log.warn('NotificationService', 'exact streak reminder schedule failed, falling back to inexact', e);
       await _local.zonedSchedule(
         1,
         'Peyvok 🔥',
@@ -241,7 +244,8 @@ class NotificationService {
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
         uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
       );
-    } catch (_) {
+    } catch (e) {
+      Log.warn('NotificationService', 'exact tournament reminder schedule failed, falling back to inexact', e);
       await _local.zonedSchedule(
         1,
         '🏆 Turnuva Başlıyor!',

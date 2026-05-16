@@ -5,6 +5,7 @@ import 'package:kurdle_app/route_transitions.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/firestore_service.dart';
+import 'package:kurdle_app/services/logging_service.dart';
 import 'package:kurdle_app/services/multiplayer_service.dart';
 import 'package:kurdle_app/widgets/friend_game_screen.dart';
 
@@ -112,12 +113,20 @@ class _UsernameMatchScreenState extends State<UsernameMatchScreen> {
           );
         }
       });
-    } catch (_) {
-      if (mounted)
-        setState(() {
-          _waitingAccept = false;
-          _inviteRoomCode = null;
-        });
+    } catch (e) {
+      Log.error('UsernameMatchScreen', 'createInviteRoom failed', e);
+      if (!mounted) return;
+      setState(() {
+        _waitingAccept = false;
+        _inviteRoomCode = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(L.inviteFailed),
+          backgroundColor: const Color(0xFFD32F2F),
+          duration: const Duration(seconds: 3),
+        ),
+      );
     }
   }
 

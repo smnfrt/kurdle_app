@@ -5,6 +5,7 @@ import 'package:kurdle_app/models/game_tile.dart';
 import 'package:kurdle_app/models/word_board.dart';
 import 'package:kurdle_app/services/board_layout_service.dart';
 import 'package:kurdle_app/services/language_config.dart';
+import 'package:kurdle_app/services/logging_service.dart';
 import 'package:kurdle_app/services/tile_bag_service.dart';
 
 class MultiplayerRoom {
@@ -255,7 +256,9 @@ class MultiplayerService {
       if ((d['status'] as String? ?? '').startsWith('waiting')) {
         await _rooms.doc(roomCode).delete();
       }
-    } catch (_) {}
+    } catch (e) {
+      Log.warn('MultiplayerService', 'cancelRandomSearch failed', e);
+    }
   }
 
   /// Kullanıcı adıyla davet odası oluştur.
@@ -316,7 +319,9 @@ class MultiplayerService {
   Future<void> declineInvite(String roomCode) async {
     try {
       await _rooms.doc(roomCode).delete();
-    } catch (_) {}
+    } catch (e) {
+      Log.warn('MultiplayerService', 'declineInvite failed', e);
+    }
   }
 
   /// Kullanıcının aktif çok oyunculu oyunlarını gerçek zamanlı izler.
@@ -441,7 +446,9 @@ class MultiplayerService {
         'status': 'finished',
         'winner': isHost ? 'guest' : 'host',
       });
-    } catch (_) {}
+    } catch (e) {
+      Log.warn('MultiplayerService', 'leaveRoom update failed', e);
+    }
   }
 
   static List<Map<String, dynamic>> serializeBoard(WordBoard board) {

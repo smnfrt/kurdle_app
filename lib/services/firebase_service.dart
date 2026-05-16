@@ -1,4 +1,5 @@
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/firestore_service.dart';
 
@@ -22,10 +23,13 @@ class FirebaseService {
       }
     } catch (e) {
       // google-services.json eksik veya network yok — offline modda devam et
-      // ignore: avoid_print
-      print('[FirebaseService] init failed, running offline: $e');
+      if (kDebugMode) debugPrint('[FirebaseService] init failed, running offline: $e');
       // Firebase olmasa bile misafir UID hazırlansın
-      try { await AuthService.instance.initGuestUid(); } catch (_) {}
+      try {
+        await AuthService.instance.initGuestUid();
+      } catch (e2) {
+        if (kDebugMode) debugPrint('[FirebaseService] guest UID init also failed: $e2');
+      }
     }
   }
 }

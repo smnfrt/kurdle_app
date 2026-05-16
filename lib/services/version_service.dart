@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:kurdle_app/services/firebase_service.dart';
+import 'package:kurdle_app/services/logging_service.dart';
 
 enum VersionStatus { ok, updateAvailable, forceUpdate }
 
@@ -24,7 +25,17 @@ class VersionService {
 
   final _db = FirebaseFirestore.instance;
 
-  Future<PackageInfo> loadVersion() async => await PackageInfo.fromPlatform();
+  // pubspec.yaml ile sync kalan, runtime'da bir kez okunan sürüm.
+  // main() içinde loadVersion() bekleyince doldurulur; UI bundan okur.
+  static String currentVersion = '';
+  static String currentBuildNumber = '';
+
+  Future<PackageInfo> loadVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    currentVersion = info.version;
+    currentBuildNumber = info.buildNumber;
+    return info;
+  }
 
   // Firestore'daki config/version dokümanıyla karşılaştırır.
   // Döküman yoksa veya Firebase kapalıysa VersionStatus.ok döner.
@@ -66,7 +77,8 @@ class VersionService {
       }
 
       return VersionCheckResult(status: VersionStatus.ok, currentVersion: current);
-    } catch (_) {
+    } catch (e) {
+      Log.warn('VersionService', 'checkVersion failed', e);
       return VersionCheckResult(status: VersionStatus.ok, currentVersion: current);
     }
   }

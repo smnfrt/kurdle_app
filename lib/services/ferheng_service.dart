@@ -9,6 +9,7 @@ import 'package:kurdle_app/models/ferheng_entry.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/ferheng_repository.dart';
 import 'package:kurdle_app/services/language_config.dart';
+import 'package:kurdle_app/services/logging_service.dart';
 import 'package:kurdle_app/services/word_normalizer.dart';
 import 'package:kurdle_app/services/wordlist_loader.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -95,7 +96,8 @@ class FerhengService {
       _legacy = entries.map(
         (k, v) => MapEntry(k, ((v as Map)['tr'] ?? '').toString()),
       );
-    } catch (_) {
+    } catch (e) {
+      Log.warn('FerhengService', 'legacy bundle load failed', e);
       _legacy = const {};
     }
   }
@@ -110,7 +112,8 @@ class FerhengService {
         return MapEntry(_normalize(k), value.trim());
       })
         ..removeWhere((_, v) => v.isEmpty);
-    } catch (_) {
+    } catch (e) {
+      Log.warn('FerhengService', 'TR overrides bundle load failed', e);
       _trOverrides = const {};
     }
   }
@@ -125,7 +128,8 @@ class FerhengService {
               (m) => m.map((k, v) => MapEntry(k, v.toString())))
           .toList(growable: false);
       _categories = list;
-    } catch (_) {
+    } catch (e) {
+      Log.warn('FerhengService', 'categories bundle load failed', e);
       _categories = const [];
     }
   }
@@ -133,7 +137,9 @@ class FerhengService {
   Future<void> _refreshMeta() async {
     try {
       _meta = await _repo.meta();
-    } catch (_) {/* offline */}
+    } catch (e) {
+      Log.warn('FerhengService', 'meta refresh failed (offline?)', e);
+    }
   }
 
   // ── Lookup ──────────────────────────────────────────────────────
