@@ -4,6 +4,11 @@
 *.pyc
 *.swp
 
+# Yerel screenshot / inceleme dosyaları (repo köküne dökülen geçici PNG'ler)
+/*.png
+/*.jpg
+/*.jpeg
+
 # Firebase service account keys — ASLA commit etme!
 *-firebase-adminsdk-*.json
 service-account*.json

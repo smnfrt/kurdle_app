@@ -87,6 +87,7 @@ class LanguageConfig {
       'X': 8,
     },
     wordAssets: [
+      'assets/ferheng/wordlist.txt.gz',
       'assets/allowed_guesses.txt',
       'assets/answers.txt',
       'assets/ferheng/entries.ndjson.gz',

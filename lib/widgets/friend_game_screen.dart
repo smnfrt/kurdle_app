@@ -814,7 +814,7 @@ class _FriendGameScreenState extends State<FriendGameScreen>
                         Navigator.pop(context);
                       },
                     ),
-                    // Board — zoom/pan destekli, kare alan
+                    // Board — zoom/pan destekli alan
                     Expanded(
                       child: LayoutBuilder(
                         builder: (ctx, constraints) {
@@ -822,16 +822,23 @@ class _FriendGameScreenState extends State<FriendGameScreen>
                               (constraints.maxWidth < constraints.maxHeight
                                   ? constraints.maxWidth
                                   : constraints.maxHeight);
-                          _touchCtrl.viewportSize = Size(size, size);
+                          final viewportHeight = _touchCtrl.panEnabled
+                              ? constraints.maxHeight
+                              : size;
+                          _touchCtrl.viewportSize =
+                              Size(size, viewportHeight);
+                          _touchCtrl.contentSize = Size(size, size);
                           _scheduleInitialBoardZoom();
                           return Stack(
                             clipBehavior: Clip.none,
                             children: [
                               Align(
-                                alignment: const Alignment(0, 0.72),
+                                alignment: _touchCtrl.panEnabled
+                                    ? Alignment.topCenter
+                                    : const Alignment(0, 0.72),
                                 child: SizedBox(
                                   width: size,
-                                  height: size,
+                                  height: viewportHeight,
                                   child: AnimatedContainer(
                                     duration: const Duration(milliseconds: 360),
                                     curve: Curves.easeOut,
