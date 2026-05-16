@@ -38,6 +38,11 @@ android {
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.debug
 
+            // ProGuard / R8 rules — gson TypeToken signature preservation.
+            // flutter_local_notifications gson kullanır; signature silinince
+            // release build'de scheduleDailyReminder hata atıyor.
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+
             // Crashlytics native (NDK) symbol upload — Crashlytics dashboard'da
             // C/C++ stack trace'lerin symbolicate olması için. Dart kodunun
             // obfuscation symbol'leri ayrı: `flutter symbolize` ile decode edilir.
