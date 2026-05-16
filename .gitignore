@@ -17,6 +17,7 @@ service-account*.json
 tools/ferheng_pipeline/.venv/
 # Wiktionary translations extraction intermediate (regenerable from raw dump)
 tool/wiktionary_tr_translations.json
+tool/trwiktionary_kmr_to_tr.json
 tools/ferheng_pipeline/raw/
 tools/ferheng_pipeline/build/
 tools/ferheng_pipeline/__pycache__/
