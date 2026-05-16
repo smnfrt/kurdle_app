@@ -40,10 +40,10 @@ void _showAboutDialog(BuildContext ctx) {
   final dialogBg = isDark ? const Color(0xFF1A2535) : const Color(0xFFF4F8FA);
   final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
   final mutedColor =
-      isDark ? Colors.white.withOpacity(0.45) : const Color(0xFF52636E);
+      isDark ? Colors.white.withValues(alpha: 0.45) : const Color(0xFF52636E);
   final valueColor = isDark ? Colors.white70 : const Color(0xFF25313A);
   final dividerColor =
-      isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFD6E1E7);
+      isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFD6E1E7);
   showDialog(
     context: ctx,
     builder: (_) => Dialog(
@@ -64,7 +64,7 @@ void _showAboutDialog(BuildContext ctx) {
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                      color: _kPrimary.withOpacity(0.35),
+                      color: _kPrimary.withValues(alpha: 0.35),
                       blurRadius: 14,
                       offset: const Offset(0, 4)),
                 ],
@@ -125,7 +125,7 @@ void _showAboutDialog(BuildContext ctx) {
                   Navigator.pop(ctx);
                 },
                 style: TextButton.styleFrom(
-                  backgroundColor: _kPrimary.withOpacity(0.12),
+                  backgroundColor: _kPrimary.withValues(alpha: 0.12),
                   foregroundColor: _kPrimary,
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
@@ -143,7 +143,7 @@ void _showAboutDialog(BuildContext ctx) {
 }
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -392,11 +392,11 @@ class _HomeScreenState extends State<HomeScreen>
             colors: [Color(0xFFF4F8FA), Color(0xFFE6EEF2)],
           );
     final topGlow = isDark
-        ? const Color(0xFF4CAF50).withOpacity(0.07)
-        : const Color(0xFF4CAF50).withOpacity(0.10);
+        ? const Color(0xFF4CAF50).withValues(alpha: 0.07)
+        : const Color(0xFF4CAF50).withValues(alpha: 0.10);
     final bottomGlow = isDark
-        ? const Color(0xFF6CC0F5).withOpacity(0.05)
-        : const Color(0xFFB8C8D0).withOpacity(0.22);
+        ? const Color(0xFF6CC0F5).withValues(alpha: 0.05)
+        : const Color(0xFFB8C8D0).withValues(alpha: 0.22);
 
     return Scaffold(
       body: Stack(
@@ -608,7 +608,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  void _showOptionsMenu(BuildContext btnCtx) {
+  Future<void> _showOptionsMenu(BuildContext btnCtx) async {
     final RenderBox btn = btnCtx.findRenderObject() as RenderBox;
     final RenderBox overlay =
         Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
@@ -622,7 +622,7 @@ class _HomeScreenState extends State<HomeScreen>
     final isSignedIn =
         AuthService.instance.isSignedIn && !AuthService.instance.isAnonymous;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    showMenu<String>(
+    final val = await showMenu<String>(
       context: context,
       position: position,
       color: isDark ? const Color(0xFF1E2A3A) : const Color(0xFFF4F8FA),
@@ -630,8 +630,8 @@ class _HomeScreenState extends State<HomeScreen>
         borderRadius: BorderRadius.circular(14),
         side: BorderSide(
           color: isDark
-              ? Colors.white.withOpacity(0.08)
-              : const Color(0xFF78868F).withOpacity(0.65),
+              ? Colors.white.withValues(alpha: 0.08)
+              : const Color(0xFF78868F).withValues(alpha: 0.65),
         ),
       ),
       elevation: 12,
@@ -665,21 +665,21 @@ class _HomeScreenState extends State<HomeScreen>
             ),
         ],
       ],
-    ).then((val) {
-      if (val == 'ferheng') {
-        Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => const FerhengHomeScreen(),
-        ));
-      } else if (val == 'how_to_play') {
-        _showHowTo(context);
-      } else if (val == 'about') {
-        _showAboutDialog(context);
-      } else if (val == 'google_signin') {
-        _doGoogleSignIn();
-      } else if (val == 'signout') {
-        _doSignOut();
-      }
-    });
+    );
+    if (!mounted || val == null) return;
+    if (val == 'ferheng') {
+      Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => const FerhengHomeScreen(),
+      ));
+    } else if (val == 'how_to_play') {
+      _showHowTo(context);
+    } else if (val == 'about') {
+      _showAboutDialog(context);
+    } else if (val == 'google_signin') {
+      _doGoogleSignIn();
+    } else if (val == 'signout') {
+      _doSignOut();
+    }
   }
 
   Future<void> _doGoogleSignIn() async {
@@ -737,12 +737,13 @@ class _SiralamalarCardState extends State<_SiralamalarCard> {
     }
     final weekly = await FirestoreService.instance.getWeeklyLeaderboard();
     final allTime = await FirestoreService.instance.getAllTimeLeaderboard();
-    if (mounted)
+    if (mounted) {
       setState(() {
         _weekly = weekly;
         _allTime = allTime;
         _loading = false;
       });
+    }
   }
 
   @override
@@ -750,17 +751,17 @@ class _SiralamalarCardState extends State<_SiralamalarCard> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark ? Colors.white : const Color(0xFF202830);
     final mutedColor =
-        isDark ? Colors.white.withOpacity(0.4) : const Color(0xFF67727A);
+        isDark ? Colors.white.withValues(alpha: 0.4) : const Color(0xFF67727A);
     final dividerColor = isDark
-        ? Colors.white.withOpacity(0.05)
-        : const Color(0xFF96A2AA).withOpacity(0.42);
+        ? Colors.white.withValues(alpha: 0.05)
+        : const Color(0xFF96A2AA).withValues(alpha: 0.42);
     if (_loading) {
       return Container(
         height: 104,
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF141E2B) : const Color(0xFFF4F8FA),
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: _kGold.withOpacity(0.25), width: 1.2),
+          border: Border.all(color: _kGold.withValues(alpha: 0.25), width: 1.2),
         ),
         child: const Center(
             child: CircularProgressIndicator(color: _kGold, strokeWidth: 2)),
@@ -795,14 +796,14 @@ class _SiralamalarCardState extends State<_SiralamalarCard> {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
             color: isDark
-                ? _kGold.withOpacity(0.25)
-                : const Color(0xFF8E9AA2).withOpacity(0.60),
+                ? _kGold.withValues(alpha: 0.25)
+                : const Color(0xFF8E9AA2).withValues(alpha: 0.60),
             width: 1.2),
         boxShadow: [
           BoxShadow(
               color: isDark
-                  ? Colors.black.withOpacity(0.2)
-                  : const Color(0xFF7F8D95).withOpacity(0.22),
+                  ? Colors.black.withValues(alpha: 0.2)
+                  : const Color(0xFF7F8D95).withValues(alpha: 0.22),
               blurRadius: 14,
               offset: const Offset(0, 5))
         ],
@@ -883,7 +884,8 @@ class _SiralamalarCardState extends State<_SiralamalarCard> {
                                       style: TextStyle(
                                         color: entry.isMe
                                             ? _kPrimary
-                                            : titleColor.withOpacity(0.78),
+                                            : titleColor.withValues(
+                                                alpha: 0.78),
                                         fontSize: 12,
                                         fontWeight: entry.isMe
                                             ? FontWeight.bold
@@ -940,7 +942,8 @@ class _SiralamalarCardState extends State<_SiralamalarCard> {
                                 padding: const EdgeInsets.only(bottom: 4),
                                 child: Text('/ ${board.length}',
                                     style: TextStyle(
-                                        color: mutedColor.withOpacity(0.75),
+                                        color:
+                                            mutedColor.withValues(alpha: 0.75),
                                         fontSize: 12)),
                               ),
                             ],
@@ -950,10 +953,10 @@ class _SiralamalarCardState extends State<_SiralamalarCard> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: _kPrimary.withOpacity(0.1),
+                              color: _kPrimary.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
-                              border:
-                                  Border.all(color: _kPrimary.withOpacity(0.3)),
+                              border: Border.all(
+                                  color: _kPrimary.withValues(alpha: 0.3)),
                             ),
                             child: Text('${_fmtScore(myScore!)} ${L.points}',
                                 style: const TextStyle(
@@ -1006,23 +1009,25 @@ class _TabBtn extends StatelessWidget {
           onTap();
         },
         borderRadius: BorderRadius.circular(8),
-        splashColor: _kGold.withOpacity(0.15),
-        highlightColor: _kGold.withOpacity(0.08),
+        splashColor: _kGold.withValues(alpha: 0.15),
+        highlightColor: _kGold.withValues(alpha: 0.08),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
-            color: active ? _kGold.withOpacity(0.15) : Colors.transparent,
+            color: active ? _kGold.withValues(alpha: 0.15) : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-                color: active ? _kGold.withOpacity(0.5) : Colors.transparent),
+                color: active
+                    ? _kGold.withValues(alpha: 0.5)
+                    : Colors.transparent),
           ),
           child: Text(label,
               style: TextStyle(
                 color: active
                     ? _kGold
                     : isDark
-                        ? Colors.white.withOpacity(0.35)
+                        ? Colors.white.withValues(alpha: 0.35)
                         : const Color(0xFF69747C),
                 fontSize: 10,
                 fontWeight: active ? FontWeight.bold : FontWeight.normal,
@@ -1130,21 +1135,21 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
             ),
             border: Border.all(
               color: isDark
-                  ? const Color(0xFF7C4DFF).withOpacity(0.22 + 0.10 * t)
-                  : const Color(0xFF7C8792).withOpacity(0.55),
+                  ? const Color(0xFF7C4DFF).withValues(alpha: 0.22 + 0.10 * t)
+                  : const Color(0xFF7C8792).withValues(alpha: 0.55),
               width: 1,
             ),
             boxShadow: [
               BoxShadow(
                 color: isDark
-                    ? const Color(0xFF7C4DFF).withOpacity(0.18 + 0.06 * t)
-                    : const Color(0xFF7F8992).withOpacity(0.22),
+                    ? const Color(0xFF7C4DFF).withValues(alpha: 0.18 + 0.06 * t)
+                    : const Color(0xFF7F8992).withValues(alpha: 0.22),
                 blurRadius: 24,
                 spreadRadius: -4,
                 offset: const Offset(0, 10),
               ),
               BoxShadow(
-                color: Colors.black.withOpacity(isDark ? 0.40 : 0.08),
+                color: Colors.black.withValues(alpha: isDark ? 0.40 : 0.08),
                 blurRadius: 14,
                 offset: const Offset(0, 6),
               ),
@@ -1169,7 +1174,7 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryText = isDark ? Colors.white70 : const Color(0xFF30363D);
     final mutedText =
-        isDark ? Colors.white.withOpacity(0.45) : const Color(0xFF6D7680);
+        isDark ? Colors.white.withValues(alpha: 0.45) : const Color(0xFF6D7680);
     return Padding(
       padding: const EdgeInsets.all(10),
       child: Column(
@@ -1193,10 +1198,10 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF4CAF50).withOpacity(0.15),
+                    color: const Color(0xFF4CAF50).withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                        color: const Color(0xFF4CAF50).withOpacity(0.4)),
+                        color: const Color(0xFF4CAF50).withValues(alpha: 0.4)),
                   ),
                   child: Text(L.alreadyPlayed,
                       style: const TextStyle(
@@ -1277,22 +1282,24 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
             children: [
               if (_challengePlays > 0) ...[
                 Icon(Icons.people_alt_rounded,
-                    color: const Color(0xFFB39DDB).withOpacity(0.5), size: 12),
+                    color: const Color(0xFFB39DDB).withValues(alpha: 0.5),
+                    size: 12),
                 const SizedBox(width: 4),
                 Text(
                   '$_challengePlays',
                   style: TextStyle(
-                      color: const Color(0xFFB39DDB).withOpacity(0.5),
+                      color: const Color(0xFFB39DDB).withValues(alpha: 0.5),
                       fontSize: 10),
                 ),
                 const SizedBox(width: 8),
                 Icon(Icons.emoji_events_rounded,
-                    color: const Color(0xFFFFD700).withOpacity(0.5), size: 12),
+                    color: const Color(0xFFFFD700).withValues(alpha: 0.5),
+                    size: 12),
                 const SizedBox(width: 4),
                 Text(
                   '$_perfectRuns',
                   style: TextStyle(
-                      color: const Color(0xFFFFD700).withOpacity(0.5),
+                      color: const Color(0xFFFFD700).withValues(alpha: 0.5),
                       fontSize: 10),
                 ),
               ],
@@ -1303,12 +1310,12 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.timer_outlined,
-                        color: mutedText.withOpacity(0.8), size: 12),
+                        color: mutedText.withValues(alpha: 0.8), size: 12),
                     const SizedBox(width: 4),
                     Text(
                       _nextResetCountdown(),
                       style: TextStyle(
-                          color: mutedText.withOpacity(0.8),
+                          color: mutedText.withValues(alpha: 0.8),
                           fontSize: 11,
                           fontFamily: 'monospace'),
                     ),
@@ -1327,7 +1334,8 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: [
                         BoxShadow(
-                            color: const Color(0xFF7C4DFF).withOpacity(0.35),
+                            color:
+                                const Color(0xFF7C4DFF).withValues(alpha: 0.35),
                             blurRadius: 10,
                             offset: const Offset(0, 3)),
                       ],
@@ -1374,16 +1382,20 @@ class _StagePreview extends StatelessWidget {
         duration: const Duration(milliseconds: 300),
         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 7),
         decoration: BoxDecoration(
-          color: isActive ? color.withOpacity(0.16) : color.withOpacity(0.07),
+          color: isActive
+              ? color.withValues(alpha: 0.16)
+              : color.withValues(alpha: 0.07),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isActive ? color.withOpacity(0.7) : color.withOpacity(0.25),
+            color: isActive
+                ? color.withValues(alpha: 0.7)
+                : color.withValues(alpha: 0.25),
             width: isActive ? 1.5 : 1.0,
           ),
           boxShadow: isActive
               ? [
                   BoxShadow(
-                      color: color.withOpacity(0.35),
+                      color: color.withValues(alpha: 0.35),
                       blurRadius: 10,
                       spreadRadius: 1)
                 ]
@@ -1416,7 +1428,7 @@ class _StagePreview extends StatelessWidget {
             Text(seconds,
                 style: TextStyle(
                     color: isDark
-                        ? Colors.white.withOpacity(0.35)
+                        ? Colors.white.withValues(alpha: 0.35)
                         : const Color(0xFF6B747D),
                     fontSize: 10)),
           ],
@@ -1452,7 +1464,7 @@ class _StreakRiskBanner extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFFFF3D00).withOpacity(0.35),
+                color: const Color(0xFFFF3D00).withValues(alpha: 0.35),
                 blurRadius: 14,
                 spreadRadius: -2,
                 offset: const Offset(0, 4),
@@ -1465,7 +1477,7 @@ class _StreakRiskBanner extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.18),
+                  color: Colors.white.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(Icons.local_fire_department_rounded,
@@ -1492,7 +1504,7 @@ class _StreakRiskBanner extends StatelessWidget {
                           ? 'Bugün oyna, serini koru.'
                           : 'Îro bilîze, rêza xwe biparêze.',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.92),
+                        color: Colors.white.withValues(alpha: 0.92),
                         fontSize: 12.5,
                       ),
                     ),
@@ -1544,7 +1556,7 @@ class _QuickPlayCardState extends State<_QuickPlayCard>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark ? Colors.white : const Color(0xFF17201B);
     final subtitleColor =
-        isDark ? Colors.white.withOpacity(0.62) : const Color(0xFF344238);
+        isDark ? Colors.white.withValues(alpha: 0.62) : const Color(0xFF344238);
     return AnimatedBuilder(
       animation: _pulse,
       builder: (_, __) {
@@ -1569,26 +1581,27 @@ class _QuickPlayCardState extends State<_QuickPlayCard>
                     ? [
                         BoxShadow(
                           color: const Color(0xFF1B5E20)
-                              .withOpacity(0.28 + 0.10 * t),
+                              .withValues(alpha: 0.28 + 0.10 * t),
                           blurRadius: 32,
                           spreadRadius: -4,
                           offset: const Offset(0, 14),
                         ),
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.45),
+                          color: Colors.black.withValues(alpha: 0.45),
                           blurRadius: 16,
                           offset: const Offset(0, 6),
                         ),
                       ]
                     : [
                         BoxShadow(
-                          color: const Color(0xFF7C8980).withOpacity(0.26),
+                          color:
+                              const Color(0xFF7C8980).withValues(alpha: 0.26),
                           blurRadius: 24,
                           spreadRadius: -8,
                           offset: const Offset(0, 14),
                         ),
                         BoxShadow(
-                          color: Colors.white.withOpacity(0.45),
+                          color: Colors.white.withValues(alpha: 0.45),
                           blurRadius: 10,
                           offset: const Offset(0, -2),
                         ),
@@ -1619,8 +1632,10 @@ class _QuickPlayCardState extends State<_QuickPlayCard>
                               center: Alignment(-0.4 + 0.3 * t, -0.5),
                               radius: 1.2,
                               colors: [
-                                const Color(0xFF66E093).withOpacity(
-                                    isDark ? 0.35 + 0.10 * t : 0.14 + 0.05 * t),
+                                const Color(0xFF66E093).withValues(
+                                    alpha: isDark
+                                        ? 0.35 + 0.10 * t
+                                        : 0.14 + 0.05 * t),
                                 Colors.transparent,
                               ],
                             ),
@@ -1640,7 +1655,7 @@ class _QuickPlayCardState extends State<_QuickPlayCard>
                             begin: Alignment.topCenter,
                             end: Alignment.bottomCenter,
                             colors: [
-                              Colors.white.withOpacity(0.10),
+                              Colors.white.withValues(alpha: 0.10),
                               Colors.transparent,
                             ],
                           ),
@@ -1656,8 +1671,9 @@ class _QuickPlayCardState extends State<_QuickPlayCard>
                             border: Border.all(
                               color: isDark
                                   ? const Color(0xFF66E093)
-                                      .withOpacity(0.30 + 0.18 * t)
-                                  : const Color(0xFF74A184).withOpacity(0.55),
+                                      .withValues(alpha: 0.30 + 0.18 * t)
+                                  : const Color(0xFF74A184)
+                                      .withValues(alpha: 0.55),
                               width: 1,
                             ),
                           ),
@@ -1688,12 +1704,12 @@ class _QuickPlayCardState extends State<_QuickPlayCard>
                                     Icon(
                                       Icons.flash_on_rounded,
                                       color: const Color(0xFFFFD27A)
-                                          .withOpacity(0.85 + 0.15 * t),
+                                          .withValues(alpha: 0.85 + 0.15 * t),
                                       size: 19,
                                       shadows: [
                                         Shadow(
                                           color: const Color(0xFFFFB300)
-                                              .withOpacity(0.55),
+                                              .withValues(alpha: 0.55),
                                           blurRadius: 10,
                                         ),
                                       ],
@@ -1729,7 +1745,7 @@ class _QuickPlayCardState extends State<_QuickPlayCard>
                                     shape: BoxShape.circle,
                                     border: Border.all(
                                       color: Colors.white
-                                          .withOpacity(0.10 + 0.10 * t),
+                                          .withValues(alpha: 0.10 + 0.10 * t),
                                       width: 1.2,
                                     ),
                                   ),
@@ -1751,13 +1767,13 @@ class _QuickPlayCardState extends State<_QuickPlayCard>
                                     boxShadow: [
                                       BoxShadow(
                                         color: Colors.white
-                                            .withOpacity(0.30 + 0.15 * t),
+                                            .withValues(alpha: 0.30 + 0.15 * t),
                                         blurRadius: 16,
                                         spreadRadius: 1,
                                       ),
                                       BoxShadow(
                                         color: const Color(0xFF1B5E20)
-                                            .withOpacity(0.4),
+                                            .withValues(alpha: 0.4),
                                         blurRadius: 8,
                                         offset: const Offset(0, 3),
                                       ),
@@ -1808,12 +1824,12 @@ class _QuickPlayDifficultySheet extends StatelessWidget {
           borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           border: Border.all(
             color: isDark
-                ? Colors.white.withOpacity(0.08)
-                : Colors.white.withOpacity(0.24),
+                ? Colors.white.withValues(alpha: 0.08)
+                : Colors.white.withValues(alpha: 0.24),
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(isDark ? 0.35 : 0.18),
+              color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.18),
               blurRadius: 24,
               offset: const Offset(0, -8),
             ),
@@ -1831,7 +1847,7 @@ class _QuickPlayDifficultySheet extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: isDark
                       ? Colors.white24
-                      : const Color(0xFF71808A).withOpacity(0.55),
+                      : const Color(0xFF71808A).withValues(alpha: 0.55),
                   borderRadius: BorderRadius.circular(99),
                 ),
               ),
@@ -1902,25 +1918,25 @@ class _DifficultyOption extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark ? Colors.white : const Color(0xFF1C252B);
     final subtitleColor =
-        isDark ? Colors.white.withOpacity(0.46) : const Color(0xFF56626B);
+        isDark ? Colors.white.withValues(alpha: 0.46) : const Color(0xFF56626B);
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
-        splashColor: color.withOpacity(0.12),
+        splashColor: color.withValues(alpha: 0.12),
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: isDark
-                ? Colors.white.withOpacity(0.05)
-                : Colors.white.withOpacity(0.18),
+                ? Colors.white.withValues(alpha: 0.05)
+                : Colors.white.withValues(alpha: 0.18),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: isDark
-                  ? Colors.white.withOpacity(0.08)
-                  : const Color(0xFF7D8C95).withOpacity(0.45),
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : const Color(0xFF7D8C95).withValues(alpha: 0.45),
             ),
           ),
           child: Row(
@@ -1929,7 +1945,7 @@ class _DifficultyOption extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: color.withOpacity(isDark ? 0.14 : 0.18),
+                  color: color.withValues(alpha: isDark ? 0.14 : 0.18),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(icon, color: color, size: 23),
@@ -2048,17 +2064,17 @@ class _GamePairPanelState extends State<_GamePairPanel> {
     final subtitleColor = isDark ? Colors.white38 : const Color(0xFF3F4E58);
     final chevronColor = isDark ? Colors.white38 : const Color(0xFF52636E);
     final dividerColor =
-        isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFD8E2E7);
+        isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFD8E2E7);
     final panelBorderColor = isDark
-        ? Colors.white.withOpacity(0.10)
-        : const Color(0xFFFFFFFF).withOpacity(0.85);
+        ? Colors.white.withValues(alpha: 0.10)
+        : const Color(0xFFFFFFFF).withValues(alpha: 0.85);
     final panelShadowColor = isDark
-        ? Colors.black.withOpacity(0.28)
-        : const Color(0xFF758691).withOpacity(0.18);
+        ? Colors.black.withValues(alpha: 0.28)
+        : const Color(0xFF758691).withValues(alpha: 0.18);
     final newGameIconBg =
-        isDark ? _kPrimary.withOpacity(0.12) : const Color(0xFFE8F7ED);
+        isDark ? _kPrimary.withValues(alpha: 0.12) : const Color(0xFFE8F7ED);
     final myGamesIconBg =
-        isDark ? _kGold.withOpacity(0.12) : const Color(0xFFFFF4DA);
+        isDark ? _kGold.withValues(alpha: 0.12) : const Color(0xFFFFF4DA);
     final titleWeight = isDark ? FontWeight.bold : FontWeight.w800;
     final subtitleWeight = isDark ? FontWeight.normal : FontWeight.w700;
     final store = GameStore.instance;
@@ -2105,7 +2121,7 @@ class _GamePairPanelState extends State<_GamePairPanel> {
                           onTap: () => _showNewGameSheet(context),
                           borderRadius: const BorderRadius.horizontal(
                               left: Radius.circular(17)),
-                          splashColor: _kPrimary.withOpacity(0.10),
+                          splashColor: _kPrimary.withValues(alpha: 0.10),
                           child: Padding(
                             padding: const EdgeInsets.fromLTRB(16, 22, 12, 22),
                             child: Row(
@@ -2117,8 +2133,8 @@ class _GamePairPanelState extends State<_GamePairPanel> {
                                     color: newGameIconBg,
                                     borderRadius: BorderRadius.circular(12),
                                     border: Border.all(
-                                        color: _kPrimary
-                                            .withOpacity(isDark ? 0.3 : 0.45)),
+                                        color: _kPrimary.withValues(
+                                            alpha: isDark ? 0.3 : 0.45)),
                                   ),
                                   child: const Icon(
                                       Icons.play_circle_fill_rounded,
@@ -2176,7 +2192,7 @@ class _GamePairPanelState extends State<_GamePairPanel> {
                     onTap: () => _showMyGamesSheet(context),
                     borderRadius: const BorderRadius.horizontal(
                         right: Radius.circular(17)),
-                    splashColor: _kGold.withOpacity(0.10),
+                    splashColor: _kGold.withValues(alpha: 0.10),
                     child: Padding(
                       padding: const EdgeInsets.fromLTRB(12, 22, 16, 22),
                       child: Row(
@@ -2191,8 +2207,8 @@ class _GamePairPanelState extends State<_GamePairPanel> {
                                   color: myGamesIconBg,
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
-                                      color: _kGold
-                                          .withOpacity(isDark ? 0.3 : 0.5)),
+                                      color: _kGold.withValues(
+                                          alpha: isDark ? 0.3 : 0.5)),
                                 ),
                                 child: const Icon(Icons.grid_view_rounded,
                                     color: _kGold, size: 24),
@@ -2301,9 +2317,9 @@ class _NewGameSheet extends StatelessWidget {
     final sheetBg = isDark ? const Color(0xFF101824) : const Color(0xFFE6EEF2);
     final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
     final mutedColor =
-        isDark ? Colors.white.withOpacity(0.40) : const Color(0xFF52636E);
+        isDark ? Colors.white.withValues(alpha: 0.40) : const Color(0xFF52636E);
     final handleColor =
-        isDark ? Colors.white.withOpacity(0.15) : const Color(0xFF9AABB5);
+        isDark ? Colors.white.withValues(alpha: 0.15) : const Color(0xFF9AABB5);
     return Container(
       decoration: BoxDecoration(
         color: sheetBg,
@@ -2330,9 +2346,9 @@ class _NewGameSheet extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: _kPrimary.withOpacity(0.14),
+                  color: _kPrimary.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: _kPrimary.withOpacity(0.35)),
+                  border: Border.all(color: _kPrimary.withValues(alpha: 0.35)),
                 ),
                 child: const Icon(Icons.play_circle_fill_rounded,
                     color: _kPrimary, size: 24),
@@ -2397,11 +2413,11 @@ class _SheetOption extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final tileBg = isDark ? const Color(0xFF1A2535) : const Color(0xFFF4F8FA);
     final borderColor = isDark
-        ? Colors.white.withOpacity(0.06)
-        : const Color(0xFF7B8992).withOpacity(0.55);
+        ? Colors.white.withValues(alpha: 0.06)
+        : const Color(0xFF7B8992).withValues(alpha: 0.55);
     final textColor = isDark ? Colors.white70 : const Color(0xFF25313A);
     final chevronColor =
-        isDark ? Colors.white.withOpacity(0.18) : const Color(0xFF5E6B74);
+        isDark ? Colors.white.withValues(alpha: 0.18) : const Color(0xFF5E6B74);
     return Material(
       color: tileBg,
       shape: RoundedRectangleBorder(
@@ -2414,7 +2430,7 @@ class _SheetOption extends StatelessWidget {
           onTap();
         },
         borderRadius: BorderRadius.circular(16),
-        splashColor: color.withOpacity(0.10),
+        splashColor: color.withValues(alpha: 0.10),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           child: Row(
@@ -2423,9 +2439,9 @@ class _SheetOption extends StatelessWidget {
                 width: 46,
                 height: 46,
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.12),
+                  color: color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: color.withOpacity(0.3)),
+                  border: Border.all(color: color.withValues(alpha: 0.3)),
                 ),
                 child: Icon(icon, color: color, size: 22),
               ),
@@ -2475,15 +2491,19 @@ class _MyGamesSheetState extends State<_MyGamesSheet>
 
   static String _timeAgo(DateTime t) {
     final d = DateTime.now().difference(t);
-    if (d.inSeconds < 60) return L.current == AppLocale.tr ? 'Az önce' : 'Nû';
-    if (d.inMinutes < 60)
+    if (d.inSeconds < 60) {
+      return L.current == AppLocale.tr ? 'Az önce' : 'Nû';
+    }
+    if (d.inMinutes < 60) {
       return L.current == AppLocale.tr
           ? '${d.inMinutes} dk önce'
           : '${d.inMinutes} xul berê';
-    if (d.inHours < 24)
+    }
+    if (d.inHours < 24) {
       return L.current == AppLocale.tr
           ? '${d.inHours} sa önce'
           : '${d.inHours} st berê';
+    }
     return L.current == AppLocale.tr
         ? '${d.inDays} gün önce'
         : '${d.inDays} roj berê';
@@ -2525,11 +2545,11 @@ class _MyGamesSheetState extends State<_MyGamesSheet>
     final sheetBg = isDark ? const Color(0xFF101824) : const Color(0xFFE6EEF2);
     final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
     final tabBg =
-        isDark ? Colors.white.withOpacity(0.06) : const Color(0xFFF4F8FA);
+        isDark ? Colors.white.withValues(alpha: 0.06) : const Color(0xFFF4F8FA);
     final handleColor =
-        isDark ? Colors.white.withOpacity(0.15) : const Color(0xFF9AABB5);
+        isDark ? Colors.white.withValues(alpha: 0.15) : const Color(0xFF9AABB5);
     final selectedTabColor =
-        isDark ? _kPrimary.withOpacity(0.2) : const Color(0xFFE8F7ED);
+        isDark ? _kPrimary.withValues(alpha: 0.2) : const Color(0xFFE8F7ED);
     final unselectedTabColor =
         isDark ? Colors.white54 : const Color(0xFF667681);
 
@@ -2602,9 +2622,9 @@ class _MyGamesSheetState extends State<_MyGamesSheet>
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: _kGold.withOpacity(0.14),
+                    color: _kGold.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: _kGold.withOpacity(0.35)),
+                    border: Border.all(color: _kGold.withValues(alpha: 0.35)),
                   ),
                   child: const Icon(Icons.grid_view_rounded,
                       color: _kGold, size: 24),
@@ -2628,7 +2648,7 @@ class _MyGamesSheetState extends State<_MyGamesSheet>
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: isDark
-                      ? Colors.white.withOpacity(0.06)
+                      ? Colors.white.withValues(alpha: 0.06)
                       : const Color(0xFFD6E1E7),
                 ),
               ),
@@ -2637,7 +2657,7 @@ class _MyGamesSheetState extends State<_MyGamesSheet>
                 indicator: BoxDecoration(
                   color: selectedTabColor,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: _kPrimary.withOpacity(0.5)),
+                  border: Border.all(color: _kPrimary.withValues(alpha: 0.5)),
                 ),
                 indicatorSize: TabBarIndicatorSize.tab,
                 dividerColor: Colors.transparent,
@@ -2737,9 +2757,9 @@ class _TabBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.25),
+        color: color.withValues(alpha: 0.25),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withOpacity(0.5)),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Text(
         '$count',
@@ -2762,8 +2782,9 @@ class _EmptyHint extends StatelessWidget {
       child: Text(
         text,
         style: TextStyle(
-          color:
-              isDark ? Colors.white.withOpacity(0.25) : const Color(0xFF667681),
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.25)
+              : const Color(0xFF667681),
           fontSize: 13,
         ),
       ),
@@ -2780,13 +2801,13 @@ class _ActiveGameCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final tileBg =
-        isDark ? Colors.white.withOpacity(0.04) : const Color(0xFFF4F8FA);
+        isDark ? Colors.white.withValues(alpha: 0.04) : const Color(0xFFF4F8FA);
     final borderColor = isDark
-        ? Colors.white.withOpacity(0.06)
-        : const Color(0xFF7B8992).withOpacity(0.55);
+        ? Colors.white.withValues(alpha: 0.06)
+        : const Color(0xFF7B8992).withValues(alpha: 0.55);
     final textColor = isDark ? Colors.white70 : const Color(0xFF25313A);
     return Material(
-      color: isDark ? _kPrimary.withOpacity(0.07) : tileBg,
+      color: isDark ? _kPrimary.withValues(alpha: 0.07) : tileBg,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
         side: BorderSide(color: borderColor),
@@ -2835,7 +2856,7 @@ class _ActiveGameCard extends StatelessWidget {
                         _MyGamesSheetState._timeAgo(record.lastMoveAt!),
                         style: TextStyle(
                             color: isDark
-                                ? Colors.white.withOpacity(0.25)
+                                ? Colors.white.withValues(alpha: 0.25)
                                 : const Color(0xFF667681),
                             fontSize: 11),
                       ),
@@ -2847,9 +2868,9 @@ class _ActiveGameCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: _kPrimary.withOpacity(0.15),
+                  color: _kPrimary.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _kPrimary.withOpacity(0.4)),
+                  border: Border.all(color: _kPrimary.withValues(alpha: 0.4)),
                 ),
                 child: Text(
                   L.current == AppLocale.tr ? 'Devam Et' : 'Berdewam bike',
@@ -2891,7 +2912,9 @@ class _MultiplayerGameCard extends StatelessWidget {
         : (isMyTurn ? const Color(0xFFF4F8FA) : const Color(0xFFEAF1F4));
     final borderColor = isDark
         ? Colors.transparent
-        : (isMyTurn ? _kPrimary.withOpacity(0.32) : const Color(0xFFD6E1E7));
+        : (isMyTurn
+            ? _kPrimary.withValues(alpha: 0.32)
+            : const Color(0xFFD6E1E7));
     final titleColor = isDark ? Colors.white : const Color(0xFF25313A);
     final mutedColor = isDark ? Colors.white38 : const Color(0xFF52636E);
 
@@ -2966,7 +2989,7 @@ class _MultiplayerGameCard extends StatelessWidget {
                         isMyTurn ? L.yourTurnShort : L.opponentTurnShort,
                         style: TextStyle(
                           color: isMyTurn
-                              ? _kPrimary.withOpacity(0.8)
+                              ? _kPrimary.withValues(alpha: 0.8)
                               : mutedColor,
                           fontSize: 11,
                           fontWeight:
@@ -2981,9 +3004,10 @@ class _MultiplayerGameCard extends StatelessWidget {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
-                      color: _kPrimary.withOpacity(0.15),
+                      color: _kPrimary.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: _kPrimary.withOpacity(0.4)),
+                      border:
+                          Border.all(color: _kPrimary.withValues(alpha: 0.4)),
                     ),
                     child: Text(
                       L.play,
@@ -3018,12 +3042,12 @@ class _FinishedGameCard extends StatelessWidget {
         ? const Color(0xFFFFB300)
         : (isDark ? Colors.white38 : const Color(0xFF667681));
     final tileBg =
-        isDark ? Colors.white.withOpacity(0.04) : const Color(0xFFF4F8FA);
+        isDark ? Colors.white.withValues(alpha: 0.04) : const Color(0xFFF4F8FA);
     final borderColor =
-        isDark ? Colors.white.withOpacity(0.06) : const Color(0xFFD6E1E7);
+        isDark ? Colors.white.withValues(alpha: 0.06) : const Color(0xFFD6E1E7);
     final mutedColor = isDark ? Colors.white38 : const Color(0xFF52636E);
     final timeColor =
-        isDark ? Colors.white.withOpacity(0.2) : const Color(0xFF667681);
+        isDark ? Colors.white.withValues(alpha: 0.2) : const Color(0xFF667681);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
@@ -3075,24 +3099,25 @@ class _InviteCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final borderColor = isDark
-        ? Colors.white.withOpacity(0.06)
-        : const Color(0xFF7B8992).withOpacity(0.55);
+        ? Colors.white.withValues(alpha: 0.06)
+        : const Color(0xFF7B8992).withValues(alpha: 0.55);
     final textColor = isDark ? Colors.white70 : const Color(0xFF25313A);
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: isDark
-              ? [_blue.withOpacity(0.10), _blue.withOpacity(0.04)]
+              ? [_blue.withValues(alpha: 0.10), _blue.withValues(alpha: 0.04)]
               : const [Color(0xFFF4F8FA), Color(0xFFEAF1F4)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-            color: isDark ? _blue.withOpacity(0.35) : borderColor, width: 1.2),
+            color: isDark ? _blue.withValues(alpha: 0.35) : borderColor,
+            width: 1.2),
         boxShadow: [
           BoxShadow(
-              color: _blue.withOpacity(0.08),
+              color: _blue.withValues(alpha: 0.08),
               blurRadius: 12,
               offset: const Offset(0, 4))
         ],
@@ -3108,9 +3133,9 @@ class _InviteCard extends StatelessWidget {
                   width: 42,
                   height: 42,
                   decoration: BoxDecoration(
-                    color: _blue.withOpacity(0.15),
+                    color: _blue.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
-                    border: Border.all(color: _blue.withOpacity(0.4)),
+                    border: Border.all(color: _blue.withValues(alpha: 0.4)),
                   ),
                   child: const Icon(Icons.sports_esports_rounded,
                       color: _blue, size: 20),
@@ -3129,7 +3154,7 @@ class _InviteCard extends StatelessWidget {
                       Text(L.inviteFrom,
                           style: TextStyle(
                               color: isDark
-                                  ? Colors.white.withOpacity(0.45)
+                                  ? Colors.white.withValues(alpha: 0.45)
                                   : const Color(0xFF52636E),
                               fontSize: 12)),
                     ],
@@ -3139,7 +3164,7 @@ class _InviteCard extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: _blue.withOpacity(0.12),
+                    color: _blue.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
@@ -3166,7 +3191,7 @@ class _InviteCard extends StatelessWidget {
           Container(
             height: 1,
             margin: const EdgeInsets.symmetric(horizontal: 16),
-            color: _blue.withOpacity(0.15),
+            color: _blue.withValues(alpha: 0.15),
           ),
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
@@ -3183,19 +3208,19 @@ class _InviteCard extends StatelessWidget {
                       height: 44,
                       decoration: BoxDecoration(
                         color: isDark
-                            ? Colors.white.withOpacity(0.06)
+                            ? Colors.white.withValues(alpha: 0.06)
                             : const Color(0xFFF4F8FA),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                             color: isDark
-                                ? Colors.white.withOpacity(0.10)
+                                ? Colors.white.withValues(alpha: 0.10)
                                 : const Color(0xFFD6E1E7)),
                       ),
                       child: Center(
                         child: Text(L.decline,
                             style: TextStyle(
                                 color: isDark
-                                    ? Colors.white.withOpacity(0.55)
+                                    ? Colors.white.withValues(alpha: 0.55)
                                     : const Color(0xFF52636E),
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600)),
@@ -3221,7 +3246,7 @@ class _InviteCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
-                              color: _blue.withOpacity(0.3),
+                              color: _blue.withValues(alpha: 0.3),
                               blurRadius: 8,
                               offset: const Offset(0, 3))
                         ],
@@ -3285,9 +3310,9 @@ class _TimeControlSheet extends StatelessWidget {
     final sheetBg = isDark ? const Color(0xFF101824) : const Color(0xFFE6EEF2);
     final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
     final mutedColor =
-        isDark ? Colors.white.withOpacity(0.40) : const Color(0xFF52636E);
+        isDark ? Colors.white.withValues(alpha: 0.40) : const Color(0xFF52636E);
     final handleColor =
-        isDark ? Colors.white.withOpacity(0.15) : const Color(0xFF9AABB5);
+        isDark ? Colors.white.withValues(alpha: 0.15) : const Color(0xFF9AABB5);
     return Container(
       decoration: BoxDecoration(
         color: sheetBg,
@@ -3312,9 +3337,10 @@ class _TimeControlSheet extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: Colors.orange.withOpacity(0.14),
+                  color: Colors.orange.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.orange.withOpacity(0.35)),
+                  border:
+                      Border.all(color: Colors.orange.withValues(alpha: 0.35)),
                 ),
                 child: const Icon(Icons.timer_rounded,
                     color: Colors.orange, size: 24),
@@ -3339,13 +3365,13 @@ class _TimeControlSheet extends StatelessWidget {
                 padding: const EdgeInsets.only(bottom: 10),
                 child: Material(
                   color: isDark
-                      ? Colors.white.withOpacity(0.04)
+                      ? Colors.white.withValues(alpha: 0.04)
                       : const Color(0xFFF4F8FA),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                     side: BorderSide(
                       color: isDark
-                          ? Colors.white.withOpacity(0.06)
+                          ? Colors.white.withValues(alpha: 0.06)
                           : const Color(0xFFD6E1E7),
                     ),
                   ),
@@ -3355,7 +3381,7 @@ class _TimeControlSheet extends StatelessWidget {
                       onSelected(opt.seconds);
                     },
                     borderRadius: BorderRadius.circular(16),
-                    splashColor: opt.color.withOpacity(0.10),
+                    splashColor: opt.color.withValues(alpha: 0.10),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 14),
@@ -3365,10 +3391,10 @@ class _TimeControlSheet extends StatelessWidget {
                             width: 46,
                             height: 46,
                             decoration: BoxDecoration(
-                              color: opt.color.withOpacity(0.12),
+                              color: opt.color.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(12),
-                              border:
-                                  Border.all(color: opt.color.withOpacity(0.3)),
+                              border: Border.all(
+                                  color: opt.color.withValues(alpha: 0.3)),
                             ),
                             child: Icon(opt.icon, color: opt.color, size: 22),
                           ),
@@ -3390,7 +3416,7 @@ class _TimeControlSheet extends StatelessWidget {
                           ),
                           Icon(Icons.chevron_right_rounded,
                               color: isDark
-                                  ? Colors.white.withOpacity(0.25)
+                                  ? Colors.white.withValues(alpha: 0.25)
                                   : const Color(0xFF5E6B74),
                               size: 20),
                         ],
@@ -3458,10 +3484,10 @@ class _YeniOyunCardState extends State<_YeniOyunCard> {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _kPrimary.withOpacity(0.4), width: 1.2),
+        border: Border.all(color: _kPrimary.withValues(alpha: 0.4), width: 1.2),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.25),
+              color: Colors.black.withValues(alpha: 0.25),
               blurRadius: 12,
               offset: const Offset(0, 4)),
         ],
@@ -3479,8 +3505,8 @@ class _YeniOyunCardState extends State<_YeniOyunCard> {
                 top: const Radius.circular(18),
                 bottom: _expanded ? Radius.zero : const Radius.circular(18),
               ),
-              splashColor: _kPrimary.withOpacity(0.10),
-              highlightColor: _kPrimary.withOpacity(0.05),
+              splashColor: _kPrimary.withValues(alpha: 0.10),
+              highlightColor: _kPrimary.withValues(alpha: 0.05),
               child: Padding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
@@ -3490,9 +3516,10 @@ class _YeniOyunCardState extends State<_YeniOyunCard> {
                       width: 52,
                       height: 52,
                       decoration: BoxDecoration(
-                        color: _kPrimary.withOpacity(0.12),
+                        color: _kPrimary.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: _kPrimary.withOpacity(0.25)),
+                        border: Border.all(
+                            color: _kPrimary.withValues(alpha: 0.25)),
                       ),
                       child: const Icon(Icons.play_circle_fill_rounded,
                           color: _kPrimary, size: 26),
@@ -3518,7 +3545,7 @@ class _YeniOyunCardState extends State<_YeniOyunCard> {
                       turns: _expanded ? 0.5 : 0,
                       duration: const Duration(milliseconds: 250),
                       child: Icon(Icons.keyboard_arrow_down_rounded,
-                          color: Colors.white.withOpacity(0.4), size: 22),
+                          color: Colors.white.withValues(alpha: 0.4), size: 22),
                     ),
                   ],
                 ),
@@ -3526,28 +3553,28 @@ class _YeniOyunCardState extends State<_YeniOyunCard> {
             ),
           ),
           if (_expanded) ...[
-            Container(height: 1, color: Colors.white.withOpacity(0.06)),
+            Container(height: 1, color: Colors.white.withValues(alpha: 0.06)),
             _SubOption(
               icon: Icons.smart_toy_rounded,
               iconColor: _kPrimary,
               title: L.aiPlay,
               onTap: widget.onAi,
             ),
-            Container(height: 1, color: Colors.white.withOpacity(0.04)),
+            Container(height: 1, color: Colors.white.withValues(alpha: 0.04)),
             _SubOption(
               icon: Icons.people_alt_rounded,
               iconColor: const Color(0xFF64B5F6),
               title: L.friendPlay,
               onTap: widget.onFriend,
             ),
-            Container(height: 1, color: Colors.white.withOpacity(0.04)),
+            Container(height: 1, color: Colors.white.withValues(alpha: 0.04)),
             _SubOption(
               icon: Icons.alternate_email_rounded,
               iconColor: const Color(0xFFBA68C8),
               title: L.byUsername,
               onTap: widget.onUsername,
             ),
-            Container(height: 1, color: Colors.white.withOpacity(0.04)),
+            Container(height: 1, color: Colors.white.withValues(alpha: 0.04)),
             _SubOption(
               icon: Icons.search_rounded,
               iconColor: const Color(0xFFFFB74D),
@@ -3584,8 +3611,8 @@ class _SubOption extends StatelessWidget {
           HapticFeedback.selectionClick();
           onTap();
         },
-        splashColor: iconColor.withOpacity(0.12),
-        highlightColor: iconColor.withOpacity(0.06),
+        splashColor: iconColor.withValues(alpha: 0.12),
+        highlightColor: iconColor.withValues(alpha: 0.06),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           child: Row(
@@ -3594,9 +3621,9 @@ class _SubOption extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.1),
+                  color: iconColor.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: iconColor.withOpacity(0.2)),
+                  border: Border.all(color: iconColor.withValues(alpha: 0.2)),
                 ),
                 child: Icon(icon, color: iconColor, size: 20),
               ),
@@ -3609,7 +3636,7 @@ class _SubOption extends StatelessWidget {
                         fontWeight: FontWeight.w500)),
               ),
               Icon(Icons.chevron_right_rounded,
-                  color: Colors.white.withOpacity(0.2), size: 20),
+                  color: Colors.white.withValues(alpha: 0.2), size: 20),
             ],
           ),
         ),
@@ -3642,7 +3669,7 @@ class _HomeHeader extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark ? Colors.white : const Color(0xFF162027);
     final mutedColor =
-        isDark ? Colors.white.withOpacity(0.42) : const Color(0xFF4B5860);
+        isDark ? Colors.white.withValues(alpha: 0.42) : const Color(0xFF4B5860);
     return Container(
       width: double.infinity,
       padding: EdgeInsets.fromLTRB(16, statusBarHeight + 10, 16, 14),
@@ -3657,8 +3684,8 @@ class _HomeHeader extends StatelessWidget {
         border: Border(
           bottom: BorderSide(
               color: isDark
-                  ? Colors.white.withOpacity(0.05)
-                  : const Color(0xFF77858E).withOpacity(0.70),
+                  ? Colors.white.withValues(alpha: 0.05)
+                  : const Color(0xFF77858E).withValues(alpha: 0.70),
               width: 1),
         ),
       ),
@@ -3703,12 +3730,12 @@ class _HomeHeader extends StatelessWidget {
                         ),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color: Colors.white.withOpacity(0.20),
+                          color: Colors.white.withValues(alpha: 0.20),
                           width: 1,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: _kPrimary.withOpacity(0.45),
+                            color: _kPrimary.withValues(alpha: 0.45),
                             blurRadius: 14,
                             spreadRadius: -1,
                             offset: const Offset(0, 4),
@@ -3746,13 +3773,14 @@ class _HomeHeader extends StatelessWidget {
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         colors: [
-                          const Color(0xFFFF6F00).withOpacity(0.20),
-                          const Color(0xFFFF6F00).withOpacity(0.08),
+                          const Color(0xFFFF6F00).withValues(alpha: 0.20),
+                          const Color(0xFFFF6F00).withValues(alpha: 0.08),
                         ],
                       ),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                          color: const Color(0xFFFF8F00).withOpacity(0.45)),
+                          color:
+                              const Color(0xFFFF8F00).withValues(alpha: 0.45)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -3821,10 +3849,10 @@ class _IconBtn extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final borderColor = isDark
-        ? Colors.white.withOpacity(0.10)
-        : const Color(0xFF8F9AA2).withOpacity(0.55);
+        ? Colors.white.withValues(alpha: 0.10)
+        : const Color(0xFF8F9AA2).withValues(alpha: 0.55);
     final iconColor =
-        isDark ? Colors.white.withOpacity(0.78) : const Color(0xFF303940);
+        isDark ? Colors.white.withValues(alpha: 0.78) : const Color(0xFF303940);
     return Tooltip(
       message: tooltip,
       child: Material(
@@ -3835,8 +3863,8 @@ class _IconBtn extends StatelessWidget {
             onTap();
           },
           borderRadius: BorderRadius.circular(13),
-          splashColor: _kPrimary.withOpacity(0.10),
-          highlightColor: _kPrimary.withOpacity(0.04),
+          splashColor: _kPrimary.withValues(alpha: 0.10),
+          highlightColor: _kPrimary.withValues(alpha: 0.04),
           child: Container(
             width: 40,
             height: 40,
@@ -3846,8 +3874,8 @@ class _IconBtn extends StatelessWidget {
                 end: Alignment.bottomCenter,
                 colors: isDark
                     ? [
-                        Colors.white.withOpacity(0.08),
-                        Colors.white.withOpacity(0.03),
+                        Colors.white.withValues(alpha: 0.08),
+                        Colors.white.withValues(alpha: 0.03),
                       ]
                     : const [Color(0xFFE1E6E9), Color(0xFFC4CDD3)],
               ),
@@ -3856,8 +3884,8 @@ class _IconBtn extends StatelessWidget {
               boxShadow: [
                 BoxShadow(
                   color: isDark
-                      ? Colors.black.withOpacity(0.18)
-                      : Colors.white.withOpacity(0.42),
+                      ? Colors.black.withValues(alpha: 0.18)
+                      : Colors.white.withValues(alpha: 0.42),
                   blurRadius: isDark ? 6 : 10,
                   offset: const Offset(0, 2),
                 ),
@@ -3982,8 +4010,9 @@ class _SettingsSheetState extends State<_SettingsSheet> {
     final sheetBg = isDark ? const Color(0xFF141E2B) : const Color(0xFFE6EEF2);
     final sheetTop = isDark ? const Color(0xFF1A2535) : const Color(0xFFF4F8FA);
     final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
-    final handleColor =
-        isDark ? Colors.white24 : const Color(0xFF73818B).withOpacity(0.7);
+    final handleColor = isDark
+        ? Colors.white24
+        : const Color(0xFF73818B).withValues(alpha: 0.7);
     return DraggableScrollableSheet(
       initialChildSize: 0.82,
       minChildSize: 0.5,
@@ -4005,7 +4034,8 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                     const BorderRadius.vertical(top: Radius.circular(26)),
                 boxShadow: [
                   BoxShadow(
-                      color: Colors.black.withOpacity(isDark ? 0.15 : 0.08),
+                      color:
+                          Colors.black.withValues(alpha: isDark ? 0.15 : 0.08),
                       blurRadius: 8,
                       offset: const Offset(0, 2))
                 ],
@@ -4026,7 +4056,7 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                         width: 34,
                         height: 34,
                         decoration: BoxDecoration(
-                          color: _kPrimary.withOpacity(0.15),
+                          color: _kPrimary.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: const Icon(Icons.settings_rounded,
@@ -4157,7 +4187,7 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                     trailing: Text('v1.0.0',
                         style: TextStyle(
                             color: isDark
-                                ? Colors.white.withOpacity(0.28)
+                                ? Colors.white.withValues(alpha: 0.28)
                                 : const Color(0xFF53616A),
                             fontSize: 12)),
                     onTap: () => _showAbout(context),
@@ -4214,19 +4244,20 @@ class _ProfileCardState extends State<_ProfileCard> {
     final cardBg = isDark ? const Color(0xFF1A2535) : const Color(0xFFF4F8FA);
     final titleColor = isDark ? Colors.white : const Color(0xFF1C2830);
     final mutedColor =
-        isDark ? Colors.white.withOpacity(0.38) : const Color(0xFF52606A);
+        isDark ? Colors.white.withValues(alpha: 0.38) : const Color(0xFF52606A);
     final signInAccent = isDark ? _kPrimary : const Color(0xFF145C37);
     final guestBadgeText = isDark ? Colors.white60 : const Color(0xFF34434C);
     final guestBadgeBg = isDark
-        ? Colors.white.withOpacity(0.06)
-        : const Color(0xFF9EACB4).withOpacity(0.75);
-    final guestBadgeBorder =
-        isDark ? Colors.white12 : const Color(0xFF6C7B85).withOpacity(0.55);
+        ? Colors.white.withValues(alpha: 0.06)
+        : const Color(0xFF9EACB4).withValues(alpha: 0.75);
+    final guestBadgeBorder = isDark
+        ? Colors.white12
+        : const Color(0xFF6C7B85).withValues(alpha: 0.55);
     final borderColor = isAnon
-        ? _kPrimary.withOpacity(0.35)
+        ? _kPrimary.withValues(alpha: 0.35)
         : isDark
-            ? Colors.white.withOpacity(0.07)
-            : const Color(0xFF7B8992).withOpacity(0.55);
+            ? Colors.white.withValues(alpha: 0.07)
+            : const Color(0xFF7B8992).withValues(alpha: 0.55);
     final name = (user?.displayName?.trim().isNotEmpty == true)
         ? user!.displayName!
         : (_profileName?.trim().isNotEmpty == true
@@ -4291,20 +4322,21 @@ class _ProfileCardState extends State<_ProfileCard> {
                   else if (isAnon)
                     Text(L.signInToSaveScores,
                         style: TextStyle(
-                            color: signInAccent.withOpacity(0.95),
+                            color: signInAccent.withValues(alpha: 0.95),
                             fontSize: 11)),
                   const SizedBox(height: 6),
                   Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color:
-                          isAnon ? guestBadgeBg : _kPrimary.withOpacity(0.12),
+                      color: isAnon
+                          ? guestBadgeBg
+                          : _kPrimary.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(6),
                       border: Border.all(
                         color: isAnon
                             ? guestBadgeBorder
-                            : _kPrimary.withOpacity(0.3),
+                            : _kPrimary.withValues(alpha: 0.3),
                       ),
                     ),
                     child: Text(
@@ -4324,9 +4356,10 @@ class _ProfileCardState extends State<_ProfileCard> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: signInAccent.withOpacity(isDark ? 0.15 : 0.18),
+                  color: signInAccent.withValues(alpha: isDark ? 0.15 : 0.18),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: signInAccent.withOpacity(0.55)),
+                  border:
+                      Border.all(color: signInAccent.withValues(alpha: 0.55)),
                 ),
                 child: Text(L.signIn,
                     style: TextStyle(
@@ -4337,7 +4370,7 @@ class _ProfileCardState extends State<_ProfileCard> {
             else
               Icon(Icons.chevron_right_rounded,
                   color: isDark
-                      ? Colors.white.withOpacity(0.2)
+                      ? Colors.white.withValues(alpha: 0.2)
                       : const Color(0xFF5F6C75)),
           ],
         ),
@@ -4360,8 +4393,9 @@ class _SectionLabel extends StatelessWidget {
       child: Text(
         text.toUpperCase(),
         style: TextStyle(
-          color:
-              isDark ? Colors.white.withOpacity(0.35) : const Color(0xFF46545D),
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.35)
+              : const Color(0xFF46545D),
           fontSize: 11,
           fontWeight: FontWeight.w700,
           letterSpacing: 1.2,
@@ -4391,11 +4425,11 @@ class _SettingsTile extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final tileBg = isDark ? const Color(0xFF1A2535) : const Color(0xFFF4F8FA);
     final borderColor = isDark
-        ? Colors.white.withOpacity(0.06)
-        : const Color(0xFF7B8992).withOpacity(0.55);
+        ? Colors.white.withValues(alpha: 0.06)
+        : const Color(0xFF7B8992).withValues(alpha: 0.55);
     final textColor = isDark ? Colors.white70 : const Color(0xFF25313A);
     final chevronColor =
-        isDark ? Colors.white.withOpacity(0.18) : const Color(0xFF5E6B74);
+        isDark ? Colors.white.withValues(alpha: 0.18) : const Color(0xFF5E6B74);
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -4406,8 +4440,8 @@ class _SettingsTile extends StatelessWidget {
               }
             : null,
         borderRadius: BorderRadius.circular(14),
-        splashColor: _kPrimary.withOpacity(0.08),
-        highlightColor: _kPrimary.withOpacity(0.03),
+        splashColor: _kPrimary.withValues(alpha: 0.08),
+        highlightColor: _kPrimary.withValues(alpha: 0.03),
         child: Container(
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
@@ -4422,7 +4456,7 @@ class _SettingsTile extends StatelessWidget {
                 width: 34,
                 height: 34,
                 decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.12),
+                  color: iconColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(icon, color: iconColor, size: 17),
@@ -4460,8 +4494,8 @@ class _SettingsTileTrailing extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final tileBg = isDark ? const Color(0xFF1A2535) : const Color(0xFFF4F8FA);
     final borderColor = isDark
-        ? Colors.white.withOpacity(0.06)
-        : const Color(0xFF7B8992).withOpacity(0.55);
+        ? Colors.white.withValues(alpha: 0.06)
+        : const Color(0xFF7B8992).withValues(alpha: 0.55);
     final textColor = isDark ? Colors.white70 : const Color(0xFF25313A);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -4477,7 +4511,7 @@ class _SettingsTileTrailing extends StatelessWidget {
             width: 34,
             height: 34,
             decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.12),
+              color: iconColor.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, color: iconColor, size: 17),
@@ -4513,8 +4547,8 @@ class _SettingsToggle extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final tileBg = isDark ? const Color(0xFF1A2535) : const Color(0xFFF4F8FA);
     final borderColor = isDark
-        ? Colors.white.withOpacity(0.06)
-        : const Color(0xFF7B8992).withOpacity(0.55);
+        ? Colors.white.withValues(alpha: 0.06)
+        : const Color(0xFF7B8992).withValues(alpha: 0.55);
     final textColor = isDark ? Colors.white70 : const Color(0xFF25313A);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -4530,7 +4564,7 @@ class _SettingsToggle extends StatelessWidget {
             width: 34,
             height: 34,
             decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.12),
+              color: iconColor.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(icon, color: iconColor, size: 17),
@@ -4546,7 +4580,7 @@ class _SettingsToggle extends StatelessWidget {
               onChanged(v);
             },
             activeColor: _kPrimary,
-            activeTrackColor: _kPrimary.withOpacity(0.3),
+            activeTrackColor: _kPrimary.withValues(alpha: 0.3),
             inactiveThumbColor: Colors.white38,
             inactiveTrackColor:
                 isDark ? Colors.white12 : const Color(0xFF89969E),
@@ -4638,12 +4672,12 @@ class _StatCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg =
-        isDark ? Colors.white.withOpacity(0.05) : const Color(0xFFEAF1F4);
+        isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFEAF1F4);
     final borderColor =
-        isDark ? Colors.white.withOpacity(0.08) : const Color(0xFFD6E1E7);
+        isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFD6E1E7);
     final valueColor = isDark ? Colors.white : const Color(0xFF18242C);
     final labelColor =
-        isDark ? Colors.white.withOpacity(0.4) : const Color(0xFF52636E);
+        isDark ? Colors.white.withValues(alpha: 0.4) : const Color(0xFF52636E);
     return Expanded(
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -4684,13 +4718,14 @@ class _LangSwitcher extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color:
-            isDark ? Colors.white.withOpacity(0.10) : const Color(0xFFD6E1E7),
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.10)
+            : const Color(0xFFD6E1E7),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: isDark
-              ? Colors.white.withOpacity(0.20)
-              : const Color(0xFF88949C).withOpacity(0.55),
+              ? Colors.white.withValues(alpha: 0.20)
+              : const Color(0xFF88949C).withValues(alpha: 0.55),
         ),
       ),
       child: Row(
@@ -4734,8 +4769,8 @@ class _LangBtn extends StatelessWidget {
           onTap();
         },
         borderRadius: BorderRadius.circular(8),
-        splashColor: _kPrimary.withOpacity(0.2),
-        highlightColor: _kPrimary.withOpacity(0.1),
+        splashColor: _kPrimary.withValues(alpha: 0.2),
+        highlightColor: _kPrimary.withValues(alpha: 0.1),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
@@ -4805,8 +4840,8 @@ class _TurnuvaModuCardState extends State<_TurnuvaModuCard>
               widget.onTap();
             },
             borderRadius: BorderRadius.circular(22),
-            splashColor: _kGold.withOpacity(0.08),
-            highlightColor: _kGold.withOpacity(0.04),
+            splashColor: _kGold.withValues(alpha: 0.08),
+            highlightColor: _kGold.withValues(alpha: 0.04),
             child: Container(
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
@@ -4816,16 +4851,17 @@ class _TurnuvaModuCardState extends State<_TurnuvaModuCard>
                 ),
                 borderRadius: BorderRadius.circular(22),
                 border: Border.all(
-                    color: _kGold.withOpacity(0.30 + 0.08 * t), width: 1),
+                    color: _kGold.withValues(alpha: 0.30 + 0.08 * t), width: 1),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFB8860B).withOpacity(0.18 + 0.06 * t),
+                    color: const Color(0xFFB8860B)
+                        .withValues(alpha: 0.18 + 0.06 * t),
                     blurRadius: 28,
                     spreadRadius: -4,
                     offset: const Offset(0, 12),
                   ),
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.40),
+                    color: Colors.black.withValues(alpha: 0.40),
                     blurRadius: 14,
                     offset: const Offset(0, 6),
                   ),
@@ -4847,14 +4883,15 @@ class _TurnuvaModuCardState extends State<_TurnuvaModuCard>
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                               colors: [
-                                _kGold.withOpacity(0.25 + 0.1 * _pulse.value),
-                                _kGoldDim.withOpacity(0.15),
+                                _kGold.withValues(
+                                    alpha: 0.25 + 0.1 * _pulse.value),
+                                _kGoldDim.withValues(alpha: 0.15),
                               ],
                             ),
                             borderRadius: BorderRadius.circular(14),
                             border: Border.all(
-                                color: _kGold
-                                    .withOpacity(0.4 + 0.2 * _pulse.value)),
+                                color: _kGold.withValues(
+                                    alpha: 0.4 + 0.2 * _pulse.value)),
                           ),
                           child: const Center(
                             child: Text('🏆', style: TextStyle(fontSize: 26)),
@@ -4883,10 +4920,11 @@ class _TurnuvaModuCardState extends State<_TurnuvaModuCard>
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 6, vertical: 2),
                                     decoration: BoxDecoration(
-                                      color: _kPrimary.withOpacity(0.15),
+                                      color: _kPrimary.withValues(alpha: 0.15),
                                       borderRadius: BorderRadius.circular(6),
                                       border: Border.all(
-                                          color: _kPrimary.withOpacity(0.4)),
+                                          color:
+                                              _kPrimary.withValues(alpha: 0.4)),
                                     ),
                                     child: Text(
                                       L.current == AppLocale.tr ? 'YENİ' : 'NÛ',
@@ -4905,7 +4943,7 @@ class _TurnuvaModuCardState extends State<_TurnuvaModuCard>
                                     ? 'Haftalık 8 kişilik eleme turnuvası'
                                     : 'Turnuvaya hefteyî ya 8 lîstikvan',
                                 style: TextStyle(
-                                  color: Colors.white.withOpacity(0.45),
+                                  color: Colors.white.withValues(alpha: 0.45),
                                   fontSize: 11,
                                 ),
                               ),
@@ -4914,7 +4952,7 @@ class _TurnuvaModuCardState extends State<_TurnuvaModuCard>
                         ),
                         Icon(
                           Icons.chevron_right_rounded,
-                          color: _kGold.withOpacity(0.5),
+                          color: _kGold.withValues(alpha: 0.5),
                           size: 22,
                         ),
                       ],
@@ -4922,7 +4960,7 @@ class _TurnuvaModuCardState extends State<_TurnuvaModuCard>
                   ),
 
                   // ── Ayraç ──────────────────────────────────────
-                  Container(height: 1, color: _kGold.withOpacity(0.12)),
+                  Container(height: 1, color: _kGold.withValues(alpha: 0.12)),
 
                   // ── Alt görsel kısım ────────────────────────────
                   Padding(
@@ -4942,7 +4980,8 @@ class _TurnuvaModuCardState extends State<_TurnuvaModuCard>
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(Icons.people_alt_rounded,
-                                    color: _kGold.withOpacity(0.7), size: 13),
+                                    color: _kGold.withValues(alpha: 0.7),
+                                    size: 13),
                                 const SizedBox(width: 5),
                                 RichText(
                                   text: TextSpan(children: [
@@ -4957,7 +4996,8 @@ class _TurnuvaModuCardState extends State<_TurnuvaModuCard>
                                     TextSpan(
                                       text: '/8',
                                       style: TextStyle(
-                                        color: Colors.white.withOpacity(0.4),
+                                        color:
+                                            Colors.white.withValues(alpha: 0.4),
                                         fontSize: 12,
                                       ),
                                     ),
@@ -4985,12 +5025,12 @@ class _TurnuvaModuCardState extends State<_TurnuvaModuCard>
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 7, vertical: 3),
                               decoration: BoxDecoration(
-                                color:
-                                    const Color(0xFFFF3D00).withOpacity(0.15),
+                                color: const Color(0xFFFF3D00)
+                                    .withValues(alpha: 0.15),
                                 borderRadius: BorderRadius.circular(6),
                                 border: Border.all(
                                     color: const Color(0xFFFF6E40)
-                                        .withOpacity(0.5)),
+                                        .withValues(alpha: 0.5)),
                               ),
                               child: Text(
                                 L.lastTwoSpots,
@@ -5019,12 +5059,12 @@ class _TurnuvaModuCardState extends State<_TurnuvaModuCard>
                                 boxShadow: [
                                   BoxShadow(
                                     color: const Color(0xFFFFB300)
-                                        .withOpacity(0.30 + 0.12 * t),
+                                        .withValues(alpha: 0.30 + 0.12 * t),
                                     blurRadius: 14,
                                     spreadRadius: 0,
                                   ),
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.35),
+                                    color: Colors.black.withValues(alpha: 0.35),
                                     blurRadius: 6,
                                     offset: const Offset(0, 3),
                                   ),
@@ -5125,7 +5165,7 @@ class _MiniBracket extends StatelessWidget {
                 Text(
                   '???',
                   style: TextStyle(
-                    color: _kGold.withOpacity(0.5),
+                    color: _kGold.withValues(alpha: 0.5),
                     fontSize: 9,
                   ),
                 ),
@@ -5157,13 +5197,15 @@ class _MiniSlot extends StatelessWidget {
       decoration: BoxDecoration(
         color: filled
             ? (isMe
-                ? _kPrimary.withOpacity(0.18)
-                : Colors.white.withOpacity(0.07))
+                ? _kPrimary.withValues(alpha: 0.18)
+                : Colors.white.withValues(alpha: 0.07))
             : Colors.transparent,
         borderRadius: BorderRadius.circular(4),
         border: Border.all(
           color: filled
-              ? (isMe ? _kPrimary.withOpacity(0.5) : _kGold.withOpacity(0.3))
+              ? (isMe
+                  ? _kPrimary.withValues(alpha: 0.5)
+                  : _kGold.withValues(alpha: 0.3))
               : Colors.white12,
           width: 0.8,
         ),
@@ -5193,7 +5235,7 @@ class _MiniLinePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFFB8860B).withOpacity(0.45)
+      ..color = const Color(0xFFB8860B).withValues(alpha: 0.45)
       ..strokeWidth = 0.8
       ..style = PaintingStyle.stroke;
 
@@ -5205,9 +5247,15 @@ class _MiniLinePainter extends CustomPainter {
       canvas.drawLine(Offset(0, y1), Offset(size.width / 2, y1), paint);
       canvas.drawLine(Offset(0, y2), Offset(size.width / 2, y2), paint);
       canvas.drawLine(
-          Offset(size.width / 2, y1), Offset(size.width / 2, y2), paint);
+        Offset(size.width / 2, y1),
+        Offset(size.width / 2, y2),
+        paint,
+      );
       canvas.drawLine(
-          Offset(size.width / 2, yMid), Offset(size.width, yMid), paint);
+        Offset(size.width / 2, yMid),
+        Offset(size.width, yMid),
+        paint,
+      );
     }
   }
 
@@ -5238,13 +5286,16 @@ class _OyunlarimCardState extends State<_OyunlarimCard> {
   Future<void> _loadFirestoreGames() async {
     final uid = AuthService.instance.currentUser?.uid;
     if (uid == null || !FirebaseService.isAvailable) return;
-    if (mounted) setState(() => _loadingGames = true);
+    if (mounted) {
+      setState(() => _loadingGames = true);
+    }
     final games = await FirestoreService.instance.getRecentGames(uid);
-    if (mounted)
+    if (mounted) {
       setState(() {
         _firestoreGames = games;
         _loadingGames = false;
       });
+    }
   }
 
   String _timeAgo(DateTime dt) {
@@ -5284,10 +5335,10 @@ class _OyunlarimCardState extends State<_OyunlarimCard> {
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _kGold.withOpacity(0.35), width: 1.2),
+        border: Border.all(color: _kGold.withValues(alpha: 0.35), width: 1.2),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.25),
+              color: Colors.black.withValues(alpha: 0.25),
               blurRadius: 12,
               offset: const Offset(0, 4)),
         ],
@@ -5306,9 +5357,9 @@ class _OyunlarimCardState extends State<_OyunlarimCard> {
                     width: 52,
                     height: 52,
                     decoration: BoxDecoration(
-                      color: _kGold.withOpacity(0.12),
+                      color: _kGold.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: _kGold.withOpacity(0.25)),
+                      border: Border.all(color: _kGold.withValues(alpha: 0.25)),
                     ),
                     child: const Icon(Icons.grid_view_rounded,
                         color: _kGold, size: 26),
@@ -5332,7 +5383,7 @@ class _OyunlarimCardState extends State<_OyunlarimCard> {
                                       (hasActiveGame ? 1 : 0))
                                   : L.noGames,
                           style: TextStyle(
-                              color: Colors.white.withOpacity(0.4),
+                              color: Colors.white.withValues(alpha: 0.4),
                               fontSize: 12),
                         ),
                       ],
@@ -5343,7 +5394,7 @@ class _OyunlarimCardState extends State<_OyunlarimCard> {
                       turns: _expanded ? 0.5 : 0,
                       duration: const Duration(milliseconds: 250),
                       child: Icon(Icons.keyboard_arrow_down_rounded,
-                          color: Colors.white.withOpacity(0.4), size: 22),
+                          color: Colors.white.withValues(alpha: 0.4), size: 22),
                     ),
                 ],
               ),
@@ -5352,7 +5403,7 @@ class _OyunlarimCardState extends State<_OyunlarimCard> {
 
           // Oyun listesi
           if (hasGame && _expanded) ...[
-            Container(height: 1, color: Colors.white.withOpacity(0.06)),
+            Container(height: 1, color: Colors.white.withValues(alpha: 0.06)),
 
             // Aktif (devam eden) oyun — memory'den
             if (hasActiveGame)
@@ -5362,16 +5413,16 @@ class _OyunlarimCardState extends State<_OyunlarimCard> {
                   onTap: store.activeController != null
                       ? () => widget.onResume(store.activeController)
                       : null,
-                  splashColor: _kPrimary.withOpacity(0.10),
-                  highlightColor: _kPrimary.withOpacity(0.05),
+                  splashColor: _kPrimary.withValues(alpha: 0.10),
+                  highlightColor: _kPrimary.withValues(alpha: 0.05),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 20, vertical: 13),
                     decoration: BoxDecoration(
-                      color: _kGold.withOpacity(0.05),
+                      color: _kGold.withValues(alpha: 0.05),
                       border: Border(
                           bottom: BorderSide(
-                              color: Colors.white.withOpacity(0.04))),
+                              color: Colors.white.withValues(alpha: 0.04))),
                     ),
                     child: Row(
                       children: [
@@ -5404,10 +5455,10 @@ class _OyunlarimCardState extends State<_OyunlarimCard> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: _kPrimary.withOpacity(0.15),
+                            color: _kPrimary.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(10),
-                            border:
-                                Border.all(color: _kPrimary.withOpacity(0.4)),
+                            border: Border.all(
+                                color: _kPrimary.withValues(alpha: 0.4)),
                           ),
                           child: Text(L.resume,
                               style: const TextStyle(
@@ -5444,8 +5495,8 @@ class _OyunlarimCardState extends State<_OyunlarimCard> {
                     const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
                 decoration: BoxDecoration(
                   border: Border(
-                      bottom:
-                          BorderSide(color: Colors.white.withOpacity(0.04))),
+                      bottom: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.04))),
                 ),
                 child: Row(
                   children: [
@@ -5454,8 +5505,9 @@ class _OyunlarimCardState extends State<_OyunlarimCard> {
                       height: 8,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color:
-                            won ? _kPrimary.withOpacity(0.6) : Colors.white24,
+                        color: won
+                            ? _kPrimary.withValues(alpha: 0.6)
+                            : Colors.white24,
                       ),
                     ),
                     const SizedBox(width: 12),

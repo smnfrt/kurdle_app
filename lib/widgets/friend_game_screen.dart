@@ -33,9 +33,11 @@ class FriendGameScreen extends StatefulWidget {
   final String roomCode;
   final String myUid;
 
-  const FriendGameScreen(
-      {Key? key, required this.roomCode, required this.myUid})
-      : super(key: key);
+  const FriendGameScreen({
+    super.key,
+    required this.roomCode,
+    required this.myUid,
+  });
 
   @override
   State<FriendGameScreen> createState() => _FriendGameScreenState();
@@ -670,7 +672,7 @@ class _FriendGameScreenState extends State<FriendGameScreen>
     showGeneralDialog(
       context: context,
       barrierDismissible: false,
-      barrierColor: Colors.black.withOpacity(0.78),
+      barrierColor: Colors.black.withValues(alpha: 0.78),
       transitionDuration: const Duration(milliseconds: 380),
       pageBuilder: (_, __, ___) => const SizedBox.shrink(),
       transitionBuilder: (ctx, anim, _, __) {
@@ -713,8 +715,9 @@ class _FriendGameScreenState extends State<FriendGameScreen>
     } else {
       final rows = pending.map((c) => c.row).toList()..sort();
       for (var i = rows.first; i <= rows.last; i++) {
-        if (!_localBoard.cellAt(i, pending.first.column).hasLetter)
+        if (!_localBoard.cellAt(i, pending.first.column).hasLetter) {
           return false;
+        }
       }
     }
     return true;
@@ -777,7 +780,7 @@ class _FriendGameScreenState extends State<FriendGameScreen>
                     center: Alignment.topCenter,
                     radius: 1.2,
                     colors: [
-                      const Color(0xFF4CAF50).withOpacity(0.06),
+                      const Color(0xFF4CAF50).withValues(alpha: 0.06),
                       Colors.transparent,
                     ],
                   ),
@@ -807,7 +810,8 @@ class _FriendGameScreenState extends State<FriendGameScreen>
                         if (!leave || !mounted) return;
                         await MultiplayerService.instance
                             .leaveRoom(widget.roomCode, widget.myUid);
-                        if (mounted) Navigator.pop(context);
+                        if (!context.mounted) return;
+                        Navigator.pop(context);
                       },
                     ),
                     // Board — zoom/pan destekli, kare alan
@@ -837,7 +841,7 @@ class _FriendGameScreenState extends State<FriendGameScreen>
                                           ? [
                                               BoxShadow(
                                                 color: const Color(0xFF4CAF50)
-                                                    .withOpacity(0.22),
+                                                    .withValues(alpha: 0.22),
                                                 blurRadius: 26,
                                                 spreadRadius: 1.5,
                                               ),
@@ -900,10 +904,10 @@ class _FriendGameScreenState extends State<FriendGameScreen>
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
-                              color: _kError.withOpacity(0.10),
+                              color: _kError.withValues(alpha: 0.10),
                               borderRadius: BorderRadius.circular(10),
-                              border:
-                                  Border.all(color: _kError.withOpacity(0.45)),
+                              border: Border.all(
+                                  color: _kError.withValues(alpha: 0.45)),
                             ),
                             child: Text(
                               _error,
@@ -1156,11 +1160,12 @@ class _HeaderState extends State<_Header> with TickerProviderStateMixin {
           end: Alignment.bottomRight,
         ),
         border: Border(
-          bottom: BorderSide(color: Colors.white.withOpacity(0.06), width: 1),
+          bottom:
+              BorderSide(color: Colors.white.withValues(alpha: 0.06), width: 1),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.35),
+            color: Colors.black.withValues(alpha: 0.35),
             blurRadius: 14,
             offset: const Offset(0, 4),
           ),
@@ -1202,7 +1207,7 @@ class _HeaderState extends State<_Header> with TickerProviderStateMixin {
           const SizedBox(width: 4),
           _IconBtn(
             icon: Icons.flag_rounded,
-            color: const Color(0xFFEF5350).withOpacity(0.85),
+            color: const Color(0xFFEF5350).withValues(alpha: 0.85),
             onTap: widget.onForfeit,
             tooltip: L.leaveGameAction,
           ),
@@ -1226,7 +1231,7 @@ class _IconBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final btn = Material(
-      color: Colors.white.withOpacity(0.05),
+      color: Colors.white.withValues(alpha: 0.05),
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
@@ -1252,15 +1257,15 @@ class _BagChip extends StatelessWidget {
       margin: const EdgeInsets.symmetric(horizontal: 4),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.inventory_2_rounded,
-              color: Colors.white.withOpacity(0.45), size: 14),
+              color: Colors.white.withValues(alpha: 0.45), size: 14),
           const SizedBox(height: 2),
           Text('$count',
               style: const TextStyle(
@@ -1315,21 +1320,21 @@ class _PlayerCard extends StatelessWidget {
               colors: isActive
                   ? const [Color(0xFF4CAF50), Color(0xFF1B5E20)]
                   : [
-                      Colors.white.withOpacity(0.08),
-                      Colors.white.withOpacity(0.04)
+                      Colors.white.withValues(alpha: 0.08),
+                      Colors.white.withValues(alpha: 0.04)
                     ],
             ),
             border: Border.all(
               color: isActive
                   ? const Color(0xFF4CAF50)
-                      .withOpacity(0.55 + 0.25 * pulse.value)
-                  : Colors.white.withOpacity(0.10),
+                      .withValues(alpha: 0.55 + 0.25 * pulse.value)
+                  : Colors.white.withValues(alpha: 0.10),
               width: 1.5,
             ),
             boxShadow: [
               if (isActive)
                 BoxShadow(
-                  color: const Color(0xFF4CAF50).withOpacity(glow),
+                  color: const Color(0xFF4CAF50).withValues(alpha: glow),
                   blurRadius: 12 + 6 * pulse.value,
                   spreadRadius: 0.5,
                 ),
@@ -1405,7 +1410,8 @@ class _PlayerCard extends StatelessWidget {
                   shadows: isActive
                       ? [
                           Shadow(
-                              color: const Color(0xFF4CAF50).withOpacity(0.45),
+                              color: const Color(0xFF4CAF50)
+                                  .withValues(alpha: 0.45),
                               blurRadius: 8)
                         ]
                       : null,
@@ -1488,12 +1494,12 @@ class _FloatingDeltaState extends State<_FloatingDelta>
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.18),
+                  color: color.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: color.withOpacity(0.55)),
+                  border: Border.all(color: color.withValues(alpha: 0.55)),
                   boxShadow: [
                     BoxShadow(
-                        color: color.withOpacity(0.25),
+                        color: color.withValues(alpha: 0.25),
                         blurRadius: 10,
                         spreadRadius: 0.5),
                   ],
@@ -1544,15 +1550,15 @@ class _SmallBtnState extends State<_SmallBtn> {
   @override
   Widget build(BuildContext context) {
     final Color bg = widget.active
-        ? _kStealActive.withOpacity(0.18)
+        ? _kStealActive.withValues(alpha: 0.18)
         : widget.disabled
-            ? Colors.white.withOpacity(0.03)
-            : Colors.white.withOpacity(0.07);
+            ? Colors.white.withValues(alpha: 0.03)
+            : Colors.white.withValues(alpha: 0.07);
     final Color border = widget.active
-        ? _kStealActive.withOpacity(0.7)
+        ? _kStealActive.withValues(alpha: 0.7)
         : widget.disabled
             ? Colors.white12
-            : Colors.white.withOpacity(0.15);
+            : Colors.white.withValues(alpha: 0.15);
     final Color fg = widget.active
         ? _kStealActive
         : widget.disabled
@@ -1583,7 +1589,7 @@ class _SmallBtnState extends State<_SmallBtn> {
               boxShadow: widget.active
                   ? [
                       BoxShadow(
-                        color: _kStealActive.withOpacity(0.35),
+                        color: _kStealActive.withValues(alpha: 0.35),
                         blurRadius: 12,
                         spreadRadius: 0.5,
                       ),
@@ -1643,9 +1649,10 @@ class _WordPreviewBar extends StatelessWidget {
             duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: accent.withOpacity(words.isEmpty ? 0.08 : 0.14),
+              color: accent.withValues(alpha: words.isEmpty ? 0.08 : 0.14),
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: accent.withOpacity(0.55), width: 1),
+              border:
+                  Border.all(color: accent.withValues(alpha: 0.55), width: 1),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -1673,10 +1680,10 @@ class _WordPreviewBar extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
               decoration: BoxDecoration(
-                color: (e.valid ? _kPrimary : _kError).withOpacity(0.12),
+                color: (e.valid ? _kPrimary : _kError).withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(999),
                 border: Border.all(
-                  color: (e.valid ? _kPrimary : _kError).withOpacity(0.6),
+                  color: (e.valid ? _kPrimary : _kError).withValues(alpha: 0.6),
                 ),
               ),
               child: Text(
@@ -1767,15 +1774,15 @@ class _WordMeaningBubbleState extends State<_WordMeaningBubble>
                     color: _kTopStart,
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
-                        color: _kPrimary.withOpacity(0.5), width: 1.5),
+                        color: _kPrimary.withValues(alpha: 0.5), width: 1.5),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.45),
+                        color: Colors.black.withValues(alpha: 0.45),
                         blurRadius: 20,
                         offset: const Offset(0, 6),
                       ),
                       BoxShadow(
-                        color: _kPrimary.withOpacity(0.15),
+                        color: _kPrimary.withValues(alpha: 0.15),
                         blurRadius: 16,
                         spreadRadius: 2,
                       ),
@@ -1806,7 +1813,8 @@ class _WordMeaningBubbleState extends State<_WordMeaningBubble>
                       ),
                       const SizedBox(height: 10),
                       Container(
-                          height: 1, color: Colors.white.withOpacity(0.08)),
+                          height: 1,
+                          color: Colors.white.withValues(alpha: 0.08)),
                       const SizedBox(height: 10),
                       Align(
                         alignment: Alignment.centerLeft,
@@ -1843,7 +1851,7 @@ class _WordMeaningBubbleState extends State<_WordMeaningBubble>
                             ? 'Sekmeye dokun • dışarı dokunarak kapat'
                             : 'Li peyvê bitikîne • derve bitikîne da bigire',
                         style: TextStyle(
-                            color: Colors.white.withOpacity(0.25),
+                            color: Colors.white.withValues(alpha: 0.25),
                             fontSize: 10),
                       ),
                     ],
@@ -1879,13 +1887,13 @@ class _MeaningWordTab extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: selected
-              ? _kPrimary.withOpacity(0.22)
-              : Colors.white.withOpacity(0.06),
+              ? _kPrimary.withValues(alpha: 0.22)
+              : Colors.white.withValues(alpha: 0.06),
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
             color: selected
                 ? const Color(0xFF81C784)
-                : Colors.white.withOpacity(0.12),
+                : Colors.white.withValues(alpha: 0.12),
             width: 1,
           ),
         ),
@@ -1979,20 +1987,20 @@ class _PlayBtnState extends State<_PlayBtn>
                 border: Border.all(
                   color: disabled
                       ? Colors.white12
-                      : Colors.white.withOpacity(0.18),
+                      : Colors.white.withValues(alpha: 0.18),
                   width: 1,
                 ),
                 boxShadow: disabled
                     ? null
                     : [
                         BoxShadow(
-                          color: glow.withOpacity(0.40),
+                          color: glow.withValues(alpha: 0.40),
                           blurRadius: 22,
                           spreadRadius: 0.5,
                           offset: const Offset(0, 4),
                         ),
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.25),
+                          color: Colors.black.withValues(alpha: 0.25),
                           blurRadius: 8,
                           offset: const Offset(0, 2),
                         ),
@@ -2019,9 +2027,9 @@ class _PlayBtnState extends State<_PlayBtn>
                                   begin: Alignment.centerLeft,
                                   end: Alignment.centerRight,
                                   colors: [
-                                    Colors.white.withOpacity(0),
-                                    Colors.white.withOpacity(0.10),
-                                    Colors.white.withOpacity(0),
+                                    Colors.white.withValues(alpha: 0),
+                                    Colors.white.withValues(alpha: 0.10),
+                                    Colors.white.withValues(alpha: 0),
                                   ],
                                 ),
                               ),
@@ -2060,7 +2068,8 @@ class _PlayBtnState extends State<_PlayBtn>
                                 ? null
                                 : [
                                     Shadow(
-                                        color: Colors.black.withOpacity(0.35),
+                                        color: Colors.black
+                                            .withValues(alpha: 0.35),
                                         blurRadius: 4,
                                         offset: const Offset(0, 1)),
                                   ],
@@ -2191,12 +2200,12 @@ class _ParticlePainter extends CustomPainter {
       )!;
       final opacity = (t < 0.7 ? 1.0 : (1 - (t - 0.7) / 0.3)).clamp(0.0, 1.0);
       final paint = Paint()
-        ..color = base.withOpacity(opacity)
+        ..color = base.withValues(alpha: opacity)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 0.6);
       canvas.drawCircle(pos, p.size * (1 - 0.3 * t), paint);
       // Rim glow
       final glow = Paint()
-        ..color = base.withOpacity(opacity * 0.30)
+        ..color = base.withValues(alpha: opacity * 0.30)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
       canvas.drawCircle(pos, p.size * 1.6, glow);
     }
@@ -2275,18 +2284,19 @@ class _StreakBannerState extends State<_StreakBanner>
                         ),
                         borderRadius: BorderRadius.circular(14),
                         border: Border.all(
-                            color: Colors.white.withOpacity(0.25), width: 1),
+                            color: Colors.white.withValues(alpha: 0.25),
+                            width: 1),
                         boxShadow: [
                           BoxShadow(
                             color: (fire
                                     ? const Color(0xFFFF6F00)
                                     : const Color(0xFFFFB300))
-                                .withOpacity(0.55),
+                                .withValues(alpha: 0.55),
                             blurRadius: 24,
                             spreadRadius: 2,
                           ),
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.35),
+                            color: Colors.black.withValues(alpha: 0.35),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           ),
@@ -2359,15 +2369,17 @@ class _TurnBanner extends StatelessWidget {
                       ),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                          color: Colors.white.withOpacity(0.18), width: 1),
+                          color: Colors.white.withValues(alpha: 0.18),
+                          width: 1),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF4CAF50).withOpacity(0.55),
+                          color:
+                              const Color(0xFF4CAF50).withValues(alpha: 0.55),
                           blurRadius: 24,
                           spreadRadius: 1,
                         ),
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.45),
+                          color: Colors.black.withValues(alpha: 0.45),
                           blurRadius: 14,
                           offset: const Offset(0, 6),
                         ),
@@ -2484,15 +2496,16 @@ class _GameOverCard extends StatelessWidget {
               end: Alignment.bottomCenter,
               colors: [Color(0xFF1A2433), Color(0xFF0E1622)],
             ),
-            border: Border.all(color: accent.withOpacity(0.35), width: 1.2),
+            border:
+                Border.all(color: accent.withValues(alpha: 0.35), width: 1.2),
             boxShadow: [
               BoxShadow(
-                color: accent.withOpacity(0.30),
+                color: accent.withValues(alpha: 0.30),
                 blurRadius: 40,
                 spreadRadius: 2,
               ),
               BoxShadow(
-                color: Colors.black.withOpacity(0.55),
+                color: Colors.black.withValues(alpha: 0.55),
                 blurRadius: 24,
                 offset: const Offset(0, 12),
               ),
@@ -2514,8 +2527,8 @@ class _GameOverCard extends StatelessWidget {
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
                         colors: [
-                          accent.withOpacity(0.28),
-                          accent.withOpacity(0.0),
+                          accent.withValues(alpha: 0.28),
+                          accent.withValues(alpha: 0.0),
                         ],
                       ),
                     ),
@@ -2539,7 +2552,7 @@ class _GameOverCard extends StatelessWidget {
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: accent.withOpacity(0.55),
+                              color: accent.withValues(alpha: 0.55),
                               blurRadius: 22,
                               spreadRadius: 1,
                             ),
@@ -2557,7 +2570,7 @@ class _GameOverCard extends StatelessWidget {
                           letterSpacing: -0.4,
                           shadows: [
                             Shadow(
-                                color: accent.withOpacity(0.45),
+                                color: accent.withValues(alpha: 0.45),
                                 blurRadius: 14),
                           ],
                         ),
@@ -2645,13 +2658,13 @@ class _ScoreCompareRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
           decoration: BoxDecoration(
             color: highlight
-                ? accent.withOpacity(0.14)
-                : Colors.white.withOpacity(0.04),
+                ? accent.withValues(alpha: 0.14)
+                : Colors.white.withValues(alpha: 0.04),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: highlight
-                  ? accent.withOpacity(0.50)
-                  : Colors.white.withOpacity(0.08),
+                  ? accent.withValues(alpha: 0.50)
+                  : Colors.white.withValues(alpha: 0.08),
               width: highlight ? 1.4 : 1,
             ),
           ),
@@ -2666,7 +2679,8 @@ class _ScoreCompareRow extends StatelessWidget {
                     shape: BoxShape.circle,
                     color: accent,
                     boxShadow: [
-                      BoxShadow(color: accent.withOpacity(0.7), blurRadius: 6),
+                      BoxShadow(
+                          color: accent.withValues(alpha: 0.7), blurRadius: 6),
                     ],
                   ),
                 ),
