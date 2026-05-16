@@ -29,7 +29,7 @@ class FerhengService {
   static const String _entriesAsset = 'assets/ferheng/entries.ndjson.gz';
   static const String _legacyAsset = 'assets/ferheng/legacy_meanings.json';
   static const String _trOverridesAsset =
-      'assets/ferheng/tr_meaning_overrides.json';
+      'assets/ferheng/tr_meaning_overrides.json.gz';
   static const String _categoriesAsset = 'assets/ferheng/categories.json';
 
   static const String _prefRecentSearchesKey = 'ferheng_recent_searches';
@@ -104,9 +104,14 @@ class FerhengService {
 
   Future<void> _loadTrOverridesBundle() async {
     try {
-      final raw = await rootBundle.loadString(_trOverridesAsset);
-      final decoded = json.decode(raw) as Map<String, dynamic>;
-      final entries = (decoded['entries'] as Map<String, dynamic>? ?? const {});
+      // 35MB JSON → ~1.9MB gzipped. APK boyutu için kritik.
+      final data = await rootBundle.load(_trOverridesAsset);
+      final bytes = data.buffer.asUint8List();
+      final decoded = GZipDecoder().decodeBytes(bytes);
+      final raw = utf8.decode(decoded);
+      final parsed = json.decode(raw) as Map<String, dynamic>;
+      final entries =
+          (parsed['entries'] as Map<String, dynamic>? ?? const {});
       _trOverrides = entries.map((k, v) {
         final value = v is Map ? (v['tr'] ?? '').toString() : v.toString();
         return MapEntry(_normalize(k), value.trim());

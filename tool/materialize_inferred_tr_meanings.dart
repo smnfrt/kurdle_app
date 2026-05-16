@@ -29,10 +29,29 @@ Map<String, String> loadEntryTurkish(String path) {
   return out;
 }
 
+String _readMaybeGzippedText(String path) {
+  final file = File(path);
+  final bytes = file.readAsBytesSync();
+  if (path.endsWith('.gz')) {
+    return utf8.decode(gzip.decode(bytes));
+  }
+  return utf8.decode(bytes);
+}
+
+void _writeMaybeGzippedText(String path, String text) {
+  final file = File(path);
+  if (path.endsWith('.gz')) {
+    file.writeAsBytesSync(gzip.encode(utf8.encode(text)));
+  } else {
+    file.writeAsStringSync(text);
+  }
+}
+
 Map<String, String> loadOverrides(String path) {
   final file = File(path);
   if (!file.existsSync()) return const {};
-  final decoded = json.decode(file.readAsStringSync()) as Map<String, dynamic>;
+  final decoded =
+      json.decode(_readMaybeGzippedText(path)) as Map<String, dynamic>;
   final entries = decoded['entries'] as Map<String, dynamic>? ?? const {};
   return entries.map((key, value) {
     final tr = value is Map ? (value['tr'] ?? '').toString() : value.toString();
@@ -114,14 +133,14 @@ Iterable<String> inflectionBaseCandidates(String id) sync* {
 }
 
 void main() {
-  const overridesPath = 'assets/ferheng/tr_meaning_overrides.json';
+  const overridesPath = 'assets/ferheng/tr_meaning_overrides.json.gz';
   final overridesFile = File(overridesPath);
   if (!overridesFile.existsSync()) {
     throw StateError('Override dosyası bulunamadı: $overridesPath');
   }
 
   final decoded =
-      json.decode(overridesFile.readAsStringSync()) as Map<String, dynamic>;
+      json.decode(_readMaybeGzippedText(overridesPath)) as Map<String, dynamic>;
   final rawEntries = Map<String, dynamic>.from(
       decoded['entries'] as Map<String, dynamic>? ?? const {});
   final directOverrides = loadOverrides(overridesPath);
@@ -169,7 +188,8 @@ void main() {
         '${decoded['source'] ?? 'project-curated + FreeDict kur-tur 0.1.2'} + inferred inflection TR fallbacks',
     'entries': sorted,
   };
-  overridesFile.writeAsStringSync(
+  _writeMaybeGzippedText(
+    overridesPath,
     '${const JsonEncoder.withIndent('  ').convert(output)}\n',
   );
 

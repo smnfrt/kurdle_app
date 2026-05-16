@@ -51,8 +51,14 @@ def load_wordlist():
 
 
 def load_tr_overrides():
-    with open(ASSETS / "tr_meaning_overrides.json", encoding="utf-8") as f:
-        data = json.load(f)
+    path_gz = ASSETS / "tr_meaning_overrides.json.gz"
+    path = ASSETS / "tr_meaning_overrides.json"
+    if path_gz.exists():
+        with gzip.open(path_gz, "rt", encoding="utf-8") as f:
+            data = json.load(f)
+    else:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
     return {k.upper(): v for k, v in (data.get("entries") or {}).items()}
 
 

@@ -15,6 +15,8 @@ service-account*.json
 
 # Ferheng pipeline — geçici çıktılar (artifact'lar assets/ferheng/'de)
 tools/ferheng_pipeline/.venv/
+# Wiktionary translations extraction intermediate (regenerable from raw dump)
+tool/wiktionary_tr_translations.json
 tools/ferheng_pipeline/raw/
 tools/ferheng_pipeline/build/
 tools/ferheng_pipeline/__pycache__/
