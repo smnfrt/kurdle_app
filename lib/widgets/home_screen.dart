@@ -20,7 +20,6 @@ import 'package:kurdle_app/widgets/onboarding_screen.dart';
 import 'package:kurdle_app/services/onboarding_service.dart';
 import 'package:kurdle_app/widgets/profile_screen.dart';
 import 'package:kurdle_app/widgets/scrabble_game_screen.dart';
-import 'package:kurdle_app/widgets/tournament_screen.dart';
 import 'package:kurdle_app/widgets/daily_challenge_screen.dart';
 import 'package:kurdle_app/services/multiplayer_service.dart';
 import 'package:kurdle_app/services/notification_service.dart';
@@ -31,51 +30,9 @@ import 'package:kurdle_app/widgets/username_match_screen.dart';
 import 'package:kurdle_app/route_transitions.dart';
 import 'package:kurdle_app/app_theme.dart';
 
-const _kBg = Color(0xFF080E18);
-const _kSurface = Color(0xFF121C2B);
 const _kPrimary = Color(0xFF3FBE6F);
 const _kGold = Color(0xFFFFD27A);
 const _kGoldDim = Color(0xFFB8860B);
-
-// Premium surface tonu — kart yüzeyi için tutarlı çok katmanlı kaplama
-class _PremiumSurface {
-  static BoxDecoration build({
-    Color? accent,
-    double radius = 22,
-    double accentOpacity = 0.22,
-    double topHighlight = 0.06,
-  }) {
-    final a = accent ?? Colors.white;
-    return BoxDecoration(
-      borderRadius: BorderRadius.circular(radius),
-      gradient: LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          Color.lerp(const Color(0xFF182233), a, 0.04)!,
-          const Color(0xFF0E1622),
-        ],
-      ),
-      border: Border.all(
-        color: Colors.white.withOpacity(0.08),
-        width: 1,
-      ),
-      boxShadow: [
-        BoxShadow(
-          color: a.withOpacity(accentOpacity),
-          blurRadius: 30,
-          spreadRadius: -4,
-          offset: const Offset(0, 10),
-        ),
-        BoxShadow(
-          color: Colors.black.withOpacity(0.40),
-          blurRadius: 14,
-          offset: const Offset(0, 6),
-        ),
-      ],
-    );
-  }
-}
 
 void _showAboutDialog(BuildContext ctx) {
   HapticFeedback.selectionClick();
@@ -196,7 +153,6 @@ class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   int _streak = 0;
   bool _streakAtRisk = false;
-  int _longestStreak = 0;
   late AnimationController _entranceCtrl;
   List<MultiplayerRoom> _pendingInvites = [];
   final Set<String> _notifiedInviteCodes = <String>{};
@@ -399,7 +355,6 @@ class _HomeScreenState extends State<HomeScreen>
       setState(() {
         _streak = daily.current;
         _streakAtRisk = daily.atRisk;
-        _longestStreak = daily.longest;
       });
     }
   }
@@ -751,26 +706,6 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _showHowTo(BuildContext context) {
     Navigator.push(context, appRoute(const HowToPlayScreen()));
-  }
-
-  void _showComingSoon(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const Icon(Icons.info_outline_rounded,
-                color: Colors.white, size: 18),
-            const SizedBox(width: 10),
-            Text(L.comingSoon, style: const TextStyle(fontSize: 13)),
-          ],
-        ),
-        backgroundColor: const Color(0xFF1E2A3A),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        margin: const EdgeInsets.all(16),
-        duration: const Duration(seconds: 2),
-      ),
-    );
   }
 }
 
@@ -2327,67 +2262,6 @@ class _GamePairPanelState extends State<_GamePairPanel> {
   }
 }
 
-/// Kompakt alt seçenek — yarım genişlik için optimize
-class _CompactOption extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String label;
-  final VoidCallback onTap;
-  const _CompactOption(
-      {required this.icon,
-      required this.color,
-      required this.label,
-      required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final borderColor = isDark
-        ? Colors.white.withOpacity(0.06)
-        : const Color(0xFF7B8992).withOpacity(0.55);
-    final textColor = isDark ? Colors.white70 : const Color(0xFF25313A);
-    final chevronColor =
-        isDark ? Colors.white.withOpacity(0.18) : const Color(0xFF5E6B74);
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          onTap();
-        },
-        splashColor: color.withOpacity(0.12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          child: Row(
-            children: [
-              Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.10),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: color.withOpacity(0.2)),
-                ),
-                child: Icon(icon, color: color, size: 15),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(label,
-                    style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 // ── Yeni Oyun tam ekran seçenekler ──────────────────────────────
 
 class _NewGameSheet extends StatelessWidget {
@@ -2860,15 +2734,6 @@ class _TabBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final tileBg =
-        isDark ? Colors.white.withOpacity(0.04) : const Color(0xFFF4F8FA);
-    final borderColor = isDark
-        ? Colors.white.withOpacity(0.06)
-        : const Color(0xFF7B8992).withOpacity(0.55);
-    final titleColor = isDark ? Colors.white : const Color(0xFF1C2830);
-    final descColor =
-        isDark ? Colors.white.withOpacity(0.45) : const Color(0xFF52606A);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
       decoration: BoxDecoration(
@@ -2881,44 +2746,6 @@ class _TabBadge extends StatelessWidget {
         style:
             TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color),
       ),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String label;
-  final int count;
-  const _SectionHeader(
-      {required this.icon,
-      required this.color,
-      required this.label,
-      required this.count});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, color: color, size: 14),
-        const SizedBox(width: 6),
-        Text(label,
-            style: TextStyle(
-                color: color,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.4)),
-        const SizedBox(width: 6),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-          decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(8)),
-          child: Text('$count',
-              style: TextStyle(
-                  color: color, fontSize: 10, fontWeight: FontWeight.bold)),
-        ),
-      ],
     );
   }
 }
@@ -2952,7 +2779,8 @@ class _ActiveGameCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final tileBg = isDark ? const Color(0xFF1A2535) : const Color(0xFFF4F8FA);
+    final tileBg =
+        isDark ? Colors.white.withOpacity(0.04) : const Color(0xFFF4F8FA);
     final borderColor = isDark
         ? Colors.white.withOpacity(0.06)
         : const Color(0xFF7B8992).withOpacity(0.55);
@@ -3246,7 +3074,6 @@ class _InviteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final tileBg = isDark ? const Color(0xFF1A2535) : const Color(0xFFF4F8FA);
     final borderColor = isDark
         ? Colors.white.withOpacity(0.06)
         : const Color(0xFF7B8992).withOpacity(0.55);
@@ -3739,7 +3566,6 @@ class _SubOption extends StatelessWidget {
   final IconData icon;
   final Color iconColor;
   final String title;
-  final String? badge;
   final VoidCallback onTap;
 
   const _SubOption({
@@ -3747,7 +3573,6 @@ class _SubOption extends StatelessWidget {
     required this.iconColor,
     required this.title,
     required this.onTap,
-    this.badge,
   });
 
   @override
@@ -3783,23 +3608,8 @@ class _SubOption extends StatelessWidget {
                         fontSize: 14,
                         fontWeight: FontWeight.w500)),
               ),
-              if (badge != null)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(badge!,
-                      style: TextStyle(
-                          color: Colors.white.withOpacity(0.45),
-                          fontSize: 9,
-                          fontWeight: FontWeight.w600)),
-                ),
-              if (badge == null)
-                Icon(Icons.chevron_right_rounded,
-                    color: Colors.white.withOpacity(0.2), size: 20),
+              Icon(Icons.chevron_right_rounded,
+                  color: Colors.white.withOpacity(0.2), size: 20),
             ],
           ),
         ),
@@ -4952,119 +4762,6 @@ class _LangBtn extends StatelessWidget {
   }
 }
 
-class _MenuCard extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final String title;
-  final String subtitle;
-  final LinearGradient gradient;
-  final Color borderColor;
-  final String? badge;
-  final VoidCallback onTap;
-
-  const _MenuCard({
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    required this.subtitle,
-    required this.gradient,
-    required this.borderColor,
-    required this.onTap,
-    this.badge,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
-        splashColor: Colors.white.withOpacity(0.08),
-        highlightColor: Colors.white.withOpacity(0.04),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-          decoration: BoxDecoration(
-            gradient: gradient,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: borderColor, width: 1.2),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.25),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: iconColor.withOpacity(0.25)),
-                ),
-                child: Icon(icon, color: iconColor, size: 26),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Text(
-                          title,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        if (badge != null) ...[
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 7, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.08),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              badge!,
-                              style: TextStyle(
-                                color: Colors.white.withOpacity(0.45),
-                                fontSize: 9,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.4),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right_rounded,
-                  color: Colors.white.withOpacity(0.2), size: 22),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 // ── Turnuva Modu Kartı ───────────────────────────────────────────
 
 class _TurnuvaModuCard extends StatefulWidget {
@@ -5377,7 +5074,6 @@ class _MiniBracket extends StatelessWidget {
   const _MiniBracket();
 
   static const _kGold = Color(0xFFFFD700);
-  static const _kGoldDim = Color(0xFFB8860B);
 
   @override
   Widget build(BuildContext context) {
@@ -5794,117 +5490,6 @@ class _OyunlarimCardState extends State<_OyunlarimCard> {
             }),
             const SizedBox(height: 4),
           ],
-        ],
-      ),
-    );
-  }
-}
-
-// ── Gelen davet banner'ı ─────────────────────────────────────────
-
-class _InviteBanner extends StatelessWidget {
-  final MultiplayerRoom invite;
-  final String myUid;
-  final VoidCallback onAccept;
-  final VoidCallback onDecline;
-
-  const _InviteBanner({
-    required this.invite,
-    required this.myUid,
-    required this.onAccept,
-    required this.onDecline,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF1B3040), Color(0xFF0F2030)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-            color: const Color(0xFF64B5F6).withOpacity(0.45), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-              color: const Color(0xFF64B5F6).withOpacity(0.12),
-              blurRadius: 14,
-              offset: const Offset(0, 4)),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: const Color(0xFF64B5F6).withOpacity(0.15),
-              borderRadius: BorderRadius.circular(10),
-              border:
-                  Border.all(color: const Color(0xFF64B5F6).withOpacity(0.3)),
-            ),
-            child: const Icon(Icons.sports_esports_rounded,
-                color: Color(0xFF64B5F6), size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(invite.hostName,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold)),
-                Text(L.inviteFrom,
-                    style: TextStyle(
-                        color: Colors.white.withOpacity(0.45), fontSize: 11)),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: () {
-              HapticFeedback.mediumImpact();
-              onAccept();
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-              decoration: BoxDecoration(
-                color: _kPrimary.withOpacity(0.18),
-                borderRadius: BorderRadius.circular(9),
-                border: Border.all(color: _kPrimary.withOpacity(0.5)),
-              ),
-              child: Text(L.accept,
-                  style: const TextStyle(
-                      color: _kPrimary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold)),
-            ),
-          ),
-          const SizedBox(width: 6),
-          GestureDetector(
-            onTap: () {
-              HapticFeedback.selectionClick();
-              onDecline();
-            },
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.06),
-                borderRadius: BorderRadius.circular(9),
-                border: Border.all(color: Colors.white12),
-              ),
-              child: Text(L.decline,
-                  style: TextStyle(
-                      color: Colors.white.withOpacity(0.45),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600)),
-            ),
-          ),
         ],
       ),
     );

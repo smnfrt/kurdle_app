@@ -23,9 +23,7 @@ import 'package:kurdle_app/widgets/scrabble_board_widget.dart';
 
 const _kBg = Color(0xFF0D1520);
 const _kTopStart = Color(0xFF1E2A3A);
-const _kTopEnd = Color(0xFF2D3F52);
 const _kCard = Color(0xFF162030);
-const _kBorder = Color(0xFF243650);
 const _kPrimary = Color(0xFF4CAF50);
 const _kBlue = Color(0xFF64B5F6);
 const _kError = Color(0xFFFF6B6B);
@@ -1618,59 +1616,6 @@ class _SmallBtnState extends State<_SmallBtn> {
   }
 }
 
-// ── Action button ─────────────────────────────────────────────────
-
-class _ActionBtn extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final Color color;
-  final VoidCallback? onTap;
-  final bool loading;
-
-  const _ActionBtn({
-    required this.label,
-    required this.icon,
-    required this.color,
-    this.onTap,
-    this.loading = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 12),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: loading
-            ? const Center(
-                child: SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                      color: Colors.white, strokeWidth: 2.5),
-                ),
-              )
-            : Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(icon, color: Colors.white, size: 18),
-                  const SizedBox(width: 6),
-                  Text(label,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600)),
-                ],
-              ),
-      ),
-    );
-  }
-}
-
 // ── Word preview bar ─────────────────────────────────────────────
 
 class _WordPreviewBar extends StatelessWidget {
@@ -2475,35 +2420,6 @@ class _ErrorShake extends StatelessWidget {
         return Transform.translate(offset: Offset(dx * 2, 0), child: child);
       },
       child: child,
-    );
-  }
-}
-
-// ── Score row ─────────────────────────────────────────────────────
-
-class _ScoreRow extends StatelessWidget {
-  final String label;
-  final int score;
-  final bool highlight;
-
-  const _ScoreRow(
-      {required this.label, required this.score, required this.highlight});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label,
-            style: TextStyle(
-                color: highlight ? Colors.white : Colors.white54,
-                fontSize: 15)),
-        Text('$score ${L.points}',
-            style: TextStyle(
-                color: highlight ? _kPrimary : Colors.white38,
-                fontSize: 15,
-                fontWeight: FontWeight.bold)),
-      ],
     );
   }
 }
