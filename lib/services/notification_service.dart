@@ -15,7 +15,10 @@ class NotificationService {
   NotificationService._();
   static final NotificationService instance = NotificationService._();
 
-  final _fcm = FirebaseMessaging.instance;
+  // Lazy: Firebase / native plugin'lere erişimi sadece ilk kullanımda dene
+  // (test ortamı, offline mod, vb. için NotificationService.instance
+  // erişimi tek başına Firebase init şart kılmasın).
+  late final _fcm = FirebaseMessaging.instance;
   final _local = FlutterLocalNotificationsPlugin();
 
   static const _channelId   = 'peyvok_daily';

@@ -394,4 +394,10 @@ class AchievementService {
   void dispose() {
     _unlockController.close();
   }
+
+  /// Test-only — singleton cache'i temizle. Üretim kodu kullanmamalı.
+  @visibleForTesting
+  void resetCacheForTests() {
+    _cache = null;
+  }
 }
