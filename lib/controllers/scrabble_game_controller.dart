@@ -63,6 +63,10 @@ class ScrabbleGameController extends ChangeNotifier {
   Set<String> highlightedCells = {};
   Set<String> lastMoveCells = {};
   List<({String word, Set<String> cells})> lastMoveWords = const [];
+  // Oyuncunun en son başarılı hamlesinin kelimeleri — AI hamle yaptıktan
+  // sonra da meaning popup'tan erişilebilsin. lastMoveWords AI hamlesiyle
+  // üzerine yazılırken bu alan sadece player submit edince güncellenir.
+  List<String> lastPlayerMoveWords = const [];
 
   // UI'da meaning popup açıkken AI hamlesini duraklatmak için.
   // scrabble_game_screen popup aç/kapa sırasında setMeaningPopupOpen()
@@ -420,6 +424,10 @@ class ScrabbleGameController extends ChangeNotifier {
     AchievementService.instance.onWordPlayed(earned);
     board = board.commitPending();
     _setLastMoveFromPlacedCells(placedCellKeys, fallbackWords: words);
+    // Player'ın hamlesini ayrıca sakla — AI _setLastMoveFromPlacedCells'i
+    // tekrar çağırıp lastMoveWords'ü ezse bile bu kalır. Meaning popup
+    // her zaman player'ın son kelimelerini de gösterebilir.
+    lastPlayerMoveWords = lastMoveWords.map((w) => w.word).toList(growable: false);
     _recordWords(words,
         owner: 0, enhanceTarget: enhanceTarget, enhancerOwner: 0);
     _refillRack(playerRack);
@@ -448,12 +456,10 @@ class ScrabbleGameController extends ChangeNotifier {
   }
 
   Future<void> _scheduleAiMove() async {
-    // Popup'tan önce thinking delay'i — kullanıcı meaning popup'unu açacak
-    // vakit bulsun. Easy modda snappy kalsın (800ms); normal/hard'da daha
-    // uzun (2.5sn) çünkü oyuncu kelime anlamına bakmak isteyebilir.
-    final thinkingMs =
-        aiDifficulty == AiDifficulty.easy ? 800 : 2500;
-    await Future.delayed(Duration(milliseconds: thinkingMs));
+    // Normal thinking delay — kullanıcı yavaşlamayı istemiyor. Pause yalnız
+    // popup açıkken devreye girer. Player'ın son hamlesi ayrıca saklanır
+    // (lastPlayerMoveWords), popup AI hamlesinden sonra da erişilebilir.
+    await Future.delayed(const Duration(milliseconds: 800));
     while (_meaningPopupOpen) {
       await Future.delayed(const Duration(milliseconds: 200));
     }

@@ -453,7 +453,15 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
                                 meaningWords: ctrl.lastMoveWords
                                     .map((e) => (word: e.word, cells: e.cells))
                                     .toList(growable: false),
-                                onMeaningTap: _showWordMeanings,
+                                // Popup AI hamlesinden sonra da player'ın
+                                // kendi son kelimelerine erişebilsin.
+                                onMeaningTap: (words) {
+                                  final combined = <String>{
+                                    ...words,
+                                    ...ctrl.lastPlayerMoveWords,
+                                  }.toList(growable: false);
+                                  _showWordMeanings(combined);
+                                },
                                 onTileDrop: isPlayer
                                     ? (row, col, tile) {
                                         ctrl.placeTile(row, col, tile);
