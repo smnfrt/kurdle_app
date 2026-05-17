@@ -470,11 +470,11 @@ class FerhengService {
   }
 
   Future<List<FerhengEntry>> byCategory(String categoryId,
-      {int limit = 50}) async {
+      {int? limit}) async {
     await init();
     final ids = _byCategory[categoryId] ?? const [];
-    return ids
-        .take(limit)
+    final iter = limit == null ? ids : ids.take(limit);
+    return iter
         .map((id) => _byId[id])
         .whereType<FerhengEntry>()
         .toList(growable: false);
