@@ -283,21 +283,43 @@ def main() -> int:
 
     cat_counts = {c: 0 for c in CATEGORIES}
     updated = 0
+    skipped_no_tr = 0
+    injected_tr = 0
     for e in entries:
         n = normalize(e.get("normalized") or "")
         defs = e.get("definitions", {})
-        tr_text = " ".join(
-            (d.get("gloss") or "")
+        tr_defs = [
+            (d.get("gloss") or "").strip()
             for d in (defs.get("tr") or [])
-        ).lower()
+            if (d.get("gloss") or "").strip()
+        ]
+        ov_tr = ov_lookup.get(n, "").strip()
+        # TR yoksa kategori ekleme — kullanıcı kategoride açınca
+        # her entry'de TR görsün. KMR-only entry'ler görünmesin.
+        if not tr_defs and not ov_tr:
+            # Eski kategorileri temizle (yanlış kategorizasyondan kalan)
+            if (e.get("categories") or []):
+                e["categories"] = []
+                updated += 1
+            skipped_no_tr += 1
+            continue
+
+        # Entry'de native TR yok ama override var → entry'ye INJECT et.
+        # Bu sayede displayMeaning() ve liste tile'ları override'a
+        # bakmadan TR'yi görür. UI tutarlılığı.
+        if not tr_defs and ov_tr:
+            defs["tr"] = [{"gloss": ov_tr, "examples": []}]
+            e["definitions"] = defs
+            tr_defs = [ov_tr]
+            injected_tr += 1
+
+        tr_text = " ".join(tr_defs).lower()
         kmr_text = " ".join(
             (d.get("gloss") or "")
             for d in (defs.get("kmr") or [])
         ).lower()
-        # Override'daki TR'yi de dahil et
-        ov_tr = ov_lookup.get(n, "").lower()
         if ov_tr:
-            tr_text = tr_text + " " + ov_tr
+            tr_text = tr_text + " " + ov_tr.lower()
 
         new_cats = []
         for cat, (tr_re, kmr_re) in cat_patterns.items():
@@ -314,6 +336,9 @@ def main() -> int:
             updated += 1
         for c in new_cats:
             cat_counts[c] += 1
+
+    print(f"Skipped (no TR available): {skipped_no_tr:,}")
+    print(f"Injected override TR into entry.definitions.tr: {injected_tr:,}")
 
     print(f"\nEntries newly tagged: {updated:,}")
     print(f"\nCategory totals after tagging:")
