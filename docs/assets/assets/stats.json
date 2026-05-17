@@ -1,0 +1,11 @@
+{
+    "won": 0,
+    "lost": 0,
+    "streak": {
+        "current": 0,
+        "max": 0
+    },
+    "guessDistribution": [ 0, 0, 0, 0, 0, 0 ],
+    "lastGuess": 0,
+    "lastBoard": ""
+}
