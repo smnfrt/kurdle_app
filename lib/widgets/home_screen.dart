@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:firebase_messaging/firebase_messaging.dart' show AuthorizationStatus;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kurdle_app/services/app_locale.dart';
@@ -4150,7 +4151,21 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                     iconColor: const Color(0xFFBA68C8),
                     label: L.notifications,
                     value: _notifs,
-                    onChanged: (v) => setState(() => _notifs = v),
+                    onChanged: (v) async {
+                      if (v) {
+                        // User-driven prompt — yalnız toggle ON yapınca ister.
+                        final settings = await NotificationService.instance
+                            .requestNotificationPermission();
+                        final granted = settings.authorizationStatus ==
+                                AuthorizationStatus.authorized ||
+                            settings.authorizationStatus ==
+                                AuthorizationStatus.provisional;
+                        if (!mounted) return;
+                        setState(() => _notifs = granted);
+                      } else {
+                        setState(() => _notifs = false);
+                      }
+                    },
                   ),
                   _SettingsToggle(
                     icon: Icons.dark_mode_rounded,

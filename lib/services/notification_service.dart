@@ -51,6 +51,19 @@ class NotificationService {
     }
   }
 
+  /// Kullanıcı bildirim açmak istediğinde (Settings toggle, streak ayarı vs.)
+  /// çağrılır. iOS ve Android 13+ için runtime izin promptu gösterir.
+  /// Permission status'u döner — UI'da toggle'ı buna göre kaydedebilir.
+  Future<NotificationSettings> requestNotificationPermission() async {
+    return _fcm.requestPermission(alert: true, badge: true, sound: true);
+  }
+
+  /// Mevcut izin durumunu kontrol et (prompt ETMEZ).
+  Future<AuthorizationStatus> currentPermissionStatus() async {
+    final settings = await _fcm.getNotificationSettings();
+    return settings.authorizationStatus;
+  }
+
   Future<void> init() async {
     tz.initializeTimeZones();
 
@@ -85,8 +98,9 @@ class NotificationService {
       if (code != null && code.isNotEmpty) pendingInviteRoomCode = code;
     }
 
-    // FCM izni iste
-    await _fcm.requestPermission(alert: true, badge: true, sound: true);
+    // FCM permission burada İSTENMEZ — kullanıcı değer görmeden prompt etmek
+    // dönüşümü düşürür. Ayarlardan toggle açıldığında veya streak kaydı sırasında
+    // requestNotificationPermission() çağrılır.
 
     // Arka plan handler kaydet
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);

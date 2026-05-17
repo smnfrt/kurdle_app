@@ -1,5 +1,5 @@
 name: kurdle_app
-description: "A new Flutter project."
+description: "Peyvok — Kurmancî kelime oyunu. Günlük Wordle, AI ile Scrabble benzeri kelime savaşı, arkadaşlarla multiplayer, 216k+ entry'lik Ferheng sözlük."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -69,6 +69,36 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.4
+  flutter_native_splash: ^2.4.4
+
+# ── Marka iconları ────────────────────────────────────────────────
+# Üretim: dart run flutter_launcher_icons
+# Kaynak: assets/branding/ (tool/gen_brand_icon.py ile yenilenir)
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  remove_alpha_ios: true
+  image_path: "assets/branding/icon-1024.png"
+  adaptive_icon_background: "#1B5E20"
+  adaptive_icon_foreground: "assets/branding/icon-foreground.png"
+  min_sdk_android: 24
+
+# ── Splash ekran ──────────────────────────────────────────────────
+# Üretim: dart run flutter_native_splash:create
+# Light + dark, Android 12+ destekli.
+flutter_native_splash:
+  color: "#0F1923"
+  image: "assets/branding/splash-light.png"
+  color_dark: "#0F1923"
+  image_dark: "assets/branding/splash-dark.png"
+  android_12:
+    color: "#0F1923"
+    image: "assets/branding/splash-light.png"
+    color_dark: "#0F1923"
+    image_dark: "assets/branding/splash-dark.png"
+  android: true
+  ios: true
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

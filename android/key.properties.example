@@ -1,0 +1,17 @@
+# Peyvok release keystore yapılandırması — örnek.
+#
+# 1. Bu dosyayı kopyala:  cp android/key.properties.example android/key.properties
+# 2. Aşağıdaki dört alanı kendi keystore bilgilerinle doldur.
+# 3. android/key.properties .gitignore'da — ASLA commit etme.
+#
+# Keystore oluşturmadıysan:
+#   keytool -genkey -v -keystore ~/peyvok-release.jks \
+#       -keyalg RSA -keysize 2048 -validity 10000 -alias peyvok
+#
+# Üretilen .jks dosyasını GÜVENLİ bir yerde tut — kaybedersen aynı paketin
+# yeni sürümlerini Play Store'a yükleyemezsin.
+
+storeFile=/Users/yourname/peyvok-release.jks
+storePassword=YOUR_STORE_PASSWORD
+keyAlias=peyvok
+keyPassword=YOUR_KEY_PASSWORD

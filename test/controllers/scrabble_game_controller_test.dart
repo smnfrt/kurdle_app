@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:kurdle_app/controllers/scrabble_game_controller.dart';
-import 'package:kurdle_app/domain.dart' show AiDifficulty, GamePhase;
+import 'package:kurdle_app/controllers/scrabble_game_controller.dart'
+    show GamePhase, ScrabbleGameController;
+import 'package:kurdle_app/domain.dart' show AiDifficulty;
 import 'package:shared_preferences/shared_preferences.dart';
 
 const _kSampleWordlist = ['AV', 'HESP', 'JIN', 'MAL', 'XER', 'ZÊR'];
