@@ -15,7 +15,15 @@ class AuthService {
 
   // Mevcut oturum akışı — null ise giriş yapılmamış
   Stream<User?> get userStream => _auth.authStateChanges();
-  User? get currentUser => _auth.currentUser;
+  // FirebaseAuth.instance Firebase init edilmemişse fırlatır. Test ortamı
+  // ve offline cold-start için null'a düş — caller code zaten null'ı yönetir.
+  User? get currentUser {
+    try {
+      return _auth.currentUser;
+    } catch (_) {
+      return null;
+    }
+  }
   bool get isSignedIn => currentUser != null;
   bool get isAnonymous => currentUser?.isAnonymous ?? true;
 
