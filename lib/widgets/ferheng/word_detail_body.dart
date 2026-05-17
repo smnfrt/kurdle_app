@@ -73,7 +73,7 @@ class WordDetailBody extends StatelessWidget {
                       label: Text(w),
                       backgroundColor: FerhengDesign.surfaceAlt,
                       labelStyle:
-                          const TextStyle(color: FerhengDesign.textPrimary),
+                          TextStyle(color: FerhengDesign.textPrimary),
                       side: BorderSide.none,
                     ))
                 .toList(),
@@ -91,7 +91,7 @@ class WordDetailBody extends StatelessWidget {
                       label: Text(c),
                       backgroundColor: FerhengDesign.surface,
                       labelStyle:
-                          const TextStyle(color: FerhengDesign.textMuted),
+                          TextStyle(color: FerhengDesign.textMuted),
                       side: BorderSide.none,
                     ))
                 .toList(),
@@ -282,7 +282,7 @@ class _DefinitionItem extends StatelessWidget {
             children: [
               TextSpan(
                 text: '$index. ',
-                style: const TextStyle(
+                style: TextStyle(
                   color: FerhengDesign.textFaint,
                   fontWeight: FontWeight.w600,
                 ),

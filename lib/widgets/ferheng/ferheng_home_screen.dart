@@ -126,7 +126,7 @@ class _FerhengHomeScreenState extends State<FerhengHomeScreen> {
                         .map((w) => ActionChip(
                               label: Text(w),
                               backgroundColor: FerhengDesign.surface,
-                              labelStyle: const TextStyle(
+                              labelStyle: TextStyle(
                                   color: FerhengDesign.textPrimary),
                               side: BorderSide.none,
                               onPressed: () => _open(w),
@@ -169,7 +169,7 @@ class _SearchBar extends StatelessWidget {
           padding: const EdgeInsets.all(14),
           child: Row(
             children: [
-              const Icon(Icons.search_rounded,
+              Icon(Icons.search_rounded,
                   color: FerhengDesign.textFaint, size: 22),
               const SizedBox(width: 10),
               Expanded(
@@ -200,54 +200,74 @@ class _WotdCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF1B5E20), Color(0xFF66E093)],
-        ),
-        borderRadius: FerhengDesign.radLg,
+    final cardDecoration = BoxDecoration(
+      gradient: const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFF1B5E20), Color(0xFF66E093)],
       ),
-      padding: const EdgeInsets.all(20),
-      child: loading
-          ? const Center(
-              child: SizedBox(
-                  height: 20,
-                  width: 20,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2, color: Colors.white)),
-            )
-          : entry == null
-              ? Text(L.ferhengEmpty, style: FerhengDesign.bodyMd)
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      L.ferhengWotd.toUpperCase(),
-                      style: FerhengDesign.caption.copyWith(
-                        color: Colors.white70,
-                        letterSpacing: 1.0,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    GestureDetector(
-                      onTap: () => onTap(entry!.normalized),
-                      child: Text(
-                        entry!.headword,
-                        style: FerhengDesign.titleLg.copyWith(fontSize: 32),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      entry!.displayMeaning(L.current),
-                      style: FerhengDesign.bodyMd.copyWith(color: Colors.white),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+      borderRadius: FerhengDesign.radLg,
+    );
+    // Loading/empty durumlarında tıklanabilir gerek yok
+    if (loading) {
+      return Container(
+        decoration: cardDecoration,
+        padding: const EdgeInsets.all(20),
+        child: const Center(
+          child: SizedBox(
+              height: 20,
+              width: 20,
+              child: CircularProgressIndicator(
+                  strokeWidth: 2, color: Colors.white)),
+        ),
+      );
+    }
+    if (entry == null) {
+      return Container(
+        decoration: cardDecoration,
+        padding: const EdgeInsets.all(20),
+        child: Text(L.ferhengEmpty, style: FerhengDesign.bodyMd),
+      );
+    }
+    // Tüm kart tappable — sadece headword text değil
+    return Material(
+      color: Colors.transparent,
+      borderRadius: FerhengDesign.radLg,
+      child: Ink(
+        decoration: cardDecoration,
+        child: InkWell(
+          borderRadius: FerhengDesign.radLg,
+          onTap: () => onTap(entry!.normalized),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  L.ferhengWotd.toUpperCase(),
+                  style: FerhengDesign.caption.copyWith(
+                    color: Colors.white70,
+                    letterSpacing: 1.0,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
+                const SizedBox(height: 8),
+                Text(
+                  entry!.headword,
+                  style: FerhengDesign.titleLg.copyWith(fontSize: 32),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  entry!.displayMeaning(L.current),
+                  style: FerhengDesign.bodyMd.copyWith(color: Colors.white),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -292,7 +312,7 @@ class _LetterButton extends StatelessWidget {
         child: Center(
           child: Text(
             letter,
-            style: const TextStyle(
+            style: TextStyle(
               color: FerhengDesign.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w700,
@@ -326,7 +346,7 @@ class _LearnShortcut extends StatelessWidget {
               Expanded(
                 child: Text(L.ferhengLearn, style: FerhengDesign.titleMd),
               ),
-              const Icon(Icons.chevron_right_rounded,
+              Icon(Icons.chevron_right_rounded,
                   color: FerhengDesign.textFaint),
             ],
           ),

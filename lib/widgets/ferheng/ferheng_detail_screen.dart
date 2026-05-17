@@ -89,7 +89,7 @@ class _FerhengDetailScreenState extends State<FerhengDetailScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.search_off_rounded,
+                    Icon(Icons.search_off_rounded,
                         size: 56, color: FerhengDesign.textFaint),
                     const SizedBox(height: 12),
                     Text(L.ferhengNoDefinition,

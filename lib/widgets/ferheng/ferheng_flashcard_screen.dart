@@ -50,9 +50,9 @@ class _FerhengFlashcardScreenState extends State<FerhengFlashcardScreen> {
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
+      return Scaffold(
         backgroundColor: FerhengDesign.bg,
-        body: Center(
+        body: const Center(
             child: CircularProgressIndicator(color: FerhengDesign.primary)),
       );
     }

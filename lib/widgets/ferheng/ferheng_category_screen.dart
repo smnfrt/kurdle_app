@@ -25,7 +25,7 @@ class FerhengCategoryScreen extends StatelessWidget {
       ),
       body: ListView.separated(
         itemCount: categories.length,
-        separatorBuilder: (_, __) => const Divider(
+        separatorBuilder: (_, __) => Divider(
           color: FerhengDesign.divider,
           height: 1,
         ),
@@ -35,7 +35,7 @@ class FerhengCategoryScreen extends StatelessWidget {
           final label = (isTr ? cat['label_tr'] : cat['label_kmr']) ?? '';
           return ListTile(
             title: Text(label, style: FerhengDesign.bodyMd),
-            trailing: const Icon(Icons.chevron_right_rounded,
+            trailing: Icon(Icons.chevron_right_rounded,
                 color: FerhengDesign.textFaint),
             onTap: () => Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => _CategoryListScreen(

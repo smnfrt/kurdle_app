@@ -69,7 +69,7 @@ class _FerhengLetterScreenState extends State<FerhengLetterScreen> {
                   ),
                 )
               : _entries.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Text('—',
                           style: TextStyle(color: FerhengDesign.textFaint)),
                     )
