@@ -368,7 +368,19 @@ class _HomeScreenState extends State<HomeScreen>
       Navigator.of(context).push(
         PageRouteBuilder(
           pageBuilder: (_, __, ___) => OnboardingScreen(
-            onDone: () => Navigator.of(context).pop(),
+            onDone: () {
+              Navigator.of(context).pop();
+              // İlk başlayan kullanıcı için rehberli birinci oyun:
+              // Daily Wordle. Hızlı + tek kelime + başarı hissi verir.
+              // (kullanıcı "Atla" derse onDone bu yine çağrılır; OK.)
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                Navigator.push(
+                  context,
+                  appRoute(const DailyChallengeScreen()),
+                );
+              });
+            },
           ),
           transitionDuration: const Duration(milliseconds: 400),
           transitionsBuilder: (_, anim, __, child) =>

@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/onboarding_service.dart';
 
-const _kBg      = Color(0xFF0F1923);
-const _kSurface = Color(0xFF1A2533);
-const _kPrimary = Color(0xFF4CAF50);
+/// Peyvok onboarding — 6 sayfada tüm oyun modları tanıtılır,
+/// son sayfada büyük "Hemen Oyna" CTA'sı.
+///
+/// Sayfalar: Welcome → Wordle → Scrabble → Multiplayer → Ferheng → CTA.
+/// Tüm metinler L.* getter'larından gelir (TR/KMR runtime'da değişir).
 
 class OnboardingScreen extends StatefulWidget {
   final VoidCallback onDone;
@@ -17,29 +20,39 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final _ctrl = PageController();
   int _page = 0;
 
-  static const _pages = [
+  static const _kPrimary = Color(0xFF4CAF50);
+  static const _kPrimaryDark = Color(0xFF1B5E20);
+
+  late final List<_SlideData> _pages = [
     _SlideData(
-      icon: null,
-      title: 'Bi Xêr Hatî Peyvok!',
-      subtitle: 'Lîstika peyvên\nKürmancî',
-      isLogo: true,
+      builder: (ctx) => const _LogoVisual(),
+      titleFn: () => L.onboardingWelcomeTitle,
+      subtitleFn: () => L.onboardingWelcomeSubtitle,
     ),
     _SlideData(
-      icon: Icons.grid_4x4_rounded,
-      title: 'Çawa tê lîstin?',
-      subtitle: 'Di 6 hewlan de peyveke\n5 tîpî ya Kürmancî bibîne',
-      isBoard: true,
+      builder: (ctx) => const _WordleBoardPreview(),
+      titleFn: () => L.onboardingWordleTitle,
+      subtitleFn: () => L.onboardingWordleSubtitle,
     ),
     _SlideData(
-      icon: null,
-      title: 'Rengên Alîkar',
-      subtitle: 'Reng riya te nîşan didin',
-      isColors: true,
+      builder: (ctx) => const _ScrabbleVisual(),
+      titleFn: () => L.onboardingScrabbleTitle,
+      subtitleFn: () => L.onboardingScrabbleSubtitle,
     ),
     _SlideData(
-      icon: Icons.emoji_events_rounded,
-      title: 'Tu amade yî?',
-      subtitle: 'Her roj peyveke nû\nli benda te ye!',
+      builder: (ctx) => const _MultiplayerVisual(),
+      titleFn: () => L.onboardingMultiplayerTitle,
+      subtitleFn: () => L.onboardingMultiplayerSubtitle,
+    ),
+    _SlideData(
+      builder: (ctx) => const _FerhengVisual(),
+      titleFn: () => L.onboardingFerhengTitle,
+      subtitleFn: () => L.onboardingFerhengSubtitle,
+    ),
+    _SlideData(
+      builder: (ctx) => const _StreakVisual(),
+      titleFn: () => L.onboardingStreakTitle,
+      subtitleFn: () => L.onboardingStreakSubtitle,
       isLast: true,
     ),
   ];
@@ -55,7 +68,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   Future<void> _finish() async {
     await OnboardingService.instance.markSeen();
-    widget.onDone();
+    if (mounted) widget.onDone();
   }
 
   @override
@@ -67,14 +80,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.of(context).padding.bottom;
-    final top    = MediaQuery.of(context).padding.top;
+    final top = MediaQuery.of(context).padding.top;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? const Color(0xFF0F1923) : const Color(0xFFE6EEF2);
+    final textColor = isDark ? Colors.white : const Color(0xFF18242C);
+    final mutedColor = isDark
+        ? Colors.white.withValues(alpha: 0.55)
+        : const Color(0xFF52636E);
     final isLast = _page == _pages.length - 1;
 
     return Scaffold(
-      backgroundColor: _kBg,
+      backgroundColor: bg,
       body: Stack(
         children: [
-          // Background gradient accent
           Positioned(
             top: -80,
             right: -80,
@@ -87,8 +105,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ),
           ),
-
-          // Skip button
           if (!isLast)
             Positioned(
               top: top + 16,
@@ -96,32 +112,25 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: GestureDetector(
                 onTap: _finish,
                 child: Text(
-                  'Derbas bike',
+                  L.onboardingSkip,
                   style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.35), fontSize: 13),
+                      color: mutedColor.withValues(alpha: 0.7), fontSize: 13),
                 ),
               ),
             ),
-
           Column(
             children: [
               SizedBox(height: top + 56),
-
-              // PageView
               Expanded(
                 child: PageView.builder(
                   controller: _ctrl,
                   onPageChanged: (i) => setState(() => _page = i),
                   itemCount: _pages.length,
-                  itemBuilder: (_, i) => _buildSlide(_pages[i]),
+                  itemBuilder: (ctx, i) => _buildSlide(_pages[i], textColor, mutedColor),
                 ),
               ),
-
-              // Dots
-              _Dots(count: _pages.length, current: _page),
+              _Dots(count: _pages.length, current: _page, isDark: isDark),
               const SizedBox(height: 28),
-
-              // Button
               Padding(
                 padding: EdgeInsets.fromLTRB(32, 0, 32, bottom + 32),
                 child: SizedBox(
@@ -138,7 +147,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       shadowColor: _kPrimary.withValues(alpha: 0.4),
                     ),
                     child: Text(
-                      isLast ? 'Destpê bike' : 'Berdewam bike',
+                      isLast ? L.onboardingStart : L.onboardingNext,
                       style: const TextStyle(
                           fontSize: 16, fontWeight: FontWeight.bold),
                     ),
@@ -152,45 +161,30 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  Widget _buildSlide(_SlideData data) {
+  Widget _buildSlide(
+      _SlideData data, Color textColor, Color mutedColor) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          if (data.isLogo) _LogoWidget(),
-          if (data.isBoard) _BoardPreview(),
-          if (data.isColors) _ColorHints(),
-          if (!data.isLogo && !data.isBoard && !data.isColors && data.icon != null)
-            Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _kPrimary.withValues(alpha: 0.12),
-                border: Border.all(
-                    color: _kPrimary.withValues(alpha: 0.3), width: 1.5),
-              ),
-              child: Icon(data.icon!, color: _kPrimary, size: 44),
-            ),
+          data.builder(context),
           const SizedBox(height: 36),
           Text(
-            data.title,
+            data.titleFn(),
             textAlign: TextAlign.center,
-            style: const TextStyle(
-                color: Colors.white,
+            style: TextStyle(
+                color: textColor,
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
                 height: 1.2),
           ),
           const SizedBox(height: 12),
           Text(
-            data.subtitle,
+            data.subtitleFn(),
             textAlign: TextAlign.center,
             style: TextStyle(
-                color: Colors.white.withValues(alpha: 0.5),
-                fontSize: 14,
-                height: 1.6),
+                color: mutedColor, fontSize: 14, height: 1.6),
           ),
         ],
       ),
@@ -198,24 +192,37 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 }
 
-// ── Logo slaydı ───────────────────────────────────────────────────
+class _SlideData {
+  final Widget Function(BuildContext) builder;
+  final String Function() titleFn;
+  final String Function() subtitleFn;
+  final bool isLast;
+  const _SlideData({
+    required this.builder,
+    required this.titleFn,
+    required this.subtitleFn,
+    this.isLast = false,
+  });
+}
 
-class _LogoWidget extends StatelessWidget {
+// ── Visual: Logo (welcome) ───────────────────────────────────────
+class _LogoVisual extends StatelessWidget {
+  const _LogoVisual();
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 100,
-      height: 100,
+      width: 110,
+      height: 110,
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF4CAF50), Color(0xFF2E7D32)],
+          colors: [_OnboardingScreenState._kPrimary, _OnboardingScreenState._kPrimaryDark],
         ),
         borderRadius: BorderRadius.circular(28),
         boxShadow: [
           BoxShadow(
-              color: _kPrimary.withValues(alpha: 0.35),
+              color: _OnboardingScreenState._kPrimary.withValues(alpha: 0.35),
               blurRadius: 28,
               offset: const Offset(0, 10)),
         ],
@@ -224,7 +231,7 @@ class _LogoWidget extends StatelessWidget {
         child: Text('P',
             style: TextStyle(
                 color: Colors.white,
-                fontSize: 54,
+                fontSize: 58,
                 fontWeight: FontWeight.bold,
                 height: 1)),
       ),
@@ -232,9 +239,9 @@ class _LogoWidget extends StatelessWidget {
   }
 }
 
-// ── Tahta önizlemesi ──────────────────────────────────────────────
-
-class _BoardPreview extends StatelessWidget {
+// ── Visual: Wordle board preview ─────────────────────────────────
+class _WordleBoardPreview extends StatelessWidget {
+  const _WordleBoardPreview();
   static const _rows = [
     [_TC.absent, _TC.correct, _TC.absent, _TC.absent, _TC.present],
     [_TC.present, _TC.absent, _TC.correct, _TC.absent, _TC.absent],
@@ -254,10 +261,10 @@ class _BoardPreview extends StatelessWidget {
           padding: const EdgeInsets.only(bottom: 6),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(5, (c) {
-              return _BoardTile(
-                  letter: _letters[r][c], type: _rows[r][c]);
-            }),
+            children: List.generate(
+              5,
+              (c) => _BoardTile(letter: _letters[r][c], type: _rows[r][c]),
+            ),
           ),
         );
       }),
@@ -274,135 +281,284 @@ class _BoardTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Color bg;
-    switch (type) {
-      case _TC.correct:
-        bg = const Color(0xFF538D4E);
-        break;
-      case _TC.present:
-        bg = const Color(0xFFB59F3B);
-        break;
-      case _TC.absent:
-        bg = const Color(0xFF3A3A3C);
-        break;
-    }
+    final c = switch (type) {
+      _TC.correct => const Color(0xFF6AAA64),
+      _TC.present => const Color(0xFFC9B458),
+      _TC.absent => const Color(0xFF787C7E),
+    };
     return Container(
-      width: 48,
-      height: 48,
+      width: 44,
+      height: 44,
       margin: const EdgeInsets.symmetric(horizontal: 3),
       decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(8),
+        color: c,
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Center(
-        child: Text(letter,
-            style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5)),
+        child: Text(
+          letter,
+          style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold),
+        ),
       ),
     );
   }
 }
 
-// ── Renk ipuçları ─────────────────────────────────────────────────
-
-class _ColorHints extends StatelessWidget {
-  static const _hints = [
-    (color: Color(0xFF538D4E), label: 'Tîpa rast, cîhê rast', letter: 'R'),
-    (color: Color(0xFFB59F3B), label: 'Di peyvê de ye, cîhê şaş', letter: 'O'),
-    (color: Color(0xFF3A3A3C), label: 'Di peyvê de tune ye', letter: 'J'),
+// ── Visual: Scrabble rack + board hint ───────────────────────────
+class _ScrabbleVisual extends StatelessWidget {
+  const _ScrabbleVisual();
+  static const _tiles = [
+    ('H', 4),
+    ('E', 1),
+    ('V', 4),
+    ('A', 1),
+    ('L', 1),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Column(
-      children: _hints.map((h) {
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      children: [
+        // Tile rack (Scrabble-style wooden background)
+        Container(
+          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: _kSurface,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: h.color,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Center(
-                  child: Text(h.letter,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold)),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Text(
-                h.label,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
-              ),
+            color: const Color(0xFF5C3B1A),
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: [
+              BoxShadow(
+                  color: const Color(0xFF000000).withValues(alpha: 0.25),
+                  blurRadius: 6,
+                  offset: const Offset(0, 4)),
             ],
           ),
-        );
-      }).toList(),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final t in _tiles) _ScrabbleTile(letter: t.$1, score: t.$2),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        // Mini board hint with 2L/2W premium squares
+        Wrap(
+          spacing: 4,
+          runSpacing: 4,
+          children: [
+            for (final lbl in ['2W', '', '2L', '', '3W'])
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: switch (lbl) {
+                    '2W' => const Color(0xFFC5825A),
+                    '3W' => const Color(0xFFB54343),
+                    '2L' => const Color(0xFF548AC1),
+                    _ => const Color(0xFFEFEAD8),
+                  },
+                  borderRadius: BorderRadius.circular(3),
+                ),
+                child: Center(
+                  child: Text(
+                    lbl,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 8,
+                        fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ],
     );
   }
 }
 
-// ── Sayfa noktaları ───────────────────────────────────────────────
+class _ScrabbleTile extends StatelessWidget {
+  final String letter;
+  final int score;
+  const _ScrabbleTile({required this.letter, required this.score});
 
-class _Dots extends StatelessWidget {
-  final int count;
-  final int current;
-  const _Dots({required this.count, required this.current});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 36,
+      height: 40,
+      margin: const EdgeInsets.symmetric(horizontal: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1E0A6),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: const Color(0xFFC9A66B), width: 1),
+      ),
+      child: Stack(
+        children: [
+          Center(
+            child: Text(
+              letter,
+              style: const TextStyle(
+                  color: Color(0xFF1A1A1A),
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold),
+            ),
+          ),
+          Positioned(
+            right: 3,
+            bottom: 1,
+            child: Text(
+              '$score',
+              style: const TextStyle(
+                  color: Color(0xFF555555),
+                  fontSize: 9,
+                  fontWeight: FontWeight.w500),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Visual: Multiplayer (two avatars + lightning bolt) ───────────
+class _MultiplayerVisual extends StatelessWidget {
+  const _MultiplayerVisual();
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _Avatar(letter: 'M', color: const Color(0xFF64B5F6)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: _OnboardingScreenState._kPrimary.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.bolt_rounded,
+                color: _OnboardingScreenState._kPrimary, size: 26),
+          ),
+        ),
+        _Avatar(letter: 'R', color: const Color(0xFFFFAB91)),
+      ],
+    );
+  }
+}
+
+class _Avatar extends StatelessWidget {
+  final String letter;
+  final Color color;
+  const _Avatar({required this.letter, required this.color});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 72,
+      height: 72,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.9),
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: Text(
+          letter,
+          style: const TextStyle(
+              color: Colors.white,
+              fontSize: 32,
+              fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Visual: Ferheng (book/dict) ─────────────────────────────────
+class _FerhengVisual extends StatelessWidget {
+  const _FerhengVisual();
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 110,
+      height: 110,
+      decoration: BoxDecoration(
+        color: _OnboardingScreenState._kPrimary.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+            color: _OnboardingScreenState._kPrimary.withValues(alpha: 0.3),
+            width: 1.5),
+      ),
+      child: const Center(
+        child: Icon(Icons.menu_book_rounded,
+            color: _OnboardingScreenState._kPrimary, size: 56),
+      ),
+    );
+  }
+}
+
+// ── Visual: Streak flame ─────────────────────────────────────────
+class _StreakVisual extends StatelessWidget {
+  const _StreakVisual();
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 110,
+      height: 110,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFFFB74D), Color(0xFFE65100)],
+        ),
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+              color: const Color(0xFFE65100).withValues(alpha: 0.4),
+              blurRadius: 28,
+              offset: const Offset(0, 10)),
+        ],
+      ),
+      child: const Center(
+        child: Icon(Icons.local_fire_department_rounded,
+            color: Colors.white, size: 60),
+      ),
+    );
+  }
+}
+
+// ── Sayfa noktaları ──────────────────────────────────────────────
+class _Dots extends StatelessWidget {
+  final int count;
+  final int current;
+  final bool isDark;
+  const _Dots(
+      {required this.count, required this.current, required this.isDark});
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: List.generate(count, (i) {
-        final active = i == current;
+        final isActive = i == current;
+        final inactiveColor = isDark
+            ? Colors.white.withValues(alpha: 0.15)
+            : const Color(0xFF000000).withValues(alpha: 0.15);
         return AnimatedContainer(
           duration: const Duration(milliseconds: 250),
-          margin: const EdgeInsets.symmetric(horizontal: 4),
-          width: active ? 24 : 8,
-          height: 8,
+          curve: Curves.easeOut,
+          width: isActive ? 24 : 6,
+          height: 6,
+          margin: const EdgeInsets.symmetric(horizontal: 3),
           decoration: BoxDecoration(
-            color: active ? _kPrimary : Colors.white.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(4),
+            color:
+                isActive ? _OnboardingScreenState._kPrimary : inactiveColor,
+            borderRadius: BorderRadius.circular(3),
           ),
         );
       }),
     );
   }
-}
-
-// ── Slayt verisi ──────────────────────────────────────────────────
-
-class _SlideData {
-  final IconData? icon;
-  final String title;
-  final String subtitle;
-  final bool isLogo;
-  final bool isBoard;
-  final bool isColors;
-  final bool isLast;
-
-  const _SlideData({
-    this.icon,
-    required this.title,
-    required this.subtitle,
-    this.isLogo = false,
-    this.isBoard = false,
-    this.isColors = false,
-    this.isLast = false,
-  });
 }

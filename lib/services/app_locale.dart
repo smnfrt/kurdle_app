@@ -51,6 +51,47 @@ class L {
       _s('Gizlilik Politikası', 'Polîtîkaya Veşartiyê');
   static String get privacyPolicyUpdated =>
       _s('Son güncelleme: 16 Mayıs 2026', 'Nûkirina dawî: 16 Gulan 2026');
+
+  // ── Onboarding ─────────────────────────────────────────────────
+  static String get onboardingSkip => _s('Atla', 'Derbas bike');
+  static String get onboardingNext => _s('Devam', 'Berdewam bike');
+  static String get onboardingStart => _s('Hemen Oyna', 'Niha Bilîze');
+
+  static String get onboardingWelcomeTitle =>
+      _s('Peyvok\'a Hoş Geldin!', 'Bi Xêr Hatî Peyvok!');
+  static String get onboardingWelcomeSubtitle => _s(
+      'Kurmancî kelime oyunları artık tek uygulamada — Wordle, Scrabble, multiplayer.',
+      'Lîstikên peyvên Kurmancî di yek sepanê de — Wordle, Scrabble, gelek lîstikvan.');
+
+  static String get onboardingWordleTitle =>
+      _s('Günün Kelimesi', 'Peyva Rojê');
+  static String get onboardingWordleSubtitle => _s(
+      'Her gün yeni bir 5 harfli Kurmancî kelime. 6 denemende bul.',
+      'Her roj peyveke nû ya 5-tîpî ya Kurmancî. Di 6 hewlan de bibîne.');
+
+  static String get onboardingScrabbleTitle =>
+      _s('AI ile Scrabble', 'Bi AI re Scrabble');
+  static String get onboardingScrabbleSubtitle => _s(
+      'Tahta üzerinde taşlarını sürükle, kelime yarat, puan al. 3 zorluk seviyesi.',
+      'Li ser texte herfan bikişîne, peyvan biafrîne, xal bistîne. 3 astên zehmetiyê.');
+
+  static String get onboardingMultiplayerTitle =>
+      _s('Arkadaşlarla Oyna', 'Bi Hevalan re Bilîze');
+  static String get onboardingMultiplayerSubtitle => _s(
+      'Davet kodu veya kullanıcı adıyla arkadaşına meydan oku, ya da rastgele eşleş.',
+      'Bi koda vexwendinê yan bi navê bikarhêner re hevalê xwe daxwaz bike, yan bi tesadufî hevdîtin bike.');
+
+  static String get onboardingFerhengTitle =>
+      _s('Ferheng — 216,000 Kelime', 'Ferheng — 216,000 Peyv');
+  static String get onboardingFerhengSubtitle => _s(
+      'Oynadığın her kelimenin anlamı parmağının ucunda — Türkçe + Kurmancî.',
+      'Wateya her peyva ku tu dilîzî di destê te de ye — Tirkî + Kurmancî.');
+
+  static String get onboardingStreakTitle =>
+      _s('Hazır mısın?', 'Tu amade yî?');
+  static String get onboardingStreakSubtitle => _s(
+      'Günlük serini başlat, rozetler kazan, sözlüğü keşfet. Şimdi başla!',
+      'Rêzika xwe ya rojane dest pê bike, rozetan bistîne, ferhengê keşfe bike. Niha dest pê bike!');
   static String get waitingAccept => _s('Daveti kabul etmesi bekleniyor...',
       'Li bendê ye ku vexwendinê qebûl bike...');
   static String get inviteFrom =>
