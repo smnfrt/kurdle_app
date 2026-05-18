@@ -16,6 +16,7 @@ class Settings {
   bool isHighContrast;
   bool soundEnabled;
   bool hapticEnabled;
+  bool notifsEnabled;
   KeyboardLayout keyboardLayout;
 
   /// Ferheng tanım dili tercihi (kmr ↔ tr). Default: tr.
@@ -31,6 +32,7 @@ class Settings {
     this.keyboardLayout, {
     this.soundEnabled = true,
     this.hapticEnabled = true,
+    this.notifsEnabled = true,
     this.ferhengDefinitionLanguage = AppLocale.tr,
     this.aiDifficulty = AiDifficulty.normal,
   });
@@ -43,6 +45,7 @@ class Settings {
                 false,
         soundEnabled = json['soundEnabled'] as bool? ?? true,
         hapticEnabled = json['hapticEnabled'] as bool? ?? true,
+        notifsEnabled = json['notifsEnabled'] as bool? ?? true,
         keyboardLayout = KeyboardLayout.values
             .byName(json['keyboardLayout'] ?? KeyboardLayout.qwerty.name),
         ferhengDefinitionLanguage = AppLocale.values
@@ -57,6 +60,7 @@ class Settings {
     data['isHighContrast'] = isHighContrast;
     data['soundEnabled'] = soundEnabled;
     data['hapticEnabled'] = hapticEnabled;
+    data['notifsEnabled'] = notifsEnabled;
     data['keyboardLayout'] = keyboardLayout.name;
     data['ferhengDefinitionLanguage'] = ferhengDefinitionLanguage.name;
     data['aiDifficulty'] = aiDifficulty.name;

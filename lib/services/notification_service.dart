@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -277,6 +279,28 @@ class NotificationService {
 
   Future<String?> getFcmToken() => _fcm.getToken();
 
+  /// Mevcut FCM token'ını signed-in kullanıcının Firestore dokümanına
+  /// yazar (`users/{uid}.fcmToken`). Cloud Function bu alana göre
+  /// rakip hamlesi push'u gönderir. Token değişirse periyodik tekrar
+  /// çağrılmalı (`_fcm.onTokenRefresh` listener'a bağlanabilir).
+  Future<void> syncFcmTokenToFirestore() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      final token = await _fcm.getToken();
+      if (token == null || token.isEmpty) return;
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .set(
+            {'fcmToken': token, 'lastSeen': FieldValue.serverTimestamp()},
+            SetOptions(merge: true),
+          );
+    } catch (e) {
+      // Auth/Firestore offline modunda sessizce yoksay
+    }
+  }
+
   Future<void> showInviteNotification({
     required String fromName,
     required String roomCode,
@@ -292,6 +316,38 @@ class NotificationService {
           importance: Importance.max,
           priority: Priority.high,
           ticker: 'Davet',
+        ),
+      ),
+      payload: roomCode,
+    );
+  }
+
+  /// Multiplayer'da rakip hamle yapıp sıra sana geçtiğinde gösterilir.
+  /// App'in foreground/background olduğu süre boyunca çalışır;
+  /// uygulamanın tamamen kapalı olduğu durumda Cloud Function ile FCM
+  /// push gerekir (henüz kurulmadı).
+  Future<void> showOpponentMoveNotification({
+    required String opponentName,
+    required String roomCode,
+    String? wordPlayed,
+    int? score,
+  }) async {
+    final body = wordPlayed != null && wordPlayed.isNotEmpty
+        ? (score != null && score > 0
+            ? '$opponentName "$wordPlayed" oynadı (+$score puan) — sıra sende!'
+            : '$opponentName "$wordPlayed" oynadı — sıra sende!')
+        : '$opponentName hamlesini yaptı — sıra sende!';
+    await _local.show(
+      'move-$roomCode'.hashCode,
+      'Senin sıran 🎯',
+      body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          _channelId,
+          _channelName,
+          importance: Importance.high,
+          priority: Priority.high,
+          ticker: 'Hamle',
         ),
       ),
       payload: roomCode,

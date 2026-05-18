@@ -3940,7 +3940,7 @@ class _SettingsSheet extends StatefulWidget {
 class _SettingsSheetState extends State<_SettingsSheet> {
   bool _sound = true;
   bool _haptic = true;
-  bool _notifs = false;
+  bool _notifs = true;
   bool _darkMode = true;
 
   @override
@@ -3957,6 +3957,7 @@ class _SettingsSheetState extends State<_SettingsSheet> {
       _darkMode = s.isDarkMode;
       _sound = s.soundEnabled;
       _haptic = s.hapticEnabled;
+      _notifs = s.notifsEnabled;
     });
     themeNotifier.value = s.isDarkMode ? ThemeMode.dark : ThemeMode.light;
     SoundService.instance.setEnabled(s.soundEnabled);
@@ -3968,6 +3969,25 @@ class _SettingsSheetState extends State<_SettingsSheet> {
     themeNotifier.value = value ? ThemeMode.dark : ThemeMode.light;
     final s = await SettingsService().load();
     s.isDarkMode = value;
+    await SettingsService().save(s);
+  }
+
+  Future<void> _setNotifs(bool value) async {
+    final s = await SettingsService().load();
+    if (value) {
+      // Toggle ON: izin iste, gerçek granted durumuna göre kaydet
+      final settings = await NotificationService.instance
+          .requestNotificationPermission();
+      final granted = settings.authorizationStatus ==
+              AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional;
+      s.notifsEnabled = granted;
+      if (!mounted) return;
+      setState(() => _notifs = granted);
+    } else {
+      s.notifsEnabled = false;
+      setState(() => _notifs = false);
+    }
     await SettingsService().save(s);
   }
 
@@ -4151,21 +4171,7 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                     iconColor: const Color(0xFFBA68C8),
                     label: L.notifications,
                     value: _notifs,
-                    onChanged: (v) async {
-                      if (v) {
-                        // User-driven prompt — yalnız toggle ON yapınca ister.
-                        final settings = await NotificationService.instance
-                            .requestNotificationPermission();
-                        final granted = settings.authorizationStatus ==
-                                AuthorizationStatus.authorized ||
-                            settings.authorizationStatus ==
-                                AuthorizationStatus.provisional;
-                        if (!mounted) return;
-                        setState(() => _notifs = granted);
-                      } else {
-                        setState(() => _notifs = false);
-                      }
-                    },
+                    onChanged: _setNotifs,
                   ),
                   _SettingsToggle(
                     icon: Icons.dark_mode_rounded,

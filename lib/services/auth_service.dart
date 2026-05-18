@@ -79,6 +79,10 @@ class AuthService {
       if (isAnonymous && currentUser != null) {
         try {
           final linked = await currentUser!.linkWithCredential(credential);
+          // Linking displayName/photoURL'i otomatik MERGE etmez —
+          // anonymous'tan miras kalan "Misafir XYZA" adı kalır. Google
+          // profilinden explicit yansıt.
+          await _applyGoogleProfileToUser(linked.user, googleUser);
           return linked.user;
         } on FirebaseAuthException catch (e) {
           if (e.code != 'credential-already-in-use' && e.code != 'email-already-in-use') {
@@ -90,10 +94,41 @@ class AuthService {
       }
 
       final cred = await _auth.signInWithCredential(credential);
+      // Yeni giriş (fresh sign-in) Firebase Auth zaten Google profilini
+      // map'ler ama emin olmak için aynı yardımcıyı çağır (idempotent).
+      await _applyGoogleProfileToUser(cred.user, googleUser);
       return cred.user;
     } catch (e) {
       _log('signInWithGoogle', e.toString());
       return null;
+    }
+  }
+
+  /// Google profilini Firebase Auth user'ına yansıt — link sonrası
+  /// anonymous'tan kalan "Misafir XYZA" adını Google'ın gerçek
+  /// adıyla değiştirir. Idempotent: zaten doğruysa no-op.
+  Future<void> _applyGoogleProfileToUser(
+    User? user,
+    GoogleSignInAccount googleUser,
+  ) async {
+    if (user == null) return;
+    final googleName = googleUser.displayName?.trim();
+    final googlePhoto = googleUser.photoUrl?.trim();
+    final isAuto = (user.displayName ?? '').startsWith('Misafir ') ||
+        (user.displayName ?? '').startsWith('Mêvan ') ||
+        (user.displayName ?? '').trim().isEmpty;
+    try {
+      if (googleName != null && googleName.isNotEmpty &&
+          (isAuto || user.displayName != googleName)) {
+        await user.updateDisplayName(googleName);
+      }
+      if (googlePhoto != null && googlePhoto.isNotEmpty &&
+          (user.photoURL == null || user.photoURL!.isEmpty)) {
+        await user.updatePhotoURL(googlePhoto);
+      }
+      await user.reload();
+    } catch (e) {
+      _log('applyGoogleProfile', e.toString());
     }
   }
 

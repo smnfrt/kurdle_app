@@ -1,8 +1,10 @@
+import 'package:firebase_messaging/firebase_messaging.dart' show AuthorizationStatus;
 import 'package:flutter/material.dart';
 import 'package:kurdle_app/services/firebase_service.dart';
 import 'package:kurdle_app/services/haptic_service.dart';
 import 'package:kurdle_app/services/language_config.dart';
 import 'package:kurdle_app/services/notification_service.dart';
+import 'package:kurdle_app/services/settings_service.dart';
 import 'package:kurdle_app/services/sound_service.dart';
 import 'package:kurdle_app/services/word_validator_service.dart';
 import 'package:kurdle_app/services/wordlist_loader.dart';
@@ -82,6 +84,24 @@ class _SplashScreenState extends State<SplashScreen>
         if (FirebaseService.isAvailable) {
           try {
             await NotificationService.instance.init();
+            // İlk kurulumda settings notifsEnabled default true geliyor;
+            // izin durumunu kontrol et, henüz prompt edilmediyse iste.
+            // Splash'te kullanıcı ne yapacağını gördükten sonra prompt
+            // gelmesi davranışsal olarak doğru zaman.
+            final s = await SettingsService().load();
+            if (s.notifsEnabled) {
+              final current = await NotificationService.instance
+                  .currentPermissionStatus();
+              if (current != AuthorizationStatus.authorized &&
+                  current != AuthorizationStatus.denied) {
+                // notDetermined / provisional: prompt at için
+                await NotificationService.instance
+                    .requestNotificationPermission();
+              }
+              // Cloud Function (notifyOpponentOnMove / notifyInviteOnCreate)
+              // bu token'a push gönderecek. Auth + Firestore ready olunca.
+              await NotificationService.instance.syncFcmTokenToFirestore();
+            }
           } catch (e) {
             debugPrint('NotificationService init failed: $e');
           }

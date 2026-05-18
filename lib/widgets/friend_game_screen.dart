@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kurdle_app/controllers/board_touch_controller.dart';
+import 'package:kurdle_app/services/notification_service.dart';
 import 'package:kurdle_app/models/board_cell.dart';
 import 'package:kurdle_app/models/game_tile.dart';
 import 'package:kurdle_app/models/word_board.dart';
@@ -21,12 +22,25 @@ import 'package:kurdle_app/services/wordlist_loader.dart';
 import 'package:kurdle_app/widgets/letter_rack_widget.dart';
 import 'package:kurdle_app/widgets/scrabble_board_widget.dart';
 
-const _kBg = Color(0xFF0D1520);
-const _kTopStart = Color(0xFF1E2A3A);
-const _kCard = Color(0xFF162030);
+const _kBgDark = Color(0xFF0D1520);
+const _kTopStartDark = Color(0xFF1E2A3A);
+const _kCardDark = Color(0xFF162030);
+// Light tema chrome (app light theme'i ile uyumlu).
+const _kBgLight = Color(0xFFE6EEF2);
+const _kTopStartLight = Color(0xFFD2DDE4);
+const _kCardLight = Color(0xFFF4F8FA);
+// Functional / brand renkleri tema-bağımsız.
 const _kPrimary = Color(0xFF4CAF50);
 const _kBlue = Color(0xFF64B5F6);
 const _kError = Color(0xFFFF6B6B);
+
+// Build-time theme-aware ortak getter'lar. Build() içinden çağrılır.
+Color _bgFor(BuildContext ctx) =>
+    Theme.of(ctx).brightness == Brightness.dark ? _kBgDark : _kBgLight;
+Color _topStartFor(BuildContext ctx) =>
+    Theme.of(ctx).brightness == Brightness.dark ? _kTopStartDark : _kTopStartLight;
+Color _cardFor(BuildContext ctx) =>
+    Theme.of(ctx).brightness == Brightness.dark ? _kCardDark : _kCardLight;
 const _kInitialBoardZoom = 2.05;
 
 class FriendGameScreen extends StatefulWidget {
@@ -302,11 +316,22 @@ class _FriendGameScreenState extends State<FriendGameScreen>
     if (isMyTurn && !wasMyTurn) {
       // Opponent just submitted — refresh board and rack
       _syncFromRoom(room);
-      // Sıra bana geldi: banner + ses
+      // Sıra bana geldi: banner + ses + local notification
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _showTurnBanner(L.turnIsYours);
       });
       HapticFeedback.mediumImpact();
+      // Local bildirim — app background'da olsa bile çalar
+      final isHost = room.hostUid == widget.myUid;
+      final oppName = isHost
+          ? (room.guestName ?? L.opponentFallback)
+          : room.hostName;
+      NotificationService.instance
+          .showOpponentMoveNotification(
+            opponentName: oppName,
+            roomCode: widget.roomCode,
+          )
+          .catchError((_) {});
     } else if (prev == null) {
       // First load
       _syncFromRoom(room);
@@ -741,9 +766,9 @@ class _FriendGameScreenState extends State<FriendGameScreen>
   @override
   Widget build(BuildContext context) {
     if (_loading) {
-      return const Scaffold(
-        backgroundColor: _kBg,
-        body: Center(child: CircularProgressIndicator(color: _kPrimary)),
+      return Scaffold(
+        backgroundColor: _bgFor(context),
+        body: const Center(child: CircularProgressIndicator(color: _kPrimary)),
       );
     }
 
@@ -757,7 +782,7 @@ class _FriendGameScreenState extends State<FriendGameScreen>
     final myTurn = _isMyTurn;
 
     return Scaffold(
-      backgroundColor: _kBg,
+      backgroundColor: _bgFor(context),
       body: Stack(
         children: [
           // Ambient sahne arka planı: dikey gradient + radial vignette
@@ -1050,8 +1075,8 @@ class _FriendGameScreenState extends State<FriendGameScreen>
     if (_room?.status == 'finished') return true;
     return await showDialog<bool>(
           context: context,
-          builder: (_) => AlertDialog(
-            backgroundColor: _kCard,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: _cardFor(ctx),
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: Text(L.leaveGameTitle,
@@ -1785,7 +1810,7 @@ class _WordMeaningBubbleState extends State<_WordMeaningBubble>
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   decoration: BoxDecoration(
-                    color: _kTopStart,
+                    color: _topStartFor(context),
                     borderRadius: BorderRadius.circular(16),
                     border: Border.all(
                         color: _kPrimary.withValues(alpha: 0.5), width: 1.5),

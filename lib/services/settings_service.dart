@@ -17,6 +17,7 @@ class SettingsService {
       return Settings(true, false, false, KeyboardLayout.qwerty,
           soundEnabled: true,
           hapticEnabled: true,
+          notifsEnabled: true,
           ferhengDefinitionLanguage: AppLocale.tr,
           aiDifficulty: AiDifficulty.normal);
     }
