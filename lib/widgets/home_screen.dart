@@ -3567,10 +3567,10 @@ class _MiniBoardPreview extends StatelessWidget {
       }
     }
 
+    const previewRadius = 9.0;
     return Container(
       width: 82,
       height: 82,
-      padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -3580,49 +3580,55 @@ class _MiniBoardPreview extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(9),
+        borderRadius: BorderRadius.circular(previewRadius),
         border: Border.all(color: accent.withValues(alpha: 0.24)),
       ),
-      child: GridView.builder(
-        physics: const NeverScrollableScrollPhysics(),
-        padding: EdgeInsets.zero,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 5,
-          mainAxisSpacing: 2,
-          crossAxisSpacing: 2,
-        ),
-        itemCount: 25,
-        itemBuilder: (_, i) {
-          final r = i ~/ 5;
-          final c = i % 5;
-          final letter = letters['$r:$c'];
-          final hasLetter = letter != null;
-          return Container(
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: hasLetter
-                  ? const Color(0xFFFFD27A)
-                  : Colors.white.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(2),
-              border: Border.all(
-                color: hasLetter
-                    ? const Color(0xFFE0B35A)
-                    : Colors.white.withValues(alpha: 0.04),
-              ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(previewRadius - 1),
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: GridView.builder(
+            physics: const NeverScrollableScrollPhysics(),
+            padding: EdgeInsets.zero,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 5,
+              mainAxisSpacing: 2,
+              crossAxisSpacing: 2,
             ),
-            child: hasLetter
-                ? Text(
-                    letter,
-                    style: const TextStyle(
-                      color: Color(0xFF392600),
-                      fontSize: 9,
-                      fontWeight: FontWeight.w900,
-                      height: 1,
-                    ),
-                  )
-                : const SizedBox.shrink(),
-          );
-        },
+            itemCount: 25,
+            itemBuilder: (_, i) {
+              final r = i ~/ 5;
+              final c = i % 5;
+              final letter = letters['$r:$c'];
+              final hasLetter = letter != null;
+              return Container(
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: hasLetter
+                      ? const Color(0xFFFFD27A)
+                      : Colors.white.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(2),
+                  border: Border.all(
+                    color: hasLetter
+                        ? const Color(0xFFE0B35A)
+                        : Colors.white.withValues(alpha: 0.04),
+                  ),
+                ),
+                child: hasLetter
+                    ? Text(
+                        letter,
+                        style: const TextStyle(
+                          color: Color(0xFF392600),
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                          height: 1,
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              );
+            },
+          ),
+        ),
       ),
     );
   }
@@ -3665,6 +3671,7 @@ class _ActiveGameCard extends StatelessWidget {
           child: Material(
             color: Colors.transparent,
             borderRadius: BorderRadius.circular(14),
+            clipBehavior: Clip.antiAlias,
             child: InkWell(
               onTap: () {
                 HapticFeedback.mediumImpact();
@@ -3673,7 +3680,7 @@ class _ActiveGameCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
               splashColor: _kPrimary.withValues(alpha: 0.12),
               child: Ink(
-                height: 126,
+                height: 134,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: isDark
@@ -3722,23 +3729,29 @@ class _ActiveGameCard extends StatelessWidget {
                               ),
                             ),
                             const SizedBox(height: 7),
-                            Wrap(
-                              spacing: 6,
-                              runSpacing: 5,
+                            Row(
                               children: [
-                                _StatusPill(
-                                  text: L.current == AppLocale.tr
-                                      ? 'SIRA SENDE'
-                                      : 'DOR LI TE',
-                                  color: _kPrimary,
-                                  icon: Icons.play_arrow_rounded,
+                                Flexible(
+                                  flex: 0,
+                                  child: _StatusPill(
+                                    text: L.current == AppLocale.tr
+                                        ? 'SIRA SENDE'
+                                        : 'DOR LI TE',
+                                    color: _kPrimary,
+                                    icon: Icons.play_arrow_rounded,
+                                  ),
                                 ),
-                                Text(
-                                  lastMove,
-                                  style: TextStyle(
-                                    color: mutedColor,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    lastMove,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: mutedColor,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -3834,6 +3847,7 @@ class _MultiplayerGameCard extends StatelessWidget {
         child: Material(
           color: Colors.transparent,
           borderRadius: BorderRadius.circular(14),
+          clipBehavior: Clip.antiAlias,
           child: InkWell(
             onTap: () {
               HapticFeedback.mediumImpact();
@@ -3842,7 +3856,7 @@ class _MultiplayerGameCard extends StatelessWidget {
             borderRadius: BorderRadius.circular(14),
             splashColor: accent.withValues(alpha: 0.12),
             child: Ink(
-              height: 126,
+              height: 134,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: isDark
@@ -3919,35 +3933,43 @@ class _MultiplayerGameCard extends StatelessWidget {
                                 ),
                               ),
                               const SizedBox(height: 7),
-                              Wrap(
-                                spacing: 6,
-                                runSpacing: 5,
-                                crossAxisAlignment: WrapCrossAlignment.center,
+                              Row(
                                 children: [
-                                  _StatusPill(
-                                    text: statusText,
-                                    color: accent,
-                                    icon: isMyTurn
-                                        ? Icons.play_arrow_rounded
-                                        : Icons.hourglass_bottom_rounded,
+                                  Flexible(
+                                    flex: 0,
+                                    child: _StatusPill(
+                                      text: statusText,
+                                      color: accent,
+                                      icon: isMyTurn
+                                          ? Icons.play_arrow_rounded
+                                          : Icons.hourglass_bottom_rounded,
+                                    ),
                                   ),
+                                  const SizedBox(width: 6),
                                   if (lastMoveText != null)
-                                    Text(
-                                      lastMoveText,
-                                      style: TextStyle(
-                                        color: moveTextColor,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w800,
+                                    Expanded(
+                                      child: Text(
+                                        lastMoveText,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: moveTextColor,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800,
+                                        ),
                                       ),
-                                      overflow: TextOverflow.ellipsis,
                                     )
                                   else if (lastMoveAt != null)
-                                    Text(
-                                      lastMoveAt,
-                                      style: TextStyle(
-                                        color: mutedColor,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
+                                    Expanded(
+                                      child: Text(
+                                        lastMoveAt,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: mutedColor,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                        ),
                                       ),
                                     ),
                                 ],
@@ -3994,74 +4016,80 @@ class _FinishedGameCard extends StatelessWidget {
         isDark ? Colors.white.withValues(alpha: 0.50) : const Color(0xFF52636E);
     final timeColor =
         isDark ? Colors.white.withValues(alpha: 0.34) : const Color(0xFF667681);
-    return Ink(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isDark
-              ? [Colors.white.withValues(alpha: 0.07), const Color(0xFF101827)]
-              : const [Color(0xFFFFFFFF), Color(0xFFEAF1F4)],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        ),
-        borderRadius: BorderRadius.circular(14),
-        border:
-            Border.all(color: color.withValues(alpha: isDark ? 0.20 : 0.24)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.07),
-            blurRadius: 14,
-            offset: const Offset(0, 7),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: Ink(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isDark
+                ? [
+                    Colors.white.withValues(alpha: 0.07),
+                    const Color(0xFF101827)
+                  ]
+                : const [Color(0xFFFFFFFF), Color(0xFFEAF1F4)],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
           ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          children: [
-            _PlayerAvatar(
-              name: won ? 'W' : 'L',
-              color: color,
-              icon: won ? Icons.emoji_events_rounded : Icons.flag_rounded,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    won
-                        ? (L.current == AppLocale.tr ? 'Kazandın' : 'Tu biri')
-                        : (L.current == AppLocale.tr
-                            ? 'Kaybettin'
-                            : 'Tu şikestî'),
-                    style: TextStyle(
-                        color: color,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w900),
-                  ),
-                  const SizedBox(height: 5),
-                  Text('${record.playerScore} — ${record.aiScore}',
-                      style: TextStyle(
-                          color: titleColor.withValues(alpha: 0.84),
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900)),
-                  const SizedBox(height: 6),
-                  Text(_MyGamesSheetState._timeAgo(record.startedAt),
-                      style: TextStyle(
-                          color: timeColor,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700)),
-                ],
-              ),
-            ),
-            const SizedBox(width: 10),
-            _StatusPill(
-              text: L.current == AppLocale.tr ? 'BİTTİ' : 'QEDIYA',
-              color: mutedColor,
-              icon: Icons.check_rounded,
+          borderRadius: BorderRadius.circular(14),
+          border:
+              Border.all(color: color.withValues(alpha: isDark ? 0.20 : 0.24)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.07),
+              blurRadius: 14,
+              offset: const Offset(0, 7),
             ),
           ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              _PlayerAvatar(
+                name: won ? 'W' : 'L',
+                color: color,
+                icon: won ? Icons.emoji_events_rounded : Icons.flag_rounded,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      won
+                          ? (L.current == AppLocale.tr ? 'Kazandın' : 'Tu biri')
+                          : (L.current == AppLocale.tr
+                              ? 'Kaybettin'
+                              : 'Tu şikestî'),
+                      style: TextStyle(
+                          color: color,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 5),
+                    Text('${record.playerScore} — ${record.aiScore}',
+                        style: TextStyle(
+                            color: titleColor.withValues(alpha: 0.84),
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 6),
+                    Text(_MyGamesSheetState._timeAgo(record.startedAt),
+                        style: TextStyle(
+                            color: timeColor,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              _StatusPill(
+                text: L.current == AppLocale.tr ? 'BİTTİ' : 'QEDIYA',
+                color: mutedColor,
+                icon: Icons.check_rounded,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -4307,6 +4335,7 @@ class _FinishedMultiplayerCard extends StatelessWidget {
         child: Material(
           color: Colors.transparent,
           borderRadius: BorderRadius.circular(14),
+          clipBehavior: Clip.antiAlias,
           child: InkWell(
             borderRadius: BorderRadius.circular(14),
             splashColor: color.withValues(alpha: 0.10),
@@ -4456,133 +4485,137 @@ class _InviteCard extends StatelessWidget {
               offset: const Offset(0, 7)),
         ],
       ),
-      child: Ink(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: isDark
-                ? [_blue.withValues(alpha: 0.15), const Color(0xFF101827)]
-                : const [Color(0xFFFFFFFF), Color(0xFFEAF4FB)],
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: isDark
+                  ? [_blue.withValues(alpha: 0.15), const Color(0xFF101827)]
+                  : const [Color(0xFFFFFFFF), Color(0xFFEAF4FB)],
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
+            border:
+                Border.all(color: _blue.withValues(alpha: 0.34), width: 1.2),
           ),
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: _blue.withValues(alpha: 0.34), width: 1.2),
-        ),
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-              child: Row(
-                children: [
-                  _PlayerAvatar(name: invite.fromDisplayName, color: _blue),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          invite.fromDisplayName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              color: titleColor,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w900),
-                        ),
-                        const SizedBox(height: 5),
-                        Text(
-                          L.inviteFrom,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              color: mutedColor,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700),
-                        ),
-                        const SizedBox(height: 8),
-                        _StatusPill(
-                          text: L.current == AppLocale.tr
-                              ? 'DAVET BEKLİYOR'
-                              : 'VEXWENDIN LI BENDÊ',
-                          color: _blue,
-                          icon: Icons.mail_rounded,
-                        ),
-                      ],
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+                child: Row(
+                  children: [
+                    _PlayerAvatar(name: invite.fromDisplayName, color: _blue),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            invite.fromDisplayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                color: titleColor,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w900),
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            L.inviteFrom,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                color: mutedColor,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 8),
+                          _StatusPill(
+                            text: L.current == AppLocale.tr
+                                ? 'DAVET BEKLİYOR'
+                                : 'VEXWENDIN LI BENDÊ',
+                            color: _blue,
+                            icon: Icons.mail_rounded,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  const _MiniBoardPreview(
-                    accent: _blue,
-                    fallbackWord: 'DAVET',
-                  ),
-                ],
+                    const SizedBox(width: 10),
+                    const _MiniBoardPreview(
+                      accent: _blue,
+                      fallbackWord: 'DAVET',
+                    ),
+                  ],
+                ),
               ),
-            ),
-            Container(
-              height: 1,
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              color: _blue.withValues(alpha: 0.18),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        HapticFeedback.selectionClick();
-                        onDecline();
-                      },
-                      icon: const Icon(Icons.close_rounded, size: 16),
-                      label: Text(L.decline),
-                      style: OutlinedButton.styleFrom(
-                        minimumSize: const Size(0, 44),
-                        foregroundColor: isDark
-                            ? Colors.white.withValues(alpha: 0.62)
-                            : const Color(0xFF52636E),
-                        side: BorderSide(
-                          color: isDark
-                              ? Colors.white.withValues(alpha: 0.12)
-                              : const Color(0xFFD6E1E7),
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        textStyle: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
+              Container(
+                height: 1,
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                color: _blue.withValues(alpha: 0.18),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          HapticFeedback.selectionClick();
+                          onDecline();
+                        },
+                        icon: const Icon(Icons.close_rounded, size: 16),
+                        label: Text(L.decline),
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 44),
+                          foregroundColor: isDark
+                              ? Colors.white.withValues(alpha: 0.62)
+                              : const Color(0xFF52636E),
+                          side: BorderSide(
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.12)
+                                : const Color(0xFFD6E1E7),
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    flex: 2,
-                    child: FilledButton.icon(
-                      onPressed: () {
-                        HapticFeedback.mediumImpact();
-                        onAccept();
-                      },
-                      icon: const Icon(Icons.check_rounded, size: 17),
-                      label: Text(L.accept),
-                      style: FilledButton.styleFrom(
-                        minimumSize: const Size(0, 44),
-                        backgroundColor: const Color(0xFF1E88E5),
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        textStyle: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 2,
+                      child: FilledButton.icon(
+                        onPressed: () {
+                          HapticFeedback.mediumImpact();
+                          onAccept();
+                        },
+                        icon: const Icon(Icons.check_rounded, size: 17),
+                        label: Text(L.accept),
+                        style: FilledButton.styleFrom(
+                          minimumSize: const Size(0, 44),
+                          backgroundColor: const Color(0xFF1E88E5),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          textStyle: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
