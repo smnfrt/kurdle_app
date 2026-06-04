@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/achievement_service.dart';
+import 'package:kurdle_app/services/analytics_service.dart';
 import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/daily_challenge_service.dart';
 import 'package:kurdle_app/services/daily_streak_service.dart';
@@ -233,6 +234,8 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen>
     // Retry'da çift sayımı önle: yalnızca önceki uygulanan miktarla FARKI uygula.
     GameStore.instance.dailyBonusPoints += _totalScore - _appliedBonus;
     _appliedBonus = _totalScore;
+    AnalyticsService.instance
+        .gameFinish('daily_challenge', won: isPerfect, score: _totalScore);
     DailyWordService.instance
         .recordChallengeResult(
       stagesCompleted: completed,

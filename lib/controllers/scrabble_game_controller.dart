@@ -9,6 +9,7 @@ import 'package:kurdle_app/models/word_suggestion.dart';
 import 'package:kurdle_app/services/ai_service.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/achievement_service.dart';
+import 'package:kurdle_app/services/analytics_service.dart';
 import 'package:kurdle_app/services/daily_streak_service.dart';
 import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/board_layout_service.dart';
@@ -1012,6 +1013,8 @@ class ScrabbleGameController extends ChangeNotifier {
     if (playerScore > aiScore) {
       AchievementService.instance.onGameWon();
     }
+    AnalyticsService.instance.gameFinish('scrabble_ai',
+        won: playerScore > aiScore, score: playerScore);
     final uid = AuthService.instance.currentUser?.uid;
     if (uid == null || !FirebaseService.isAvailable) return;
     FirestoreService.instance

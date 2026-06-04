@@ -4,6 +4,7 @@ import 'package:kurdle_app/helpers/a11y.dart';
 import 'package:kurdle_app/domain.dart';
 import 'package:kurdle_app/services/context_service.dart';
 import 'package:kurdle_app/services/achievement_service.dart';
+import 'package:kurdle_app/services/analytics_service.dart';
 import 'package:kurdle_app/services/daily_streak_service.dart';
 import 'package:kurdle_app/services/daily_word_service.dart';
 import 'package:kurdle_app/services/keyboard_service.dart';
@@ -250,6 +251,7 @@ class Kurdle {
         if (won) {
           AchievementService.instance.onGameWon();
         }
+        AnalyticsService.instance.gameFinish('wordle', won: won);
       }
       var remaining = _context.remainingTries - 1;
       _context.guess = '';
