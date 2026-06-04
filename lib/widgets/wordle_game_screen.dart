@@ -2,15 +2,16 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:kurdle_app/domain.dart';
+import 'package:kurdle_app/helpers/a11y.dart';
 import 'package:kurdle_app/domain.dart' as domain;
 import 'package:kurdle_app/game.dart';
 import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/firebase_service.dart';
 import 'package:kurdle_app/services/firestore_service.dart';
 import 'package:kurdle_app/services/level_rewards.dart';
+import 'package:kurdle_app/services/sound_service.dart';
 import 'package:kurdle_app/widgets/board.dart';
 import 'package:kurdle_app/widgets/level_up_overlay.dart';
 import 'package:kurdle_app/widgets/how_to.dart';
@@ -290,6 +291,7 @@ class _WordleGameScreenState extends State<WordleGameScreen> {
     setState(() {
       _game.evaluateTurn(val);
       if (_game.context.turnResult == TurnResult.unsuccessful) {
+        SoundService.instance.play(SFX.wordInvalid);
         var index = (_game.context.remainingTries - Kurdle.totalTries).abs();
         _game.shakeKeys[index].currentState?.forward();
         _game.isEvaluating = false;
@@ -297,18 +299,28 @@ class _WordleGameScreenState extends State<WordleGameScreen> {
         for (var i = 0; i < _game.context.attempt.length; i++) {
           var offset = i + ((Kurdle.totalTries - _game.context.remainingTries) * Kurdle.rowLength);
           Timer(Duration(milliseconds: i * 200), () {
+            if (!mounted) return;
             setState(() {
               _game.context.board.tiles[offset] = _game.context.attempt[i];
             });
           });
         }
         final didWin = _game.didWin(_game.context.attempt);
+        // Oyun-hissi: Wordle artık sessiz değil (Scrabble'daki SoundService).
+        if (didWin) {
+          SoundService.instance.play(SFX.win);
+        } else if (_game.context.remainingTries <= 1) {
+          SoundService.instance.play(SFX.lose); // son tahmin, kazanılmadı
+        } else {
+          SoundService.instance.play(SFX.wordValid);
+        }
         final delay = didWin ? 4 : 2;
         if (didWin) {
           Timer(const Duration(seconds: 2), () {
             for (var i = 0; i < _game.context.attempt.length; i++) {
               var offset = i + ((Kurdle.totalTries - _game.context.remainingTries) * Kurdle.rowLength);
               Timer(Duration(milliseconds: i * 200), () {
+                if (!mounted) return;
                 setState(() {
                   _game.bounceKeys[offset].currentState?.forward();
                 });
@@ -317,8 +329,11 @@ class _WordleGameScreenState extends State<WordleGameScreen> {
           });
         }
         Timer(Duration(seconds: delay), () {
+          if (!mounted) return;
           setState(() {
-            _game.updateAfterSuccessfulGuess().then((_) => setState(() {}));
+            _game.updateAfterSuccessfulGuess().then((_) {
+              if (mounted) setState(() {});
+            });
             _resetMessage();
             _game.isEvaluating = false;
           });
@@ -340,11 +355,13 @@ class _WordleGameScreenState extends State<WordleGameScreen> {
   void _resetMessage() {
     if (_game.context.message.isNotEmpty) {
       Timer(const Duration(seconds: 2), () {
+        if (!mounted) return;
         setState(() {
           _game.context.message = '';
         });
         if (_game.context.remainingTries == 0) {
           Timer(const Duration(milliseconds: 500), () {
+            if (!mounted) return;
             _setDialog(domain.Dialog.stats);
           });
         }
@@ -355,8 +372,7 @@ class _WordleGameScreenState extends State<WordleGameScreen> {
   void _setDialog(domain.Dialog dialog, {bool show = true}) {
     setState(() {
       _currentDialog = show ? dialog : domain.Dialog.none;
-      SemanticsService.announce(
-          '${show ? 'Showing' : 'Closing'} ${_currentDialog.name}', TextDirection.ltr);
+      announceA11y('${show ? 'Showing' : 'Closing'} ${_currentDialog.name}');
     });
   }
 

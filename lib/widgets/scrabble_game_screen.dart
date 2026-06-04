@@ -85,8 +85,8 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
     final pos = _doubleTapDetails?.localPosition ?? Offset.zero;
     const scale = 2.5;
     _zoomController.value = Matrix4.identity()
-      ..translate(-pos.dx * (scale - 1), -pos.dy * (scale - 1))
-      ..scale(scale);
+      ..translateByDouble(-pos.dx * (scale - 1), -pos.dy * (scale - 1), 0, 1)
+      ..scaleByDouble(scale, scale, scale, 1);
   }
 
   void _scheduleInitialBoardZoom() {

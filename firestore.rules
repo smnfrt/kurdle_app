@@ -1,33 +1,148 @@
 rules_version = '2';
 
+// Peyvok — Firestore Güvenlik Kuralları (v2)
+// ----------------------------------------------------------------------------
+// Tasarım: varsayılan REDDET. Her koleksiyon açıkça yetkilendirilir.
+// Sahiplik modeli (kod analizinden):
+//   - users/** + alt-koleksiyonları: doc id == auth.uid → sadece sahip.
+//   - games: ownership alanı playerUid.
+//   - rooms: iki-taraflı (hostUid/guestUid) + matchmaking için waiting odalar.
+//   - gameInvites: fromUserId/toUserId.
+//   - matches + messages: players[] listesi.
+//   - tournaments: paylaşımlı doküman (authenticated).
+//   - leaderboard/dailyWords/dailyStats/ferheng/ferheng_meta/config: public-read.
+//
+// ⚠️ ANTI-HİLE NOTU: xp/peyv/level/score/highScore/leaderboard.score gibi alanlar
+// şu an CLIENT tarafında üretiliyor. Firestore rules increment'i güvenilir
+// doğrulayamadığı için TAM hile-önleme ancak Cloud Functions (Admin SDK) ile
+// sağlanır. Aşağıda sahiplik + tip + temel sınır doğrulaması yapılır; sunucu-
+// otoriter skorlama yol haritasına bırakılmıştır (rapora bakınız).
+// ⚠️ GİZLİLİK NOTU: users dokümanı hem public (displayName) hem özel (email,
+// fcmToken) alan içeriyor. Firestore read'leri alan-bazlı kısıtlanamadığından
+// users authenticated-read'tir; email/fcmToken'ı ayrı public-profil koleksiyonuna
+// taşımak kod refactor'u gerektirir (yol haritası).
+// ----------------------------------------------------------------------------
+
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // ── Yardımcılar ──────────────────────────────────────────────
     function signedIn() {
       return request.auth != null;
     }
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
 
+    // rooms üyeliği (mevcut doküman üzerinden)
+    function isRoomMember() {
+      return signedIn() && (
+        request.auth.uid == resource.data.hostUid
+        || request.auth.uid == resource.data.guestUid
+      );
+    }
+    // rooms üyeliği (yazımdan SONRAKİ duruma göre — join senaryosu)
+    function isRoomMemberAfter() {
+      return signedIn() && (
+        request.auth.uid == request.resource.data.hostUid
+        || request.auth.uid == request.resource.data.guestUid
+      );
+    }
+
+    // matches (chat) yardımcıları
     function matchPath(matchId) {
       return /databases/$(database)/documents/matches/$(matchId);
     }
-
     function isMatchPlayer(matchId) {
       return signedIn()
         && exists(matchPath(matchId))
         && request.auth.uid in get(matchPath(matchId)).data.players;
     }
-
     function isMatchPlayerAfter(matchId) {
       return signedIn()
         && existsAfter(matchPath(matchId))
         && request.auth.uid in getAfter(matchPath(matchId)).data.players;
     }
-
     function isInviteParticipant() {
       return signedIn()
         && (request.auth.uid == resource.data.fromUserId
           || request.auth.uid == resource.data.toUserId);
     }
 
+    // ── users/{uid} + alt-koleksiyonlar ──────────────────────────
+    // Yazım: sadece sahip. Okuma: authenticated (kullanıcı arama + rakip adı).
+    match /users/{uid} {
+      allow read: if signedIn();
+      allow create: if isOwner(uid);
+      allow update: if isOwner(uid);
+      allow delete: if false;
+
+      match /dailyWordPlays/{dateKey} {
+        allow read, write: if isOwner(uid);
+      }
+      match /dailyChallengePlays/{dateKey} {
+        allow read, write: if isOwner(uid);
+      }
+      match /achievements/{achievementId} {
+        allow read, write: if isOwner(uid);
+      }
+      match /ferhengFavorites/{wordId} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    // ── games/{gameId} — kişisel oyun kaydı ──────────────────────
+    // Create-only; sahip kendi playerUid'iyle yazar ve sadece kendi kayıtlarını okur.
+    match /games/{gameId} {
+      allow read: if signedIn() && resource.data.playerUid == request.auth.uid;
+      allow create: if signedIn()
+        && request.resource.data.playerUid == request.auth.uid
+        && request.resource.data.playerScore is int
+        && request.resource.data.aiScore is int;
+      allow update, delete: if false;
+    }
+
+    // ── leaderboard/{period}/entries/{uid} — sıralama ────────────
+    // Public-read (liste). Yazım: sadece kendi entry'si (doc id == uid).
+    match /leaderboard/{period} {
+      allow read: if signedIn();
+      match /entries/{uid} {
+        allow read: if signedIn();
+        allow write: if isOwner(uid)
+          && request.resource.data.uid == uid
+          && request.resource.data.score is int;
+      }
+    }
+
+    // ── rooms/{roomCode} — çok-oyunculu oyun durumu ──────────────
+    // Okuma: oda üyeleri + matchmaking için bekleyen odalar (waiting_random query).
+    // Create: host kendini hostUid yapar. Update: mevcut üye veya odaya katılan guest.
+    // Delete: host, bekleyen kendi odasını iptal edebilir (cancelRandomSearch).
+    match /rooms/{roomCode} {
+      allow read: if signedIn() && (
+        isRoomMember()
+        || resource.data.status == 'waiting_random'
+        || resource.data.status == 'waiting'
+        || resource.data.status == 'waiting_invite'
+      );
+      allow create: if signedIn()
+        && request.resource.data.hostUid == request.auth.uid;
+      allow update: if signedIn() && (
+        // Mevcut oyuncu (hamle/pass/leave) — hostUid/guestUid değişmez
+        (isRoomMember()
+          && request.resource.data.hostUid == resource.data.hostUid)
+        // Odaya katılan yeni guest (waiting → active)
+        || (resource.data.status in ['waiting', 'waiting_random', 'waiting_invite']
+          && request.auth.uid == request.resource.data.guestUid
+          && request.resource.data.hostUid == resource.data.hostUid)
+      );
+      allow delete: if signedIn()
+        && resource.data.hostUid == request.auth.uid
+        && resource.data.status in ['waiting', 'waiting_random', 'waiting_invite'];
+    }
+
+    // ── matches/{matchId} + messages — sohbet ────────────────────
+    // (Önceki kurallar korundu; oyun durumu rooms'ta, sohbet matches'te.)
     match /matches/{matchId} {
       allow read: if isMatchPlayer(matchId);
 
@@ -40,16 +155,11 @@ service cloud.firestore {
       allow update: if isMatchPlayer(matchId)
         && request.resource.data.players == resource.data.players
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'players',
-          'hostUid',
-          'guestUid',
-          'createdAt',
-          'updatedAt',
-          'lastMessage',
-          'lastMessageAt',
-          'lastMessageBy',
-          'unreadCounts'
+          'players', 'hostUid', 'guestUid', 'createdAt', 'updatedAt',
+          'lastMessage', 'lastMessageAt', 'lastMessageBy', 'unreadCounts'
         ]);
+
+      allow delete: if false;
     }
 
     match /matches/{matchId}/messages/{messageId} {
@@ -67,13 +177,13 @@ service cloud.firestore {
         && request.auth.uid in request.resource.data.readBy;
 
       allow update: if isMatchPlayer(matchId)
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'readBy'
-        ]);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy']);
 
       allow delete: if false;
     }
 
+    // ── gameInvites/{inviteId} — oyun davetleri ──────────────────
+    // (Önceki kurallar korundu — katılımcı bazlı, durum geçişleri kısıtlı.)
     match /gameInvites/{inviteId} {
       allow read: if isInviteParticipant();
 
@@ -105,31 +215,60 @@ service cloud.firestore {
             request.auth.uid == resource.data.toUserId
             && request.resource.data.status in ['accepted', 'declined']
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-              'status',
-              'acceptedAt',
-              'declinedAt',
-              'roomCode',
-              'gameId'
+              'status', 'acceptedAt', 'declinedAt', 'roomCode', 'gameId'
             ])
           )
           || (
             request.auth.uid == resource.data.fromUserId
             && request.resource.data.status == 'cancelled'
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-              'status',
-              'cancelledAt'
+              'status', 'cancelledAt'
             ])
           )
           || (
             request.auth.uid in [resource.data.fromUserId, resource.data.toUserId]
             && request.resource.data.status == 'expired'
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-              'status'
-            ])
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
           )
         );
 
       allow delete: if false;
+    }
+
+    // ── tournaments/{id} — paylaşımlı turnuva dokümanı ───────────
+    // Lobi public-read; katılım/skor authenticated-write (paylaşımlı doc).
+    // ⚠️ Skorlar client'tan — gerçek anti-hile Cloud Functions ister (yol haritası).
+    match /tournaments/{tournamentId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn();
+      allow delete: if false;
+    }
+
+    // ── Admin-managed / public-read referans veriler ─────────────
+    // Uygulama bunlara HİÇ yazmaz; sadece okur. Yazım admin/Cloud Function-only.
+    match /dailyWords/{dateKey} {
+      allow read: if true;             // günün kelimesi (anon cold-start dahil)
+      allow write: if false;
+    }
+    match /ferheng/{wordId} {
+      allow read: if true;             // sözlük herkese açık
+      allow write: if false;
+    }
+    match /ferheng_meta/{dialect} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /config/{configId} {
+      allow read: if true;             // sürüm zorlama, auth öncesi okunabilir
+      allow write: if false;
+    }
+
+    // ── dailyStats/{dateKey} — global agregat sayaç ──────────────
+    // Public-read. Yazım: giriş yapmış (anonim dahil). Sadece sayaç; bireysel
+    // hassasiyet düşük. (Rules increment-only doğrulayamaz — şişirme riski kabul.)
+    match /dailyStats/{dateKey} {
+      allow read: if true;
+      allow write: if signedIn();
     }
   }
 }

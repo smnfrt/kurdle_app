@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 /// Global theme mode notifier — toggle dark/light without rebuilding the whole tree.
 final themeNotifier = ValueNotifier<ThemeMode>(ThemeMode.dark);
@@ -38,8 +37,9 @@ class AppTokens {
     Color mutedText = textMuted,
     bool stronger = false,
   }) {
-    final body = GoogleFonts.interTextTheme(base);
-    final manrope = GoogleFonts.manropeTextTheme(base);
+    // Gömülü variable font'lar (gstatic fetch yok). fontWeight → wght ekseni.
+    final body = base.apply(fontFamily: 'Inter');
+    final manrope = base.apply(fontFamily: 'Manrope');
     final titleWeight = stronger ? FontWeight.w800 : FontWeight.w700;
     final mediumTitleWeight = stronger ? FontWeight.w700 : FontWeight.w600;
     final bodyWeight = stronger ? FontWeight.w600 : FontWeight.w500;
@@ -115,7 +115,7 @@ class AppTheme {
       ),
       iconTheme: IconThemeData(color: Colors.white70),
     ),
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       color: _surfaceDark,
       elevation: 0,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
@@ -177,6 +177,8 @@ class AppTheme {
 
   // Gündüz modu: yazı ölçüleri aynı kalır, yalnızca renk paleti aydınlanır.
   static const _bgLight = Color(0xFFE6EEF2);
+  static const _surfaceLight = Color(0xFFFFFFFF);
+  static const _onSurfaceLight = Color(0xFF1A1F2E);
 
   static final ThemeData lightTheme = ThemeData(
     useMaterial3: true,
@@ -206,6 +208,65 @@ class AppTheme {
         fontWeight: FontWeight.bold,
       ),
       iconTheme: const IconThemeData(color: Color(0xFF3A4460)),
+    ),
+    // darkTheme ile parite: gündüz modunda da kart/buton/input/snackbar/sheet
+    // markaya uygun, aksi halde Material varsayılanlarına düşüyordu.
+    cardTheme: CardThemeData(
+      color: _surfaceLight,
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+    ),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: _primary,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+        elevation: 0,
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: _primary,
+        textStyle: const TextStyle(fontWeight: FontWeight.w600),
+      ),
+    ),
+    iconTheme: const IconThemeData(color: Color(0xFF3A4460)),
+    dividerTheme: DividerThemeData(
+      color: Colors.black.withValues(alpha: 0.08),
+      thickness: 1,
+      space: 0,
+    ),
+    snackBarTheme: SnackBarThemeData(
+      backgroundColor: const Color(0xFF1E2A3A),
+      contentTextStyle: const TextStyle(color: Colors.white),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      behavior: SnackBarBehavior.floating,
+    ),
+    bottomSheetTheme: BottomSheetThemeData(
+      backgroundColor: _surfaceLight,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+    ),
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: Colors.black.withValues(alpha: 0.04),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.12)),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.black.withValues(alpha: 0.12)),
+      ),
+      focusedBorder: const OutlineInputBorder(
+        borderRadius: BorderRadius.all(Radius.circular(12)),
+        borderSide: BorderSide(color: _primary, width: 1.5),
+      ),
+      labelStyle: TextStyle(color: _onSurfaceLight.withValues(alpha: 0.6)),
+      hintStyle: TextStyle(color: _onSurfaceLight.withValues(alpha: 0.4)),
     ),
     textTheme: AppTokens.buildTextTheme(
       Typography.whiteMountainView,

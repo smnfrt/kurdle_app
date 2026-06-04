@@ -94,7 +94,10 @@ class DailyWordService {
     }
 
     final key = _todayKey();
-    final remaining = (7 - tries).clamp(0, 6);
+    // FIX off-by-one: 6 tahminlik oyunda "kalan tahmin" = totalTries(6) - tries.
+    // Eski (7 - tries) son tahminde kazanana 1 kademe fazla veriyordu; clamp(0,6)
+    // alt sınırı zaten 0'ı bekliyordu ama (7 - tries) asla 0'a inmiyordu.
+    final remaining = (6 - tries).clamp(0, 5);
     final xp = won ? 50 + remaining * 20 : 10;
     final peyv = won ? 5 + remaining * 2 : 0;
     try {
@@ -137,11 +140,13 @@ class DailyWordService {
               'date': key,
             },
             SetOptions(merge: true));
-        tx.update(userRef, {
+        // FIX: kullanıcı dokümanı henüz yoksa tx.update HATA atar (ödül kaybı).
+        // set+merge → create-or-update; FieldValue.increment eksik alanı 0 sayar.
+        tx.set(userRef, {
           'xp': FieldValue.increment(xp),
           if (peyv > 0) 'peyv': FieldValue.increment(peyv),
           if (newLevel != oldLevel) 'level': newLevel,
-        });
+        }, SetOptions(merge: true));
 
         return (
           xpGained: xp,
@@ -221,11 +226,13 @@ class DailyWordService {
               'date': key,
             },
             SetOptions(merge: true));
-        tx.update(userRef, {
+        // FIX: kullanıcı dokümanı henüz yoksa tx.update HATA atar (ödül kaybı).
+        // set+merge → create-or-update; FieldValue.increment eksik alanı 0 sayar.
+        tx.set(userRef, {
           'xp': FieldValue.increment(xp),
           if (peyv > 0) 'peyv': FieldValue.increment(peyv),
           if (newLevel != oldLevel) 'level': newLevel,
-        });
+        }, SetOptions(merge: true));
 
         return (
           xpGained: xp,

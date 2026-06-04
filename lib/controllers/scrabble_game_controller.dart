@@ -9,6 +9,7 @@ import 'package:kurdle_app/models/word_suggestion.dart';
 import 'package:kurdle_app/services/ai_service.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/achievement_service.dart';
+import 'package:kurdle_app/services/analytics_service.dart';
 import 'package:kurdle_app/services/daily_streak_service.dart';
 import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/board_layout_service.dart';
@@ -107,6 +108,7 @@ class ScrabbleGameController extends ChangeNotifier {
   int? turnTimeLimitSeconds; // null = süresiz
   DateTime? _turnStartedAt;
   Timer? _countdownTimer;
+  bool _disposed = false;
   int turnSecondsLeft = 0; // UI için geri sayım
 
   int get playerEnhancesLeft => maxEnhancesPerGame - playerEnhanceCount;
@@ -210,6 +212,9 @@ class ScrabbleGameController extends ChangeNotifier {
     }
     phase = GamePhase.gameOver;
     notifyListeners();
+    // FIX: timeout'ta da sonucu kalıcılaştır (XP/istatistik/Firestore) —
+    // diğer bitiş yolları gibi. Aksi halde zaman aşımıyla biten oyun yok sayılıyordu.
+    _onGameOver();
   }
 
   // ─── Taş yerleştirme ─────────────────────────────────────────────
@@ -488,8 +493,10 @@ class ScrabbleGameController extends ChangeNotifier {
     // popup açıkken devreye girer. Player'ın son hamlesi ayrıca saklanır
     // (lastPlayerMoveWords), popup AI hamlesinden sonra da erişilebilir.
     await Future.delayed(const Duration(milliseconds: 800));
+    if (_disposed) return; // controller dispose edildiyse devam etme (çökme koruması)
     while (_meaningPopupOpen) {
       await Future.delayed(const Duration(milliseconds: 200));
+      if (_disposed) return;
     }
     // Bu sırada kullanıcı yeniden açabilir; bir kez daha kontrol et
     if (_meaningPopupOpen) {
@@ -500,6 +507,7 @@ class ScrabbleGameController extends ChangeNotifier {
   }
 
   void _executeAiMove() {
+      if (_disposed) return; // dispose sonrası notifyListeners çökmesini önle
       final move = _ai.findBestMove(board, aiRack, difficulty: aiDifficulty);
       if (move != null) {
         for (final p in move.placements) {
@@ -1005,6 +1013,8 @@ class ScrabbleGameController extends ChangeNotifier {
     if (playerScore > aiScore) {
       AchievementService.instance.onGameWon();
     }
+    AnalyticsService.instance.gameFinish('scrabble_ai',
+        won: playerScore > aiScore, score: playerScore);
     final uid = AuthService.instance.currentUser?.uid;
     if (uid == null || !FirebaseService.isAvailable) return;
     FirestoreService.instance
@@ -1023,6 +1033,7 @@ class ScrabbleGameController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _countdownTimer?.cancel();
     super.dispose();
   }

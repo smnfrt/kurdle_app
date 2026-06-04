@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
 import 'package:flutter_animator/flutter_animator.dart';
+import 'package:kurdle_app/helpers/a11y.dart';
 import 'package:kurdle_app/domain.dart';
 import 'package:kurdle_app/services/context_service.dart';
 import 'package:kurdle_app/services/achievement_service.dart';
+import 'package:kurdle_app/services/analytics_service.dart';
 import 'package:kurdle_app/services/daily_streak_service.dart';
 import 'package:kurdle_app/services/daily_word_service.dart';
 import 'package:kurdle_app/services/keyboard_service.dart';
@@ -127,7 +128,7 @@ class Kurdle {
         'Good Luck!',
         0,
         DateTime.now());
-    SemanticsService.announce(_context.message, TextDirection.ltr);
+    announceA11y(_context.message);
 
     // Admin'in belirlediği kelime varsa onu kullan, yoksa deterministik kelime
     final adminWord = await DailyWordService.instance.fetchAdminWord();
@@ -191,7 +192,7 @@ class Kurdle {
     if (KeyboardService.isEnter(letter)) {
       if (!_wordService.isLongEnough(_context.guess)) {
         _context.message = L.notEnoughLetters;
-        SemanticsService.announce(_context.message, TextDirection.ltr);
+        announceA11y(_context.message);
         _context.turnResult = TurnResult.unsuccessful;
       } else if (_wordService.isValidGuess(_context.guess)) {
         _context.attempt = MatchingService.matches(
@@ -201,19 +202,19 @@ class Kurdle {
           var unusedLetter = _checkHardMode();
           if (unusedLetter.isNotEmpty) {
             _context.message = L.mustContainLetter(unusedLetter);
-            SemanticsService.announce(_context.message, TextDirection.ltr);
+            announceA11y(_context.message);
             _context.turnResult = TurnResult.unsuccessful;
           } else {
-            SemanticsService.announce(_context.guess, TextDirection.ltr);
+            announceA11y(_context.guess);
             _context.turnResult = TurnResult.successful;
           }
         } else {
-          SemanticsService.announce(_context.guess, TextDirection.ltr);
+          announceA11y(_context.guess);
           _context.turnResult = TurnResult.successful;
         }
       } else {
         _context.message = L.notInWordList;
-        SemanticsService.announce(_context.message, TextDirection.ltr);
+        announceA11y(_context.message);
         _context.turnResult = TurnResult.unsuccessful;
       }
     } else if (KeyboardService.isBackspace(letter)) {
@@ -226,13 +227,13 @@ class Kurdle {
         updateBoard(buffer.toList());
         _context.guess = trimmed;
         _context.currentIndex -= 1;
-        SemanticsService.announce('$letterToRemove removed', TextDirection.ltr);
+        announceA11y('$letterToRemove removed');
       }
     } else {
       if (_context.guess.characters.length < rowLength) {
         _context.guess = _context.guess + letter;
         _context.board.tiles[_context.currentIndex++] = Letter(value: letter);
-        SemanticsService.announce('$letter added to board', TextDirection.ltr);
+        announceA11y('$letter added to board');
       }
     }
   }
@@ -250,6 +251,7 @@ class Kurdle {
         if (won) {
           AchievementService.instance.onGameWon();
         }
+        AnalyticsService.instance.gameFinish('wordle', won: won);
       }
       var remaining = _context.remainingTries - 1;
       _context.guess = '';
@@ -261,7 +263,7 @@ class Kurdle {
               ? _context.answer
               : '';
       if (_context.message.isNotEmpty) {
-        SemanticsService.announce(_context.message, TextDirection.ltr);
+        announceA11y(_context.message);
       }
       persist();
     }

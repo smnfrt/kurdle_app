@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/achievement_service.dart';
+import 'package:kurdle_app/services/analytics_service.dart';
 import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/daily_challenge_service.dart';
 import 'package:kurdle_app/services/daily_streak_service.dart';
@@ -11,6 +12,7 @@ import 'package:kurdle_app/services/firebase_service.dart';
 import 'package:kurdle_app/services/firestore_service.dart';
 import 'package:kurdle_app/services/game_store.dart';
 import 'package:kurdle_app/services/level_rewards.dart';
+import 'package:kurdle_app/services/sound_service.dart';
 import 'package:kurdle_app/widgets/level_up_overlay.dart';
 
 // ── Renkler ────────────────────────────────────────────────────────
@@ -44,6 +46,9 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen>
   _Phase _phase = _Phase.playing;
   List<String> _inputLetters = [];
   int _totalScore = 0;
+  // Bu ekran oturumunda GameStore.dailyBonusPoints'e şimdiye dek uygulanan miktar.
+  // Retry'da skor EKLENMEMELİ, DEĞİŞTİRİLMELİ — çift sayımı önler. _retry'da sıfırlanmaz.
+  int _appliedBonus = 0;
   final List<int?> _stageScores = [null, null, null];
 
   // Animation controllers
@@ -161,6 +166,7 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen>
 
   void _onCorrect() {
     HapticFeedback.mediumImpact();
+    SoundService.instance.play(SFX.scoreUp);
     _timerCtrl.stop();
     final remainingMs = (_words[_stageIndex].stageDuration.inMilliseconds *
             (1.0 - _timerCtrl.value))
@@ -183,6 +189,7 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen>
 
   void _onWrong() {
     HapticFeedback.heavyImpact();
+    SoundService.instance.play(SFX.wordInvalid);
     setState(() => _phase = _Phase.wrongFeedback);
     _shakeCtrl.forward(from: 0).then((_) {
       if (!mounted) return;
@@ -195,6 +202,7 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen>
 
   void _onTimeout() {
     HapticFeedback.heavyImpact();
+    SoundService.instance.play(SFX.lose);
     _timerCtrl.stop();
     setState(() => _phase = _Phase.timeoutFeedback);
     Future.delayed(const Duration(milliseconds: 1500), () {
@@ -219,9 +227,15 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen>
     _timerCtrl.stop();
     final completed = _stageScores.whereType<int>().length;
     final isPerfect = completed == 3;
+    SoundService.instance
+        .play(isPerfect ? SFX.win : (completed > 0 ? SFX.scoreUp : SFX.lose));
     if (isPerfect) _totalScore += DailyChallengeService.perfectBonus;
 
-    GameStore.instance.dailyBonusPoints += _totalScore;
+    // Retry'da çift sayımı önle: yalnızca önceki uygulanan miktarla FARKI uygula.
+    GameStore.instance.dailyBonusPoints += _totalScore - _appliedBonus;
+    _appliedBonus = _totalScore;
+    AnalyticsService.instance
+        .gameFinish('daily_challenge', won: isPerfect, score: _totalScore);
     DailyWordService.instance
         .recordChallengeResult(
       stagesCompleted: completed,
