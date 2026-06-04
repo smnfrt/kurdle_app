@@ -48,8 +48,8 @@ class BoardTouchController {
     _scale = scale;
     _position = _clampedPosition(target - focus * scale, _scale);
     _setTransform(Matrix4.identity()
-      ..translateByDouble(_position.dx, _position.dy, 0, 1)
-      ..scaleByDouble(_scale, _scale, _scale, 1));
+      ..translate(_position.dx, _position.dy)
+      ..scale(_scale, _scale));
 
     if (!_panEnabled) {
       _panEnabled = true;
@@ -105,8 +105,8 @@ class BoardTouchController {
     } else {
       _position = _clampedPosition(_position, _scale);
       _setTransform(Matrix4.identity()
-        ..translateByDouble(_position.dx, _position.dy, 0, 1)
-        ..scaleByDouble(_scale, _scale, _scale, 1));
+        ..translate(_position.dx, _position.dy)
+        ..scale(_scale, _scale));
     }
   }
 
@@ -136,8 +136,8 @@ class BoardTouchController {
     _position = clamped;
 
     final out = Matrix4.identity()
-      ..translateByDouble(_position.dx, _position.dy, 0, 1)
-      ..scaleByDouble(_scale, _scale, _scale, 1);
+      ..translate(_position.dx, _position.dy)
+      ..scale(_scale, _scale);
     _setTransform(out);
   }
 
