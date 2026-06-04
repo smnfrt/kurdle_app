@@ -6051,7 +6051,7 @@ class _SettingsToggle extends StatelessWidget {
               HapticFeedback.mediumImpact();
               onChanged(v);
             },
-            activeColor: _kPrimary,
+            activeThumbColor: _kPrimary,
             activeTrackColor: _kPrimary.withValues(alpha: 0.3),
             inactiveThumbColor: Colors.white38,
             inactiveTrackColor:

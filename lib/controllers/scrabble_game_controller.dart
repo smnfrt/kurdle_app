@@ -107,6 +107,7 @@ class ScrabbleGameController extends ChangeNotifier {
   int? turnTimeLimitSeconds; // null = süresiz
   DateTime? _turnStartedAt;
   Timer? _countdownTimer;
+  bool _disposed = false;
   int turnSecondsLeft = 0; // UI için geri sayım
 
   int get playerEnhancesLeft => maxEnhancesPerGame - playerEnhanceCount;
@@ -210,6 +211,9 @@ class ScrabbleGameController extends ChangeNotifier {
     }
     phase = GamePhase.gameOver;
     notifyListeners();
+    // FIX: timeout'ta da sonucu kalıcılaştır (XP/istatistik/Firestore) —
+    // diğer bitiş yolları gibi. Aksi halde zaman aşımıyla biten oyun yok sayılıyordu.
+    _onGameOver();
   }
 
   // ─── Taş yerleştirme ─────────────────────────────────────────────
@@ -488,8 +492,10 @@ class ScrabbleGameController extends ChangeNotifier {
     // popup açıkken devreye girer. Player'ın son hamlesi ayrıca saklanır
     // (lastPlayerMoveWords), popup AI hamlesinden sonra da erişilebilir.
     await Future.delayed(const Duration(milliseconds: 800));
+    if (_disposed) return; // controller dispose edildiyse devam etme (çökme koruması)
     while (_meaningPopupOpen) {
       await Future.delayed(const Duration(milliseconds: 200));
+      if (_disposed) return;
     }
     // Bu sırada kullanıcı yeniden açabilir; bir kez daha kontrol et
     if (_meaningPopupOpen) {
@@ -500,6 +506,7 @@ class ScrabbleGameController extends ChangeNotifier {
   }
 
   void _executeAiMove() {
+      if (_disposed) return; // dispose sonrası notifyListeners çökmesini önle
       final move = _ai.findBestMove(board, aiRack, difficulty: aiDifficulty);
       if (move != null) {
         for (final p in move.placements) {
@@ -1023,6 +1030,7 @@ class ScrabbleGameController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _countdownTimer?.cancel();
     super.dispose();
   }

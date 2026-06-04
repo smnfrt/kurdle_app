@@ -797,35 +797,54 @@ class MultiplayerService {
     List<Map<String, dynamic>> lastMoveWords = const [],
     List<String> lastMoveCells = const [],
   }) async {
-    final update = <String, dynamic>{
-      'boardState': newBoardState,
-      'bagLetters': newBagLetters,
-      'currentTurnUid': nextTurnUid,
-      'passCount': 0,
-      'lastMoveAt': FieldValue.serverTimestamp(),
-      'lastMoveScore': moveScore,
-      'lastMoveBy': isHost ? 'host' : 'guest',
-      'lastMoveWords': lastMoveWords,
-      'lastMoveCells': lastMoveCells,
-    };
-    if (isHost) {
-      update['hostScore'] = myScore;
-      update['hostRack'] = myNewRack;
-      if (myNewStealsLeft != null) update['hostStealsLeft'] = myNewStealsLeft;
-    } else {
-      update['guestScore'] = myScore;
-      update['guestRack'] = myNewRack;
-      if (myNewStealsLeft != null) update['guestStealsLeft'] = myNewStealsLeft;
-    }
-    if (isGameOver) {
-      update['status'] = 'finished';
-      update['winner'] = winner;
-      update['finishReason'] = 'natural_end';
-      update['finishedAt'] = FieldValue.serverTimestamp();
-    }
-    await _rooms.doc(roomCode).update(update);
-    _debugLog(
-        'submitMove room=$roomCode next=$nextTurnUid gameOver=$isGameOver winner=$winner score=$moveScore');
+    // Transaction + sıra-sahipliği doğrulaması: eşzamanlı/bayat hamlelerin
+    // skoru/sırayı/kazananı bozmasını engeller (yarış koşulu koruması).
+    final ref = _rooms.doc(roomCode);
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      if (!snap.exists) return;
+      final d = snap.data() as Map<String, dynamic>;
+      if (d['status'] != 'active') {
+        _debugLog('submitMove REDDEDİLDİ room=$roomCode (status=${d['status']}, aktif değil)');
+        return;
+      }
+      // Sıra gerçekten bu oyuncuda mı? (server-otoritesi)
+      final expectedTurnUid = isHost ? d['hostUid'] : d['guestUid'];
+      if (d['currentTurnUid'] != expectedTurnUid) {
+        _debugLog('submitMove REDDEDİLDİ room=$roomCode (sıra bu oyuncuda değil)');
+        return;
+      }
+
+      final update = <String, dynamic>{
+        'boardState': newBoardState,
+        'bagLetters': newBagLetters,
+        'currentTurnUid': nextTurnUid,
+        'passCount': 0,
+        'lastMoveAt': FieldValue.serverTimestamp(),
+        'lastMoveScore': moveScore,
+        'lastMoveBy': isHost ? 'host' : 'guest',
+        'lastMoveWords': lastMoveWords,
+        'lastMoveCells': lastMoveCells,
+      };
+      if (isHost) {
+        update['hostScore'] = myScore;
+        update['hostRack'] = myNewRack;
+        if (myNewStealsLeft != null) update['hostStealsLeft'] = myNewStealsLeft;
+      } else {
+        update['guestScore'] = myScore;
+        update['guestRack'] = myNewRack;
+        if (myNewStealsLeft != null) update['guestStealsLeft'] = myNewStealsLeft;
+      }
+      if (isGameOver) {
+        update['status'] = 'finished';
+        update['winner'] = winner;
+        update['finishReason'] = 'natural_end';
+        update['finishedAt'] = FieldValue.serverTimestamp();
+      }
+      tx.update(ref, update);
+      _debugLog(
+          'submitMove room=$roomCode next=$nextTurnUid gameOver=$isGameOver winner=$winner score=$moveScore');
+    });
   }
 
   Future<void> passTurn({
@@ -835,27 +854,41 @@ class MultiplayerService {
     required int hostScore,
     required int guestScore,
   }) async {
-    final newCount = currentPassCount + 1;
-    final update = <String, dynamic>{
-      'currentTurnUid': nextTurnUid,
-      'passCount': newCount,
-      'lastMoveAt': FieldValue.serverTimestamp(),
-      'lastMoveWords': [],
-      'lastMoveCells': [],
-    };
-    if (newCount >= 4) {
-      update['status'] = 'finished';
-      update['winner'] = hostScore > guestScore
-          ? 'host'
-          : guestScore > hostScore
-              ? 'guest'
-              : 'draw';
-      update['finishReason'] = 'pass_limit';
-      update['finishedAt'] = FieldValue.serverTimestamp();
-    }
-    await _rooms.doc(roomCode).update(update);
-    _debugLog(
-        'passTurn room=$roomCode passCount=$newCount next=$nextTurnUid finished=${newCount >= 4}');
+    final ref = _rooms.doc(roomCode);
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      if (!snap.exists) return;
+      final d = snap.data() as Map<String, dynamic>;
+      if (d['status'] != 'active') {
+        _debugLog('passTurn REDDEDİLDİ room=$roomCode (status=${d['status']})');
+        return;
+      }
+      // Server-otoriteli sayaç + skorlar (param yerine — eşzamanlı pass yarışını önler).
+      final currentCount = (d['passCount'] as num?)?.toInt() ?? currentPassCount;
+      final newCount = currentCount + 1;
+      final hScore = (d['hostScore'] as num?)?.toInt() ?? hostScore;
+      final gScore = (d['guestScore'] as num?)?.toInt() ?? guestScore;
+      final update = <String, dynamic>{
+        'currentTurnUid': nextTurnUid,
+        'passCount': newCount,
+        'lastMoveAt': FieldValue.serverTimestamp(),
+        'lastMoveWords': [],
+        'lastMoveCells': [],
+      };
+      if (newCount >= 4) {
+        update['status'] = 'finished';
+        update['winner'] = hScore > gScore
+            ? 'host'
+            : gScore > hScore
+                ? 'guest'
+                : 'draw';
+        update['finishReason'] = 'pass_limit';
+        update['finishedAt'] = FieldValue.serverTimestamp();
+      }
+      tx.update(ref, update);
+      _debugLog(
+          'passTurn room=$roomCode passCount=$newCount next=$nextTurnUid finished=${newCount >= 4}');
+    });
   }
 
   Future<void> leaveRoom(String roomCode, String uid) async {
