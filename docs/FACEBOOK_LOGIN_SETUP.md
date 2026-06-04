@@ -2,6 +2,30 @@
 
 Kod tarafı eklendi. Girişin gerçekten çalışması için aşağıdaki panel ayarları yapılmalı.
 
+## 0. Mevcut Proje Durumu
+
+Facebook giriş akışı uygulamada var, ancak native Facebook SDK değerleri hâlâ placeholder durumda.
+Bu durum cihazda "geçersiz uygulama kodu / invalid app id" benzeri hatalara neden olur.
+
+Kontrol edilen dosyalar:
+
+- `lib/services/auth_service.dart`: `flutter_facebook_auth` ile Facebook login yapıyor ve Firebase credential'a çeviriyor.
+- `lib/widgets/auth_screen.dart`: `Facebook ile Giriş Yap` butonu mevcut.
+- `android/app/src/main/AndroidManifest.xml`: Facebook `ApplicationId`, `ClientToken`, `FacebookActivity` ve `CustomTabActivity` tanımlı.
+- `android/app/src/main/res/values/strings.xml`: `FACEBOOK_APP_ID_BURAYA` ve `FACEBOOK_CLIENT_TOKEN_BURAYA` placeholder olarak duruyor.
+- `ios/Runner/Info.plist`: `FACEBOOK_APP_ID_BURAYA` ve `FACEBOOK_CLIENT_TOKEN_BURAYA` placeholder olarak duruyor.
+
+Mevcut Android paket adı:
+
+```text
+applicationId: com.kurdle.kurdle_app
+MainActivity:  com.kurdle.kurdle_app.MainActivity
+```
+
+Önemli: Play Console'da canlı/iç test uygulamasının paket adı farklıysa Meta Developer, Firebase ve
+`android/app/build.gradle` aynı paket adına hizalanmalı. Facebook Login Android platform ayarındaki
+package name, Play'e yüklenen AAB içindeki gerçek `applicationId` ile birebir aynı olmalıdır.
+
 ## 1. Meta Developer
 
 1. https://developers.facebook.com/apps adresinden yeni uygulama oluştur.
@@ -66,6 +90,14 @@ iOS:
 ```
 
 `CFBundleURLSchemes` içinde de `fbAPP_ID` olmalı.
+
+Android ve iOS dosyalarında placeholder kalmadığını kontrol et:
+
+```bash
+rg "FACEBOOK_APP_ID_BURAYA|FACEBOOK_CLIENT_TOKEN_BURAYA" android ios
+```
+
+Bu komut hiçbir sonuç döndürmemeli.
 
 ## 4. Test
 
