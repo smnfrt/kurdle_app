@@ -17,6 +17,7 @@ import 'package:kurdle_app/services/daily_streak_service.dart';
 import 'package:kurdle_app/services/settings_service.dart';
 import 'package:kurdle_app/services/version_service.dart';
 import 'package:kurdle_app/widgets/auth_screen.dart';
+import 'package:kurdle_app/widgets/common/animations.dart';
 import 'package:kurdle_app/widgets/ferheng/ferheng_home_screen.dart';
 import 'package:kurdle_app/widgets/how_to_play_screen.dart';
 import 'package:kurdle_app/widgets/onboarding_screen.dart';
@@ -3441,95 +3442,8 @@ class _SheetStaggerItem extends StatelessWidget {
   }
 }
 
-class _PressableScale extends StatefulWidget {
-  final Widget child;
-
-  const _PressableScale({required this.child});
-
-  @override
-  State<_PressableScale> createState() => _PressableScaleState();
-}
-
-class _PressableScaleState extends State<_PressableScale> {
-  bool _pressed = false;
-
-  void _setPressed(bool pressed) {
-    if (_pressed == pressed) return;
-    setState(() => _pressed = pressed);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Listener(
-      onPointerDown: (_) => _setPressed(true),
-      onPointerCancel: (_) => _setPressed(false),
-      onPointerUp: (_) => _setPressed(false),
-      child: AnimatedScale(
-        scale: _pressed ? 0.975 : 1,
-        duration: const Duration(milliseconds: 110),
-        curve: Curves.easeOutCubic,
-        child: widget.child,
-      ),
-    );
-  }
-}
-
-class _PulseGlow extends StatefulWidget {
-  final Color color;
-  final Widget child;
-
-  const _PulseGlow({
-    required this.color,
-    required this.child,
-  });
-
-  @override
-  State<_PulseGlow> createState() => _PulseGlowState();
-}
-
-class _PulseGlowState extends State<_PulseGlow>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _ctrl,
-      builder: (_, __) {
-        final t = Curves.easeInOut.transform(_ctrl.value);
-        return Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: widget.color.withValues(alpha: 0.16 + (0.13 * t)),
-                blurRadius: 18 + (10 * t),
-                spreadRadius: 0.5 + (1.5 * t),
-                offset: const Offset(0, 8),
-              ),
-            ],
-          ),
-          child: widget.child,
-        );
-      },
-    );
-  }
-}
+// PressableScale ve PulseGlow → lib/widgets/common/animations.dart'a taşındı
+// (genel-amaçlı yeniden-kullanılabilir widget'lar; davranış birebir korundu).
 
 class _StatusPill extends StatelessWidget {
   final String text;
@@ -3729,9 +3643,9 @@ class _ActiveGameCard extends StatelessWidget {
         ? (L.current == AppLocale.tr ? 'Yeni oyun' : 'Lîstika nû')
         : _MyGamesSheetState._timeAgo(record.lastMoveAt!);
 
-    return _PulseGlow(
+    return PulseGlow(
       color: _kPrimary,
-      child: _PressableScale(
+      child: PressableScale(
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
@@ -3899,7 +3813,7 @@ class _MultiplayerGameCard extends StatelessWidget {
         ? null
         : _MyGamesSheetState._timeAgo(room.lastMoveAt!);
 
-    final card = _PressableScale(
+    final card = PressableScale(
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
@@ -4059,7 +3973,7 @@ class _MultiplayerGameCard extends StatelessWidget {
 
     return Opacity(
       opacity: isMyTurn ? 1.0 : 0.78,
-      child: isMyTurn ? _PulseGlow(color: _kPrimary, child: card) : card,
+      child: isMyTurn ? PulseGlow(color: _kPrimary, child: card) : card,
     );
   }
 }
@@ -4378,7 +4292,7 @@ class _FinishedMultiplayerCard extends StatelessWidget {
         break;
     }
 
-    return _PressableScale(
+    return PressableScale(
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
