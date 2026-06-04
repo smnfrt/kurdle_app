@@ -39,6 +39,7 @@ class FerhengService {
 
   // In-memory veri
   Map<String, FerhengEntry> _byId = const {};
+  Map<String, FerhengEntry> _bySurface = const {};
   Map<String, List<String>> _byPrefix = const {}; // 1-4 char prefix → ids
   Map<String, List<String>> _byCategory = const {}; // category id → ids
   Map<String, String> _relatedToId = const {}; // çekimli form → başlık id
@@ -82,6 +83,7 @@ class FerhengService {
     final bytes = data.buffer.asUint8List();
     final result = await compute(_parseEntriesBundle, bytes);
     _byId = result.byId;
+    _bySurface = result.bySurface;
     _byPrefix = result.byPrefix;
     _byCategory = result.byCategory;
     _relatedToId = result.relatedToId;
@@ -110,8 +112,7 @@ class FerhengService {
       final decoded = GZipDecoder().decodeBytes(bytes);
       final raw = utf8.decode(decoded);
       final parsed = json.decode(raw) as Map<String, dynamic>;
-      final entries =
-          (parsed['entries'] as Map<String, dynamic>? ?? const {});
+      final entries = (parsed['entries'] as Map<String, dynamic>? ?? const {});
       _trOverrides = entries.map((k, v) {
         final value = v is Map ? (v['tr'] ?? '').toString() : v.toString();
         return MapEntry(_normalize(k), value.trim());
@@ -151,10 +152,36 @@ class FerhengService {
 
   String _normalize(String word) => WordNormalizer.normalize(word);
 
+  Iterable<String> _surfaceLookupKeys(String word) sync* {
+    final raw = word.trim();
+    if (raw.isEmpty) return;
+    final collapsed = raw.replaceAll(RegExp(r'\s+'), ' ');
+    final seen = <String>{};
+    for (final key in [
+      raw,
+      collapsed,
+      raw.toUpperCase(),
+      collapsed.toUpperCase(),
+    ]) {
+      if (key.isNotEmpty && seen.add(key)) yield key;
+    }
+  }
+
+  FerhengEntry? _entryForSurfaceForm(String word) {
+    for (final key in _surfaceLookupKeys(word)) {
+      final entry = _bySurface[key];
+      if (entry != null) return entry.asRelatedLookup(word);
+    }
+    return null;
+  }
+
   Future<FerhengEntry?> getEntry(String word) async {
     await init();
     final id = _normalize(word);
-    return _byId[id] ?? _entryForRelatedForm(id) ?? _entryForInflectedForm(id);
+    return _byId[id] ??
+        _entryForSurfaceForm(word) ??
+        _entryForRelatedForm(id) ??
+        _entryForInflectedForm(id);
   }
 
   /// `getEntry` + legacy TR fallback. Bundle'da tüm entry'ler var olduğundan
@@ -162,10 +189,10 @@ class FerhengService {
   Future<FerhengEntry?> getOrFallback(String word) async {
     await init();
     final id = _normalize(word);
-    final entry = _byId[id];
+    final entry = _byId[id] ?? _entryForSurfaceForm(word);
     final relatedEntry = entry == null ? _entryForRelatedForm(id) : null;
     if (relatedEntry != null) return relatedEntry;
-    final overrideTr = _trOverrides?[id];
+    final overrideTr = _trOverrides?[id] ?? _trOverrides?[entry?.normalized];
     if (overrideTr != null &&
         overrideTr.isNotEmpty &&
         (entry == null || entry.definitionsTr.isEmpty)) {
@@ -197,11 +224,13 @@ class FerhengService {
     final id = _normalize(word);
     await init();
     final hasDictionaryEntry = _byId.containsKey(id);
+    final hasSurfaceEntry = _entryForSurfaceForm(word) != null;
     final hasRelatedEntry = _relatedToId.containsKey(id);
     final hasOverrideEntry = _trOverrides?[id]?.isNotEmpty == true;
     final hasInflectedEntry = _entryForInflectedForm(id) != null;
-    final entry = await getOrFallback(id);
+    final entry = await getOrFallback(word);
     if (!hasDictionaryEntry &&
+        !hasSurfaceEntry &&
         !hasRelatedEntry &&
         !hasOverrideEntry &&
         !hasInflectedEntry &&
@@ -469,8 +498,7 @@ class FerhengService {
         .toList(growable: false);
   }
 
-  Future<List<FerhengEntry>> byCategory(String categoryId,
-      {int? limit}) async {
+  Future<List<FerhengEntry>> byCategory(String categoryId, {int? limit}) async {
     await init();
     final ids = _byCategory[categoryId] ?? const [];
     final iter = limit == null ? ids : ids.take(limit);
@@ -649,6 +677,7 @@ _ParsedBundle _parseEntriesBundle(Uint8List bytes) {
   final text = utf8.decode(decoded, allowMalformed: false);
 
   final byId = <String, FerhengEntry>{};
+  final bySurface = <String, FerhengEntry>{};
   final byPrefix = <String, List<String>>{};
   final byCategory = <String, List<String>>{};
   final relatedToId = <String, String>{};
@@ -660,6 +689,7 @@ _ParsedBundle _parseEntriesBundle(Uint8List bytes) {
     final id = WordNormalizer.normalize(entry.normalized);
     if (id.isEmpty) continue;
     byId[id] = entry;
+    _indexSurfaceEntry(bySurface, entry, map);
     for (final p in entry.prefixes) {
       (byPrefix[p] ??= <String>[]).add(id);
     }
@@ -686,6 +716,7 @@ _ParsedBundle _parseEntriesBundle(Uint8List bytes) {
 
   return _ParsedBundle(
     byId: byId,
+    bySurface: bySurface,
     byPrefix: byPrefix,
     byCategory: byCategory,
     relatedToId: relatedToId,
@@ -693,14 +724,46 @@ _ParsedBundle _parseEntriesBundle(Uint8List bytes) {
   );
 }
 
+void _indexSurfaceEntry(
+  Map<String, FerhengEntry> bySurface,
+  FerhengEntry entry,
+  Map<String, dynamic> raw,
+) {
+  final seen = <String>{};
+  for (final value in [
+    raw['headword'],
+    raw['word'],
+    raw['normalized'],
+    raw['normalizedWord'],
+    entry.headword,
+    entry.normalized,
+  ]) {
+    final text = value?.toString().trim() ?? '';
+    if (text.isEmpty) continue;
+    final collapsed = text.replaceAll(RegExp(r'\s+'), ' ');
+    for (final key in [
+      text,
+      collapsed,
+      text.toUpperCase(),
+      collapsed.toUpperCase(),
+    ]) {
+      if (key.isNotEmpty && seen.add(key)) {
+        bySurface.putIfAbsent(key, () => entry);
+      }
+    }
+  }
+}
+
 class _ParsedBundle {
   final Map<String, FerhengEntry> byId;
+  final Map<String, FerhengEntry> bySurface;
   final Map<String, List<String>> byPrefix;
   final Map<String, List<String>> byCategory;
   final Map<String, String> relatedToId;
   final List<String> sortedIds;
   const _ParsedBundle({
     required this.byId,
+    required this.bySurface,
     required this.byPrefix,
     required this.byCategory,
     required this.relatedToId,
