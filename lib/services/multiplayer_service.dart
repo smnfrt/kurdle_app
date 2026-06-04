@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:kurdle_app/models/game_tile.dart';
 import 'package:kurdle_app/models/word_board.dart';
 import 'package:kurdle_app/services/board_layout_service.dart';
@@ -25,12 +26,18 @@ class MultiplayerRoom {
   final String? winner; // host | guest | draw
   final int passCount;
   final String? inviteeUid;
+  final String gameType;
   final int hostStealsLeft;
   final int guestStealsLeft;
   final int? lastMoveScore;
   final String? lastMoveBy; // 'host' | 'guest'
   final List<Map<String, dynamic>> lastMoveWords;
   final List<String> lastMoveCells;
+  final DateTime? lastMoveAt;
+  // Game over metadata (status=finished olduğunda doluyor)
+  final String? finishReason; // natural_end | pass_limit | forfeit
+  final String? finishedBy; // forfeit yapan uid (varsa)
+  final DateTime? finishedAt;
 
   const MultiplayerRoom({
     required this.roomCode,
@@ -49,12 +56,17 @@ class MultiplayerRoom {
     this.winner,
     this.passCount = 0,
     this.inviteeUid,
+    this.gameType = 'scrabble',
     this.hostStealsLeft = 2,
     this.guestStealsLeft = 2,
     this.lastMoveScore,
     this.lastMoveBy,
     this.lastMoveWords = const [],
     this.lastMoveCells = const [],
+    this.lastMoveAt,
+    this.finishReason,
+    this.finishedBy,
+    this.finishedAt,
   });
 
   factory MultiplayerRoom.fromDoc(DocumentSnapshot doc) {
@@ -76,12 +88,17 @@ class MultiplayerRoom {
       winner: d['winner'],
       passCount: d['passCount'] ?? 0,
       inviteeUid: d['inviteeUid'],
+      gameType: d['gameType'] as String? ?? 'scrabble',
       hostStealsLeft: d['hostStealsLeft'] ?? 2,
       guestStealsLeft: d['guestStealsLeft'] ?? 2,
       lastMoveScore: d['lastMoveScore'] as int?,
       lastMoveBy: d['lastMoveBy'] as String?,
       lastMoveWords: List<Map<String, dynamic>>.from(d['lastMoveWords'] ?? []),
       lastMoveCells: List<String>.from(d['lastMoveCells'] ?? []),
+      lastMoveAt: (d['lastMoveAt'] as Timestamp?)?.toDate(),
+      finishReason: d['finishReason'] as String?,
+      finishedBy: d['finishedBy'] as String?,
+      finishedAt: (d['finishedAt'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -106,20 +123,148 @@ class MultiplayerRoom {
   }
 }
 
+class PendingInviteException implements Exception {
+  final String roomCode;
+
+  const PendingInviteException(this.roomCode);
+
+  String get inviteId => roomCode;
+
+  @override
+  String toString() => 'pending_invite_exists:$roomCode';
+}
+
+class GameInvite {
+  final String inviteId;
+  final String fromUserId;
+  final String fromDisplayName;
+  final String toUserId;
+  final String toDisplayName;
+  final String status;
+  final String? roomCode;
+  final DateTime? createdAt;
+  final DateTime expiresAt;
+  final DateTime? acceptedAt;
+  final DateTime? cancelledAt;
+  final String? gameId;
+  final String gameType;
+
+  const GameInvite({
+    required this.inviteId,
+    required this.fromUserId,
+    required this.fromDisplayName,
+    required this.toUserId,
+    required this.toDisplayName,
+    required this.status,
+    this.roomCode,
+    this.createdAt,
+    required this.expiresAt,
+    this.acceptedAt,
+    this.cancelledAt,
+    this.gameId,
+    this.gameType = 'scrabble',
+  });
+
+  bool get isPending => status == 'pending';
+  bool get isExpired => DateTime.now().isAfter(expiresAt);
+
+  factory GameInvite.fromDoc(DocumentSnapshot doc) {
+    final d = doc.data() as Map<String, dynamic>;
+    final expiresAt =
+        (d['expiresAt'] as Timestamp?)?.toDate() ?? DateTime.now();
+    return GameInvite(
+      inviteId: d['inviteId'] as String? ?? doc.id,
+      fromUserId: d['fromUserId'] as String? ?? '',
+      fromDisplayName: d['fromDisplayName'] as String? ?? 'Oyuncu',
+      toUserId: d['toUserId'] as String? ?? '',
+      toDisplayName: d['toDisplayName'] as String? ?? 'Oyuncu',
+      status: d['status'] as String? ?? 'pending',
+      roomCode: d['roomCode'] as String?,
+      createdAt: (d['createdAt'] as Timestamp?)?.toDate(),
+      expiresAt: expiresAt,
+      acceptedAt: (d['acceptedAt'] as Timestamp?)?.toDate(),
+      cancelledAt: (d['cancelledAt'] as Timestamp?)?.toDate(),
+      gameId: d['gameId'] as String?,
+      gameType: d['gameType'] as String? ?? 'scrabble',
+    );
+  }
+}
+
 class MultiplayerService {
   MultiplayerService._();
   static final MultiplayerService instance = MultiplayerService._();
 
   final _db = FirebaseFirestore.instance;
   CollectionReference get _rooms => _db.collection('rooms');
+  CollectionReference get _gameInvites => _db.collection('gameInvites');
 
   static const _chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  static const inviteValidity = Duration(hours: 48);
+
+  void _debugLog(String message) {
+    if (kDebugMode) debugPrint('[MultiplayerService] $message');
+  }
 
   String _generateCode() {
     final rng = Random();
     return String.fromCharCodes(
       List.generate(6, (_) => _chars.codeUnitAt(rng.nextInt(_chars.length))),
     );
+  }
+
+  Future<String> _newRoomCode() async {
+    String code = _generateCode();
+    for (var i = 0; i < 8; i++) {
+      final snap = await _rooms.doc(code).get();
+      if (!snap.exists) return code;
+      code = _generateCode();
+    }
+    return code;
+  }
+
+  Map<String, dynamic> _initialRoomData({
+    required String hostUid,
+    required String hostName,
+    required String? guestUid,
+    required String? guestName,
+    required String status,
+    String? inviteeUid,
+    String gameType = 'scrabble',
+    String? inviteId,
+  }) {
+    final config = LanguageConfig.current;
+    final bag = TileBagService(config.tileBag);
+    final hostRack = bag.drawMany(7).map((t) => t.letter).toList();
+    final guestRack = bag.drawMany(7).map((t) => t.letter).toList();
+    final bagLetters = <String>[];
+    while (bag.remaining > 0) {
+      final t = bag.drawOne();
+      if (t != null) bagLetters.add(t.letter);
+    }
+
+    return {
+      'hostUid': hostUid,
+      'hostName': hostName,
+      'guestUid': guestUid,
+      'guestName': guestName,
+      'status': status,
+      if (inviteeUid != null) 'inviteeUid': inviteeUid,
+      if (inviteId != null) 'inviteId': inviteId,
+      'gameType': gameType,
+      'currentTurnUid': hostUid,
+      'hostScore': 0,
+      'guestScore': 0,
+      'hostRack': hostRack,
+      'guestRack': guestRack,
+      'bagLetters': bagLetters,
+      'boardState': [],
+      'winner': null,
+      'passCount': 0,
+      'hostStealsLeft': 2,
+      'guestStealsLeft': 2,
+      'createdAt': FieldValue.serverTimestamp(),
+      'lastMoveAt': FieldValue.serverTimestamp(),
+    };
   }
 
   Future<String> createRoom(String uid, String displayName) async {
@@ -161,6 +306,7 @@ class MultiplayerService {
       'lastMoveAt': FieldValue.serverTimestamp(),
     });
 
+    _debugLog('createRoom code=$code host=$uid status=waiting');
     return code;
   }
 
@@ -182,8 +328,10 @@ class MultiplayerService {
           'status': 'active',
         });
       });
+      _debugLog('joinRoom code=$code guest=$uid status=active');
       return null;
     } catch (e) {
+      _debugLog('joinRoom failed code=$code guest=$uid error=$e');
       return e.toString().replaceAll('Exception: ', '');
     }
   }
@@ -244,6 +392,7 @@ class MultiplayerService {
       'lastMoveAt': FieldValue.serverTimestamp(),
     });
 
+    _debugLog('createRandomRoom code=$code host=$uid status=waiting_random');
     return code;
   }
 
@@ -263,7 +412,22 @@ class MultiplayerService {
 
   /// Kullanıcı adıyla davet odası oluştur.
   Future<String> createInviteRoom(
-      String uid, String displayName, String inviteeUid) async {
+    String uid,
+    String displayName,
+    String inviteeUid, {
+    String gameType = 'scrabble',
+  }) async {
+    final existing = await _existingInviteRoom(
+      hostUid: uid,
+      inviteeUid: inviteeUid,
+      gameType: gameType,
+    );
+    if (existing != null) {
+      _debugLog(
+          'createInviteRoom blocked duplicate code=$existing host=$uid invitee=$inviteeUid gameType=$gameType');
+      throw PendingInviteException(existing);
+    }
+
     final config = LanguageConfig.current;
     final bag = TileBagService(config.tileBag);
     final hostRack = bag.drawMany(7).map((t) => t.letter).toList();
@@ -288,6 +452,7 @@ class MultiplayerService {
       'guestName': null,
       'status': 'waiting_invite',
       'inviteeUid': inviteeUid,
+      'gameType': gameType,
       'currentTurnUid': uid,
       'hostScore': 0,
       'guestScore': 0,
@@ -303,24 +468,231 @@ class MultiplayerService {
       'lastMoveAt': FieldValue.serverTimestamp(),
     });
 
+    _debugLog(
+        'createInviteRoom code=$code host=$uid invitee=$inviteeUid gameType=$gameType status=waiting_invite');
     return code;
   }
 
-  /// Benim için bekleyen davetleri gerçek zamanlı izler.
-  Stream<List<MultiplayerRoom>> inviteStream(String myUid) {
-    return _rooms.where('inviteeUid', isEqualTo: myUid).snapshots().map(
-        (snap) => snap.docs
-            .map((d) => MultiplayerRoom.fromDoc(d))
-            .where((r) => r.status == 'waiting_invite')
-            .toList());
+  Future<String?> _existingInviteRoom({
+    required String hostUid,
+    required String inviteeUid,
+    required String gameType,
+  }) async {
+    final hostSnaps = await Future.wait([
+      _rooms.where('hostUid', isEqualTo: hostUid).limit(50).get(),
+      _rooms.where('hostUid', isEqualTo: inviteeUid).limit(50).get(),
+    ]);
+    for (final snap in hostSnaps) {
+      for (final doc in snap.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        final existingGameType = data['gameType'] as String? ?? 'scrabble';
+        final isSameDirection =
+            data['hostUid'] == hostUid && data['inviteeUid'] == inviteeUid;
+        final isOppositeDirection =
+            data['hostUid'] == inviteeUid && data['inviteeUid'] == hostUid;
+        if (data['status'] == 'waiting_invite' &&
+            (isSameDirection || isOppositeDirection) &&
+            existingGameType == gameType) {
+          return doc.id;
+        }
+      }
+    }
+    return null;
   }
 
-  /// Daveti reddet (odayı sil).
-  Future<void> declineInvite(String roomCode) async {
+  Future<GameInvite?> _existingPendingInvite({
+    required String fromUserId,
+    required String toUserId,
+    required String gameType,
+  }) async {
+    final snaps = await Future.wait([
+      _gameInvites.where('fromUserId', isEqualTo: fromUserId).limit(50).get(),
+      _gameInvites.where('fromUserId', isEqualTo: toUserId).limit(50).get(),
+    ]);
+    for (final snap in snaps) {
+      for (final doc in snap.docs) {
+        final invite = GameInvite.fromDoc(doc);
+        final sameDirection =
+            invite.fromUserId == fromUserId && invite.toUserId == toUserId;
+        final oppositeDirection =
+            invite.fromUserId == toUserId && invite.toUserId == fromUserId;
+        if (!invite.isPending ||
+            invite.gameType != gameType ||
+            (!sameDirection && !oppositeDirection)) {
+          continue;
+        }
+        if (invite.isExpired) {
+          await _markInviteExpired(invite.inviteId);
+          continue;
+        }
+        return invite;
+      }
+    }
+    return null;
+  }
+
+  /// Arkadaşa kalıcı davet oluşturur. Oyun odası kabul anında açılır.
+  Future<GameInvite> createPersistentInvite(
+    String fromUserId,
+    String fromDisplayName,
+    String toUserId,
+    String toDisplayName, {
+    String gameType = 'scrabble',
+  }) async {
+    final existing = await _existingPendingInvite(
+      fromUserId: fromUserId,
+      toUserId: toUserId,
+      gameType: gameType,
+    );
+    if (existing != null) {
+      _debugLog(
+          'createPersistentInvite blocked duplicate invite=${existing.inviteId} from=$fromUserId to=$toUserId gameType=$gameType');
+      throw PendingInviteException(existing.inviteId);
+    }
+
+    final ref = _gameInvites.doc();
+    final expiresAt = DateTime.now().add(inviteValidity);
+    final data = {
+      'inviteId': ref.id,
+      'fromUserId': fromUserId,
+      'fromDisplayName': fromDisplayName,
+      'toUserId': toUserId,
+      'toDisplayName': toDisplayName,
+      'status': 'pending',
+      'roomCode': null,
+      'gameType': gameType,
+      'createdAt': FieldValue.serverTimestamp(),
+      'expiresAt': Timestamp.fromDate(expiresAt),
+      'acceptedAt': null,
+      'cancelledAt': null,
+      'gameId': null,
+    };
+    await ref.set(data);
+    _debugLog(
+        'createPersistentInvite invite=${ref.id} from=$fromUserId to=$toUserId expires=$expiresAt');
+    return GameInvite.fromDoc(await ref.get());
+  }
+
+  /// Benim için bekleyen kalıcı davetleri gerçek zamanlı izler.
+  Stream<List<GameInvite>> inviteStream(String myUid) {
+    return _gameInvites
+        .where('toUserId', isEqualTo: myUid)
+        .where('status', isEqualTo: 'pending')
+        .snapshots()
+        .map((snap) {
+      final now = DateTime.now();
+      final invites = <GameInvite>[];
+      for (final doc in snap.docs) {
+        final invite = GameInvite.fromDoc(doc);
+        if (invite.expiresAt.isAfter(now)) {
+          invites.add(invite);
+        } else {
+          _markInviteExpired(invite.inviteId);
+        }
+      }
+      invites.sort((a, b) {
+        final aTime = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final bTime = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return bTime.compareTo(aTime);
+      });
+      return invites;
+    });
+  }
+
+  Stream<GameInvite?> inviteDocStream(String inviteId) {
+    return _gameInvites.doc(inviteId).snapshots().map((snap) {
+      if (!snap.exists) return null;
+      return GameInvite.fromDoc(snap);
+    });
+  }
+
+  Future<GameInvite?> getInvite(String inviteId) async {
+    final snap = await _gameInvites.doc(inviteId).get();
+    if (!snap.exists) return null;
+    final invite = GameInvite.fromDoc(snap);
+    if (invite.isPending && invite.isExpired) {
+      await _markInviteExpired(invite.inviteId);
+      return null;
+    }
+    return invite;
+  }
+
+  Future<String> acceptInvite(
+    GameInvite invite,
+    String uid,
+    String displayName,
+  ) async {
+    final code = await _newRoomCode();
+    final roomData = _initialRoomData(
+      hostUid: invite.fromUserId,
+      hostName: invite.fromDisplayName,
+      guestUid: uid,
+      guestName: displayName,
+      status: 'active',
+      inviteId: invite.inviteId,
+      gameType: invite.gameType,
+    );
+
+    return _db.runTransaction<String>((tx) async {
+      final inviteRef = _gameInvites.doc(invite.inviteId);
+      final roomRef = _rooms.doc(code);
+      final inviteSnap = await tx.get(inviteRef);
+      final roomSnap = await tx.get(roomRef);
+      if (!inviteSnap.exists) throw Exception('invite_not_found');
+      if (roomSnap.exists) throw Exception('room_code_collision');
+      final current = GameInvite.fromDoc(inviteSnap);
+      if (current.toUserId != uid) throw Exception('invite_for_another_user');
+      if (current.status != 'pending') throw Exception('invite_unavailable');
+      if (current.isExpired) {
+        tx.update(inviteRef, {'status': 'expired'});
+        throw Exception('invite_expired');
+      }
+      tx.set(roomRef, roomData);
+      tx.update(inviteRef, {
+        'status': 'accepted',
+        'acceptedAt': FieldValue.serverTimestamp(),
+        'roomCode': code,
+        'gameId': code,
+      });
+      return code;
+    });
+  }
+
+  /// Daveti reddet.
+  Future<void> declineInvite(String inviteId) async {
     try {
-      await _rooms.doc(roomCode).delete();
+      await _gameInvites.doc(inviteId).update({
+        'status': 'declined',
+        'declinedAt': FieldValue.serverTimestamp(),
+      });
     } catch (e) {
       Log.warn('MultiplayerService', 'declineInvite failed', e);
+    }
+  }
+
+  Future<void> cancelInvite(String inviteId, String uid) async {
+    try {
+      await _db.runTransaction((tx) async {
+        final ref = _gameInvites.doc(inviteId);
+        final snap = await tx.get(ref);
+        if (!snap.exists) return;
+        final invite = GameInvite.fromDoc(snap);
+        if (invite.fromUserId != uid || invite.status != 'pending') return;
+        tx.update(ref, {
+          'status': 'cancelled',
+          'cancelledAt': FieldValue.serverTimestamp(),
+        });
+      });
+    } catch (e) {
+      Log.warn('MultiplayerService', 'cancelInvite failed', e);
+    }
+  }
+
+  Future<void> _markInviteExpired(String inviteId) async {
+    try {
+      await _gameInvites.doc(inviteId).update({'status': 'expired'});
+    } catch (_) {
+      // Best effort: client UI already hides expired invites.
     }
   }
 
@@ -331,7 +703,13 @@ class MultiplayerService {
     List<MultiplayerRoom> asGuest = [];
 
     void emit() {
-      if (!ctrl.isClosed) ctrl.add([...asHost, ...asGuest]);
+      if (ctrl.isClosed) return;
+      final rooms = [...asHost, ...asGuest]..sort((a, b) {
+          final aTime = a.lastMoveAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final bTime = b.lastMoveAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+          return bTime.compareTo(aTime);
+        });
+      ctrl.add(rooms);
     }
 
     final subHost = _rooms
@@ -365,6 +743,43 @@ class MultiplayerService {
       if (!snap.exists) return null;
       return MultiplayerRoom.fromDoc(snap);
     });
+  }
+
+  Future<MultiplayerRoom?> getRoom(String roomCode) async {
+    final snap = await _rooms.doc(roomCode).get();
+    if (!snap.exists) return null;
+    return MultiplayerRoom.fromDoc(snap);
+  }
+
+  /// Kullanıcının bitmiş çok oyunculu oyunlarını döner (en yeni önce).
+  /// İndekssiz çalışsın diye finishedAt yerine client-side sıralanır.
+  Future<List<MultiplayerRoom>> myFinishedRooms(String uid,
+      {int limit = 20}) async {
+    try {
+      final hostQuery = await _rooms
+          .where('hostUid', isEqualTo: uid)
+          .where('status', isEqualTo: 'finished')
+          .limit(limit)
+          .get();
+      final guestQuery = await _rooms
+          .where('guestUid', isEqualTo: uid)
+          .where('status', isEqualTo: 'finished')
+          .limit(limit)
+          .get();
+      final all = <MultiplayerRoom>[
+        ...hostQuery.docs.map((d) => MultiplayerRoom.fromDoc(d)),
+        ...guestQuery.docs.map((d) => MultiplayerRoom.fromDoc(d)),
+      ];
+      all.sort((a, b) {
+        final aT = a.finishedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final bT = b.finishedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return bT.compareTo(aT);
+      });
+      return all.take(limit).toList();
+    } catch (e) {
+      Log.warn('MultiplayerService', 'myFinishedRooms failed', e);
+      return [];
+    }
   }
 
   Future<void> submitMove({
@@ -405,8 +820,12 @@ class MultiplayerService {
     if (isGameOver) {
       update['status'] = 'finished';
       update['winner'] = winner;
+      update['finishReason'] = 'natural_end';
+      update['finishedAt'] = FieldValue.serverTimestamp();
     }
     await _rooms.doc(roomCode).update(update);
+    _debugLog(
+        'submitMove room=$roomCode next=$nextTurnUid gameOver=$isGameOver winner=$winner score=$moveScore');
   }
 
   Future<void> passTurn({
@@ -431,8 +850,12 @@ class MultiplayerService {
           : guestScore > hostScore
               ? 'guest'
               : 'draw';
+      update['finishReason'] = 'pass_limit';
+      update['finishedAt'] = FieldValue.serverTimestamp();
     }
     await _rooms.doc(roomCode).update(update);
+    _debugLog(
+        'passTurn room=$roomCode passCount=$newCount next=$nextTurnUid finished=${newCount >= 4}');
   }
 
   Future<void> leaveRoom(String roomCode, String uid) async {
@@ -445,7 +868,13 @@ class MultiplayerService {
       await _rooms.doc(roomCode).update({
         'status': 'finished',
         'winner': isHost ? 'guest' : 'host',
+        'finishReason': 'forfeit',
+        'finishedBy': uid,
+        'finishedAt': FieldValue.serverTimestamp(),
       });
+      Log.warn('MultiplayerService',
+          'leaveRoom: uid=$uid forfeited room=$roomCode', null);
+      _debugLog('leaveRoom room=$roomCode uid=$uid status=finished');
     } catch (e) {
       Log.warn('MultiplayerService', 'leaveRoom update failed', e);
     }

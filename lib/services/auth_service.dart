@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -24,6 +25,7 @@ class AuthService {
       return null;
     }
   }
+
   bool get isSignedIn => currentUser != null;
   bool get isAnonymous => currentUser?.isAnonymous ?? true;
 
@@ -36,7 +38,9 @@ class AuthService {
     if (firebaseUid != null && firebaseUid.length >= 4) {
       return L.guestName(firebaseUid.substring(firebaseUid.length - 4));
     }
-    if (_guestUid != null) return L.guestName(_guestUid!.substring(_guestUid!.length - 4));
+    if (_guestUid != null) {
+      return L.guestName(_guestUid!.substring(_guestUid!.length - 4));
+    }
     return L.guestBadge;
   }
 
@@ -55,6 +59,8 @@ class AuthService {
   // Sonradan Google ile bağlanınca veriler kaybolmaz.
   Future<User?> signInAnonymously() async {
     try {
+      final existing = currentUser;
+      if (existing != null) return existing;
       final cred = await _auth.signInAnonymously();
       return cred.user;
     } on FirebaseAuthException catch (e) {
@@ -85,7 +91,8 @@ class AuthService {
           await _applyGoogleProfileToUser(linked.user, googleUser);
           return linked.user;
         } on FirebaseAuthException catch (e) {
-          if (e.code != 'credential-already-in-use' && e.code != 'email-already-in-use') {
+          if (e.code != 'credential-already-in-use' &&
+              e.code != 'email-already-in-use') {
             rethrow;
           }
           // Hesap zaten var — anonim oturumu kapat, direkt giriş yap
@@ -104,6 +111,44 @@ class AuthService {
     }
   }
 
+  // ── Facebook ile giriş ───────────────────────────────────────────
+  Future<User?> signInWithFacebook() async {
+    try {
+      final result = await FacebookAuth.instance.login(
+        permissions: const ['email', 'public_profile'],
+        loginTracking: LoginTracking.enabled,
+      );
+      if (result.status != LoginStatus.success || result.accessToken == null) {
+        _log('signInWithFacebook', result.status.name);
+        return null;
+      }
+
+      final credential =
+          FacebookAuthProvider.credential(result.accessToken!.tokenString);
+
+      if (isAnonymous && currentUser != null) {
+        try {
+          final linked = await currentUser!.linkWithCredential(credential);
+          await _applyFacebookProfileToUser(linked.user);
+          return linked.user;
+        } on FirebaseAuthException catch (e) {
+          if (e.code != 'credential-already-in-use' &&
+              e.code != 'email-already-in-use') {
+            rethrow;
+          }
+          await _auth.signOut();
+        }
+      }
+
+      final cred = await _auth.signInWithCredential(credential);
+      await _applyFacebookProfileToUser(cred.user);
+      return cred.user;
+    } catch (e) {
+      _log('signInWithFacebook', e.toString());
+      return null;
+    }
+  }
+
   /// Google profilini Firebase Auth user'ına yansıt — link sonrası
   /// anonymous'tan kalan "Misafir XYZA" adını Google'ın gerçek
   /// adıyla değiştirir. Idempotent: zaten doğruysa no-op.
@@ -118,17 +163,54 @@ class AuthService {
         (user.displayName ?? '').startsWith('Mêvan ') ||
         (user.displayName ?? '').trim().isEmpty;
     try {
-      if (googleName != null && googleName.isNotEmpty &&
+      if (googleName != null &&
+          googleName.isNotEmpty &&
           (isAuto || user.displayName != googleName)) {
         await user.updateDisplayName(googleName);
       }
-      if (googlePhoto != null && googlePhoto.isNotEmpty &&
+      if (googlePhoto != null &&
+          googlePhoto.isNotEmpty &&
           (user.photoURL == null || user.photoURL!.isEmpty)) {
         await user.updatePhotoURL(googlePhoto);
       }
       await user.reload();
     } catch (e) {
       _log('applyGoogleProfile', e.toString());
+    }
+  }
+
+  Future<void> _applyFacebookProfileToUser(User? user) async {
+    if (user == null) return;
+    try {
+      final data = await FacebookAuth.instance.getUserData(
+        fields: 'name,email,picture.width(200)',
+      );
+      final facebookName = (data['name'] as String?)?.trim();
+      String? facebookPhoto;
+      final picture = data['picture'];
+      if (picture is Map<String, dynamic>) {
+        final pictureData = picture['data'];
+        if (pictureData is Map<String, dynamic>) {
+          facebookPhoto = pictureData['url'] as String?;
+        }
+      }
+      final isAuto = (user.displayName ?? '').startsWith('Misafir ') ||
+          (user.displayName ?? '').startsWith('Mêvan ') ||
+          (user.displayName ?? '').trim().isEmpty;
+
+      if (facebookName != null &&
+          facebookName.isNotEmpty &&
+          (isAuto || user.displayName != facebookName)) {
+        await user.updateDisplayName(facebookName);
+      }
+      if (facebookPhoto != null &&
+          facebookPhoto.isNotEmpty &&
+          (user.photoURL == null || user.photoURL!.isEmpty)) {
+        await user.updatePhotoURL(facebookPhoto);
+      }
+      await user.reload();
+    } catch (e) {
+      _log('applyFacebookProfile', e.toString());
     }
   }
 
@@ -142,8 +224,8 @@ class AuthService {
       late UserCredential cred;
 
       if (isAnonymous && currentUser != null) {
-        final emailCred = EmailAuthProvider.credential(
-            email: email, password: password);
+        final emailCred =
+            EmailAuthProvider.credential(email: email, password: password);
         cred = await currentUser!.linkWithCredential(emailCred);
       } else {
         cred = await _auth.createUserWithEmailAndPassword(
@@ -153,7 +235,11 @@ class AuthService {
       await cred.user?.updateDisplayName(displayName);
       return (user: cred.user, error: null);
     } on FirebaseAuthException catch (e) {
+      _log('registerWithEmail', '${e.code}: ${e.message}');
       return (user: null, error: _friendlyError(e.code));
+    } catch (e) {
+      _log('registerWithEmail', e.toString());
+      return (user: null, error: 'Kayıt sırasında hata: $e');
     }
   }
 
@@ -167,14 +253,48 @@ class AuthService {
           email: email, password: password);
       return (user: cred.user, error: null);
     } on FirebaseAuthException catch (e) {
+      _log('signInWithEmail', '${e.code}: ${e.message}');
       return (user: null, error: _friendlyError(e.code));
+    } catch (e) {
+      _log('signInWithEmail', e.toString());
+      return (user: null, error: 'Giriş sırasında hata: $e');
     }
   }
 
   // ── Çıkış ────────────────────────────────────────────────────────
   Future<void> signOut() async {
     await _google.signOut();
+    await FacebookAuth.instance.logOut();
     await _auth.signOut();
+  }
+
+  // ── E-posta doğrulama gönder ─────────────────────────────────────
+  Future<String?> sendEmailVerification() async {
+    final user = currentUser;
+    if (user == null) return 'Önce giriş yapmalısınız.';
+    if (user.emailVerified) return null;
+    try {
+      await user.sendEmailVerification();
+      return null;
+    } on FirebaseAuthException catch (e) {
+      _log('sendEmailVerification', '${e.code}: ${e.message}');
+      return _friendlyError(e.code);
+    } catch (e) {
+      _log('sendEmailVerification', e.toString());
+      return 'Doğrulama maili gönderilemedi.';
+    }
+  }
+
+  Future<bool> reloadAndCheckVerified() async {
+    final user = currentUser;
+    if (user == null) return false;
+    try {
+      await user.reload();
+      return currentUser?.emailVerified ?? false;
+    } catch (e) {
+      _log('reloadAndCheckVerified', e.toString());
+      return user.emailVerified;
+    }
   }
 
   // ── Şifre sıfırlama ──────────────────────────────────────────────
@@ -189,14 +309,30 @@ class AuthService {
 
   String _friendlyError(String code) {
     switch (code) {
-      case 'email-already-in-use':  return 'Bu e-posta zaten kullanımda.';
-      case 'weak-password':         return 'Şifre en az 6 karakter olmalı.';
-      case 'invalid-email':         return 'Geçersiz e-posta adresi.';
-      case 'user-not-found':        return 'Bu e-posta ile kayıtlı hesap bulunamadı.';
-      case 'wrong-password':        return 'Hatalı şifre.';
-      case 'too-many-requests':     return 'Çok fazla deneme. Lütfen bekleyin.';
-      case 'credential-already-in-use': return 'Bu hesap zaten başka bir kullanıcıya bağlı.';
-      default: return 'Bir hata oluştu ($code).';
+      case 'email-already-in-use':
+        return 'Bu e-posta zaten kullanımda.';
+      case 'weak-password':
+        return 'Şifre en az 6 karakter olmalı.';
+      case 'invalid-email':
+        return 'Geçersiz e-posta adresi.';
+      case 'user-not-found':
+        return 'Bu e-posta ile kayıtlı hesap bulunamadı.';
+      case 'wrong-password':
+        return 'Hatalı şifre.';
+      case 'invalid-credential':
+        return 'E-posta veya şifre hatalı.';
+      case 'too-many-requests':
+        return 'Çok fazla deneme. Lütfen bekleyin.';
+      case 'credential-already-in-use':
+        return 'Bu hesap zaten başka bir kullanıcıya bağlı.';
+      case 'operation-not-allowed':
+        return 'E-posta ile giriş şu an kapalı. Lütfen Google ile giriş yapın.';
+      case 'network-request-failed':
+        return 'İnternet bağlantısı yok.';
+      case 'user-disabled':
+        return 'Bu hesap devre dışı bırakılmış.';
+      default:
+        return 'Bir hata oluştu ($code).';
     }
   }
 

@@ -8,7 +8,6 @@ import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/daily_word_service.dart';
 import 'package:kurdle_app/services/firebase_service.dart';
 import 'package:kurdle_app/services/firestore_service.dart';
-import 'package:kurdle_app/services/scoring_service.dart';
 import 'package:path_provider/path_provider.dart';
 
 class StatsService {
@@ -28,6 +27,11 @@ class StatsService {
     return Stats.fromJson(map);
   }
 
+  /// Son hamle sonucunda kazanılan ödüller (UI level-up overlay için).
+  /// `updateStats` çağrısı tamamlandığında set olur.
+  final ValueNotifier<({int oldLevel, int newLevel, int xpGained, int peyvGained})?>
+      lastReward = ValueNotifier(null);
+
   Future<Stats> updateStats(
       Stats stats, bool won, int index, String Function(int n) getSharable, int gameNumber,
       {String word = ''}) async {
@@ -39,43 +43,43 @@ class StatsService {
       if (stats.streak.current > stats.streak.max) {
         stats.streak.max = stats.streak.current;
       }
-      // Scrabble skoru: kelime puanı × deneme çarpanı
-      if (word.isNotEmpty) {
-        final earned = ScoringService.calculateScore(word, index);
-        stats.totalScore += earned;
-        if (stats.totalScore > stats.highScore) {
-          stats.highScore = stats.totalScore;
-        }
-      }
     } else {
       stats.lost += 1;
       stats.streak.current = 0;
       stats.lastGuess = -1;
-      // Kayıpta skor sıfırla (streak gibi)
-      stats.totalScore = 0;
     }
+    // Eski "puan" sistemi kaldırıldı; XP/Peyv tek source of truth.
+    // totalScore alanı geriye dönük uyumluluk için saklanıyor ama
+    // artık güncellenmez.
     stats.lastBoard = getSharable(index);
     stats.gameNumber = gameNumber;
 
     await saveStats(stats);
     _syncToFirestore(stats, won);
-    DailyWordService.instance.recordResult(
+    // Wordle XP/Peyv ödülünü al ve UI'ya yayın
+    DailyWordService.instance
+        .recordResult(
       won: won,
       tries: index + 1,
       shareText: getSharable(index),
-    );
+    )
+        .then((reward) {
+      if (reward.xpGained > 0 || reward.peyvGained > 0) {
+        lastReward.value = reward;
+      }
+    });
     return stats;
   }
 
   void _syncToFirestore(Stats stats, bool won) {
     final uid = AuthService.instance.currentUser?.uid;
     if (uid == null || !FirebaseService.isAvailable) return;
-    FirestoreService.instance.saveGameResult(
+    // XP/Peyv ödülü DailyWordService.recordResult içinde verilir.
+    // Wordle "skor" konsepti kaldırıldı; sadece played/won güncelle.
+    FirestoreService.instance.recordPlayStats(
       uid: uid,
-      playerScore: stats.totalScore,
-      aiScore: 0,
+      playerScore: 0,
       won: won,
-      durationSeconds: 0,
     );
   }
 

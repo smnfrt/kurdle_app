@@ -1,4 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:kurdle_app/services/auth_service.dart';
+import 'package:kurdle_app/services/firebase_service.dart';
+import 'package:kurdle_app/services/firestore_service.dart';
 import 'package:kurdle_app/services/notification_service.dart';
 
 /// Günlük "her gün oynama" streak'i.
@@ -75,6 +78,21 @@ class DailyStreakService {
 
     // Bugün oynandı — akşam streak hatırlatması rahatsız etmesin (fire-and-forget)
     NotificationService.instance.cancelTodayStreakReminder().catchError((_) {});
+
+    // Günlük giriş ödülü (XP + Peyv). Yeni gün başına bir kez verilir.
+    // Streak büyüdükçe XP artar (7. günde tavan), Peyv sabit.
+    final uid = AuthService.instance.currentUser?.uid;
+    if (uid != null && FirebaseService.isAvailable) {
+      final xp = 10 * current.clamp(1, 7);
+      const peyv = 5;
+      // fire-and-forget — streak markPlayed flow'unu bloke etmesin
+      FirestoreService.instance.awardProgression(
+        uid: uid,
+        xp: xp,
+        peyv: peyv,
+        reason: 'daily_streak_day_$current',
+      );
+    }
 
     return DailyStreakState(
       current: current,

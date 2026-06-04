@@ -13,6 +13,7 @@ import 'package:kurdle_app/services/daily_streak_service.dart';
 import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/board_layout_service.dart';
 import 'package:kurdle_app/services/firebase_service.dart';
+import 'package:kurdle_app/services/level_rewards.dart';
 import 'package:kurdle_app/services/firestore_service.dart';
 import 'package:kurdle_app/services/game_score_service.dart';
 import 'package:kurdle_app/services/language_config.dart';
@@ -27,7 +28,9 @@ class ScrabbleGameController extends ChangeNotifier {
   static const int rackSize = 7;
 
   // ── Geliştirme sabitleri ─────────────────────────────────────────
-  static const int maxEnhancesPerGame = 2;
+  // maxEnhancesPerGame artık dinamik (seviye + satın alma); base 2 + bonus.
+  static const int baseEnhancesPerGame = 2;
+  int maxEnhancesPerGame = baseEnhancesPerGame;
   static const int maxEnhancesPerWord = 2;
   static const double enhanceBonusRate = 0.5;
   static const int bonusPerAddedLetter = 10;
@@ -80,11 +83,13 @@ class ScrabbleGameController extends ChangeNotifier {
 
   // ── Çalma durumu ─────────────────────────────────────────────────
   static const _stealSvc = WordStealService();
-  static const int maxStealsPerGame = 2;
+  // maxStealsPerGame artık dinamik (seviye + satın alma); base 2 + bonus.
+  static const int baseStealsPerGame = 2;
+  int maxStealsPerGame = baseStealsPerGame;
   static const int stealPenaltyPoints = 5;
 
-  /// Oyuncunun kalan çalma hakkı sayısı (0-2).
-  int playerStealsLeft = maxStealsPerGame;
+  /// Oyuncunun kalan çalma hakkı sayısı (base 0-2, seviye bonuslarıyla artabilir).
+  int playerStealsLeft = baseStealsPerGame;
 
   /// Çalma modu aktif mi? Aktifken hamle çalma denemesi olarak değerlendirilir.
   bool isInStealMode = false;
@@ -105,6 +110,20 @@ class ScrabbleGameController extends ChangeNotifier {
   int turnSecondsLeft = 0; // UI için geri sayım
 
   int get playerEnhancesLeft => maxEnhancesPerGame - playerEnhanceCount;
+
+  // ── Mid-game Peyv mağaza efektleri ───────────────────────────────
+  /// Peyv mağazasından alınan +1 Enhance hakkı.
+  void grantExtraEnhance() {
+    maxEnhancesPerGame += 1;
+    notifyListeners();
+  }
+
+  /// Peyv mağazasından alınan +1 Steal hakkı.
+  void grantExtraSteal() {
+    maxStealsPerGame += 1;
+    playerStealsLeft += 1;
+    notifyListeners();
+  }
   int get tilesLeft => _bag.remaining;
 
   List<({String word, int score, bool valid})> _cachedPendingWords = const [];
@@ -131,6 +150,9 @@ class ScrabbleGameController extends ChangeNotifier {
     LanguageConfig? config,
     this.turnTimeLimitSeconds,
     this.aiDifficulty = AiDifficulty.normal,
+    int playerLevel = 1,
+    int extraEnhances = 0,
+    int extraSteals = 0,
   })  : board = BoardLayoutService.createClassicLayout(),
         _bag = TileBagService((config ?? LanguageConfig.current).tileBag),
         _validator = WordValidatorService(wordList),
@@ -138,6 +160,12 @@ class ScrabbleGameController extends ChangeNotifier {
           ScoringService((config ?? LanguageConfig.current).letterPoints),
         ) {
     _ai = AiService(_validator, _scorer);
+    // Seviye ödülleri + Peyv mağazasından alınan ekstralar
+    maxEnhancesPerGame =
+        baseEnhancesPerGame + bonusEnhancesAtLevel(playerLevel) + extraEnhances;
+    maxStealsPerGame =
+        baseStealsPerGame + bonusStealsAtLevel(playerLevel) + extraSteals;
+    playerStealsLeft = maxStealsPerGame;
     playerRack = _bag.drawMany(rackSize);
     aiRack = _bag.drawMany(rackSize);
     _ensureRackPlayable(playerRack);
@@ -968,6 +996,10 @@ class ScrabbleGameController extends ChangeNotifier {
     return false;
   }
 
+  /// Son oyun sonucunda kazanılan ödüller — UI level-up overlay için.
+  /// `null` ise henüz oyun bitmemiş veya kayıt yapılmamış.
+  ({int oldLevel, int newLevel, int xpGained, int peyvGained})? lastReward;
+
   void _onGameOver() {
     _countdownTimer?.cancel();
     if (playerScore > aiScore) {
@@ -975,13 +1007,18 @@ class ScrabbleGameController extends ChangeNotifier {
     }
     final uid = AuthService.instance.currentUser?.uid;
     if (uid == null || !FirebaseService.isAvailable) return;
-    FirestoreService.instance.saveGameResult(
+    FirestoreService.instance
+        .saveGameResult(
       uid: uid,
       playerScore: playerScore,
       aiScore: aiScore,
       won: playerScore > aiScore,
       durationSeconds: DateTime.now().difference(_startedAt).inSeconds,
-    );
+    )
+        .then((result) {
+      lastReward = result;
+      notifyListeners();
+    });
   }
 
   @override

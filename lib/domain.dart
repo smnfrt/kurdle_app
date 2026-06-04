@@ -25,6 +25,9 @@ class Settings {
   /// Scrabble AI rakip zorluk seviyesi. Default: normal.
   AiDifficulty aiDifficulty;
 
+  /// Uygulama arayüz dili.
+  AppLocale appLocale;
+
   Settings(
     this.isDarkMode,
     this.isHardMode,
@@ -35,6 +38,7 @@ class Settings {
     this.notifsEnabled = true,
     this.ferhengDefinitionLanguage = AppLocale.tr,
     this.aiDifficulty = AiDifficulty.normal,
+    this.appLocale = AppLocale.ku,
   });
 
   Settings.fromJson(Map<String, dynamic> json)
@@ -51,7 +55,9 @@ class Settings {
         ferhengDefinitionLanguage = AppLocale.values
             .byName(json['ferhengDefinitionLanguage'] ?? AppLocale.tr.name),
         aiDifficulty = AiDifficulty.values
-            .byName(json['aiDifficulty'] ?? AiDifficulty.normal.name);
+            .byName(json['aiDifficulty'] ?? AiDifficulty.normal.name),
+        appLocale =
+            AppLocale.values.byName(json['appLocale'] ?? AppLocale.ku.name);
 
   Map<String, dynamic> toJson() {
     final Map<String, dynamic> data = <String, dynamic>{};
@@ -64,6 +70,7 @@ class Settings {
     data['keyboardLayout'] = keyboardLayout.name;
     data['ferhengDefinitionLanguage'] = ferhengDefinitionLanguage.name;
     data['aiDifficulty'] = aiDifficulty.name;
+    data['appLocale'] = appLocale.name;
 
     return data;
   }

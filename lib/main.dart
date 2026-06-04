@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kurdle_app/app_theme.dart';
 import 'package:kurdle_app/services/connectivity_service.dart';
+import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/settings_service.dart';
 import 'package:kurdle_app/services/version_service.dart';
 import 'package:kurdle_app/widgets/offline_banner.dart';
@@ -10,6 +11,7 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final settings = await SettingsService().load();
   themeNotifier.value = settings.isDarkMode ? ThemeMode.dark : ThemeMode.light;
+  L.set(settings.appLocale);
   await VersionService.instance.loadVersion();
   await ConnectivityService.instance.init();
   runApp(const MyApp());
@@ -20,18 +22,21 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<ThemeMode>(
-      valueListenable: themeNotifier,
-      builder: (_, mode, __) => MaterialApp(
-        title: 'Peyvok',
-        debugShowCheckedModeBanner: false,
-        showSemanticsDebugger: false,
-        theme: AppTheme.lightTheme,
-        themeMode: mode,
-        darkTheme: AppTheme.darkTheme,
-        home: const SplashScreen(),
-        builder: (context, child) =>
-            OfflineBannerWrapper(child: child ?? const SizedBox.shrink()),
+    return ValueListenableBuilder<AppLocale>(
+      valueListenable: L.notifier,
+      builder: (_, __, ___) => ValueListenableBuilder<ThemeMode>(
+        valueListenable: themeNotifier,
+        builder: (_, mode, __) => MaterialApp(
+          title: 'Peyvok',
+          debugShowCheckedModeBanner: false,
+          showSemanticsDebugger: false,
+          theme: AppTheme.lightTheme,
+          themeMode: mode,
+          darkTheme: AppTheme.darkTheme,
+          home: const SplashScreen(),
+          builder: (context, child) =>
+              OfflineBannerWrapper(child: child ?? const SizedBox.shrink()),
+        ),
       ),
     );
   }

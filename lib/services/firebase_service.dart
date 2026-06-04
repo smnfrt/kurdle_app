@@ -28,7 +28,8 @@ class FirebaseService {
           .setCrashlyticsCollectionEnabled(!kDebugMode);
 
       // Flutter framework error'larını otomatik raporla
-      FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+      FlutterError.onError =
+          FirebaseCrashlytics.instance.recordFlutterFatalError;
 
       // Async/platform error'larını da yakala (Future, isolate)
       PlatformDispatcher.instance.onError = (error, stack) {
@@ -42,19 +43,32 @@ class FirebaseService {
       // Misafir UID Firebase'den sonra başlat
       await AuthService.instance.initGuestUid();
 
-      // Kullanıcı yoksa anonim giriş yap
-      final user = await AuthService.instance.signInAnonymously();
-      if (user != null) {
-        await FirestoreService.instance.createUserIfNotExists(user);
+      // Oturum Firebase tarafından kalıcı tutulur. Google/e-posta ile giriş
+      // yapmış kullanıcı varsa anonim oturumla üstünü ezme.
+      try {
+        final user = AuthService.instance.currentUser ??
+            await AuthService.instance.signInAnonymously();
+        if (user != null) {
+          await FirestoreService.instance.createUserIfNotExists(user);
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('[FirebaseService] user profile bootstrap failed: $e');
+        }
       }
     } catch (e) {
       // google-services.json eksik veya network yok — offline modda devam et
-      if (kDebugMode) debugPrint('[FirebaseService] init failed, running offline: $e');
+      _initialized = false;
+      if (kDebugMode) {
+        debugPrint('[FirebaseService] init failed, running offline: $e');
+      }
       // Firebase olmasa bile misafir UID hazırlansın
       try {
         await AuthService.instance.initGuestUid();
       } catch (e2) {
-        if (kDebugMode) debugPrint('[FirebaseService] guest UID init also failed: $e2');
+        if (kDebugMode) {
+          debugPrint('[FirebaseService] guest UID init also failed: $e2');
+        }
       }
     }
   }

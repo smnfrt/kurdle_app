@@ -1,7 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kurdle_app/domain.dart' show AiDifficulty;
 import 'package:kurdle_app/services/app_locale.dart';
+import 'package:kurdle_app/services/auth_service.dart';
+import 'package:kurdle_app/services/firebase_service.dart';
+import 'package:kurdle_app/services/firestore_service.dart';
 import 'package:kurdle_app/services/settings_service.dart';
 import 'package:kurdle_app/controllers/board_touch_controller.dart';
 import 'package:kurdle_app/controllers/scrabble_game_controller.dart';
@@ -12,6 +17,8 @@ import 'package:kurdle_app/services/game_store.dart';
 import 'package:kurdle_app/services/language_config.dart';
 import 'package:kurdle_app/services/wordlist_loader.dart';
 import 'package:kurdle_app/widgets/chat_screen.dart';
+import 'package:kurdle_app/widgets/level_up_overlay.dart';
+import 'package:kurdle_app/widgets/peyv_shop_sheet.dart';
 import 'package:kurdle_app/services/sound_service.dart';
 import 'package:kurdle_app/widgets/letter_rack_widget.dart';
 import 'package:kurdle_app/widgets/scrabble_board_widget.dart';
@@ -67,6 +74,9 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
   // Sohbet paneli
   bool _hasUnread = false;
 
+  final Map<String, _MeaningTabEntry> _meaningCache = {};
+  final Set<String> _meaningWarmInFlight = {};
+
   void _handleDoubleTap() {
     if (_touchCtrl.panEnabled) {
       _zoomController.value = Matrix4.identity();
@@ -94,18 +104,58 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
     });
   }
 
-  void _showWordMeanings(List<String> words) async {
-    final uniqueWords = <String>[
+  String _meaningKey(String word) => word.trim().toUpperCase();
+
+  List<String> _uniqueMeaningWords(Iterable<String> words) {
+    final seen = <String>{};
+    return [
       for (final word in words)
-        if (word.trim().isNotEmpty) word.trim()
+        if (word.trim().isNotEmpty && seen.add(_meaningKey(word))) word.trim()
     ];
+  }
+
+  Future<_MeaningTabEntry> _loadMeaningEntry(String word) async {
+    final result = await FerhengService.instance.lookupMeaning(
+      word,
+      acceptedInGame: true,
+    );
+    final text = result.displayGameMeaning().trim();
+    return _MeaningTabEntry(
+      word: result.displayWord,
+      meaning: text.isEmpty ? L.dictionaryEntryMissingMeaning : text,
+    );
+  }
+
+  void _warmMeaningCache(Iterable<String> words) {
+    final uniqueWords = _uniqueMeaningWords(words);
+    for (final word in uniqueWords) {
+      final key = _meaningKey(word);
+      if (_meaningCache.containsKey(key) ||
+          _meaningWarmInFlight.contains(key)) {
+        continue;
+      }
+      _meaningWarmInFlight.add(key);
+      unawaited(_loadMeaningEntry(word).then((entry) {
+        _meaningCache[key] = entry;
+      }).catchError((_) {
+        _meaningCache[key] =
+            _MeaningTabEntry(word: word, meaning: L.dictionaryWordNotFound);
+      }).whenComplete(() {
+        _meaningWarmInFlight.remove(key);
+      }));
+    }
+  }
+
+  void _showWordMeanings(List<String> words) async {
+    final uniqueWords = _uniqueMeaningWords(words);
     if (uniqueWords.isEmpty) return;
     HapticFeedback.selectionClick();
 
     final entries = ValueNotifier<List<_MeaningTabEntry>>(
       uniqueWords
-          .map(
-              (word) => _MeaningTabEntry(word: word, meaning: L.meaningLoading))
+          .map((word) =>
+              _meaningCache[_meaningKey(word)] ??
+              _MeaningTabEntry(word: word, meaning: L.meaningLoading))
           .toList(growable: false),
     );
 
@@ -133,22 +183,16 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
     });
 
     try {
-      final results = await Future.wait(uniqueWords.map(
-        (word) => FerhengService.instance.lookupMeaning(
-          word,
-          acceptedInGame: true,
-        ),
-      ));
+      final results = await Future.wait(uniqueWords.map((word) async {
+        final key = _meaningKey(word);
+        final cached = _meaningCache[key];
+        if (cached != null) return cached;
+        final entry = await _loadMeaningEntry(word);
+        _meaningCache[key] = entry;
+        return entry;
+      }));
       if (!mounted || !dialogOpen) return;
-      entries.value = results.map(
-        (result) {
-          final text = result.displayGameMeaning().trim();
-          return _MeaningTabEntry(
-            word: result.displayWord,
-            meaning: text.isEmpty ? L.dictionaryEntryMissingMeaning : text,
-          );
-        },
-      ).toList(growable: false);
+      entries.value = results;
     } catch (e) {
       debugPrint('[dictionary_error] $e');
       if (!mounted || !dialogOpen) return;
@@ -170,6 +214,7 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
   @override
   void initState() {
     super.initState();
+    unawaited(FerhengService.instance.init());
     _touchCtrl = BoardTouchController(
       transformCtrl: _zoomController,
       vsync: this,
@@ -194,6 +239,15 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
     // Difficulty: caller override > kullanıcı ayarı > default normal
     final settings = await SettingsService().load();
     final resolvedDifficulty = widget.aiDifficulty ?? settings.aiDifficulty;
+    // Oyuncu seviyesi (seviye ödülleri için): signed-in user profilinden oku.
+    int playerLevel = 1;
+    final uid = AuthService.instance.currentUser?.uid;
+    if (uid != null && FirebaseService.isAvailable) {
+      try {
+        final profile = await FirestoreService.instance.getProfile(uid);
+        if (profile != null) playerLevel = profile.level;
+      } catch (_) {}
+    }
     GameStore.instance.createRecord();
     if (_controller != null && _controllerListener != null) {
       _controller!.removeListener(_controllerListener!);
@@ -203,18 +257,26 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
       config: config,
       turnTimeLimitSeconds: widget.turnTimeLimitSeconds,
       aiDifficulty: resolvedDifficulty,
+      playerLevel: playerLevel,
     );
     setState(() {
       _controller = newCtrl;
       _lastPhase = null;
       _error = '';
+      _levelUpShown = false;
     });
     _attachListener(newCtrl);
     GameStore.instance.activeController = _controller;
   }
 
+  bool _levelUpShown = false;
+
   void _onControllerUpdate() {
     final phase = _controller!.phase;
+    _warmMeaningCache([
+      ..._controller!.lastMoveWords.map((e) => e.word),
+      ..._controller!.lastPlayerMoveWords,
+    ]);
     if (phase != _lastPhase) {
       if (phase == GamePhase.aiTurn) {
         SoundService.instance.play(SFX.aiTurn);
@@ -233,6 +295,22 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
       // Faz değişimi tüm ekranı etkiliyor (AI sırası, game over banner)
       setState(() {});
       return;
+    }
+    // Reward yüklendiğinde level-up overlay göster (game over sonrası
+    // Firebase saveGameResult tamamlanınca lastReward set olur).
+    final reward = _controller!.lastReward;
+    if (reward != null && !_levelUpShown) {
+      _levelUpShown = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        LevelUpOverlay.maybeShow(
+          context: context,
+          oldLevel: reward.oldLevel,
+          newLevel: reward.newLevel,
+          xpGained: reward.xpGained,
+          peyvGained: reward.peyvGained,
+        );
+      });
     }
     // Normal hamle: sadece board, raf ve skor rebuild
     _boardNotifier.value++;
@@ -324,6 +402,8 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
 
   void _showGameMenu() {
     final ctrl = _controller!;
+    final hasFirebase =
+        AuthService.instance.currentUser != null && FirebaseService.isAvailable;
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -347,7 +427,37 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
           ctrl.resign();
           setState(() => _error = '');
         },
+        onShop: hasFirebase ? _openPeyvShop : null,
       ),
+    );
+  }
+
+  Future<void> _openPeyvShop() async {
+    final uid = AuthService.instance.currentUser?.uid;
+    if (uid == null || !FirebaseService.isAvailable) return;
+    final profile = await FirestoreService.instance.getProfile(uid);
+    if (!mounted) return;
+    final balance = profile?.peyv ?? 0;
+    await PeyvShopSheet.show(
+      context: context,
+      currentPeyv: balance,
+      playerLevel: profile?.level ?? 1,
+      enabledItems: const {
+        PeyvItem.scrabbleExtraEnhance,
+        PeyvItem.scrabbleExtraSteal,
+      },
+      onItemPurchased: (item) {
+        switch (item) {
+          case PeyvItem.scrabbleExtraEnhance:
+            _controller?.grantExtraEnhance();
+            break;
+          case PeyvItem.scrabbleExtraSteal:
+            _controller?.grantExtraSteal();
+            break;
+          default:
+            break;
+        }
+      },
     );
   }
 
@@ -672,7 +782,7 @@ class _TopBar extends StatelessWidget {
     final top = MediaQuery.of(context).padding.top;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      padding: EdgeInsets.fromLTRB(10, top + 4, 10, 6),
+      padding: EdgeInsets.fromLTRB(10, top + 6, 10, 10),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -698,66 +808,137 @@ class _TopBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Geri butonu
-          if (canGoBack)
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTapDown: (_) {
+          if (canGoBack) ...[
+            _NavIconBtn(
+              icon: Icons.arrow_back_ios_new_rounded,
+              onTap: () {
                 HapticFeedback.selectionClick();
                 Navigator.pop(context);
               },
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                child: Icon(Icons.arrow_back_ios_new_rounded,
-                    color: Color(0xFFEAF0ED), size: 18),
-              ),
             ),
-
-          // Sol skor
+            const SizedBox(width: 6),
+          ],
           Expanded(
-              child: _ScoreCard(
-            label: L.current == AppLocale.tr ? 'Sen' : 'Ez',
-            score: playerScore,
-            isActive: phase == GamePhase.playerTurn,
-            alignLeft: true,
-          )),
-
-          // Orta: torba + enhance badge + geri sayım
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('$tilesLeft',
-                      style: const TextStyle(
-                          color: Color(0xFFF1F5F2),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15)),
-                  const SizedBox(width: 2),
-                  Text(L.remaining,
-                      style: const TextStyle(
-                          color: Color(0xFFC9D2D0), fontSize: 9)),
-                ],
-              ),
-              const SizedBox(height: 3),
-              _EnhanceBadge(count: playerEnhancesLeft),
-            ],
+            child: _PlayerPill(
+              name: L.current == AppLocale.tr ? 'Sen' : 'Ez',
+              score: playerScore,
+              isActive: phase == GamePhase.playerTurn,
+              alignLeft: true,
+              isAI: false,
+            ),
           ),
-
-          // Sağ skor
+          const SizedBox(width: 8),
+          _CenterStack(tilesLeft: tilesLeft, enhancesLeft: playerEnhancesLeft),
+          const SizedBox(width: 8),
           Expanded(
-              child: _ScoreCard(
-            label: 'AI',
-            score: aiScore,
-            isActive: phase == GamePhase.aiTurn,
-            alignLeft: false,
-          )),
-
-          // 💬 Premium glass FAB
+            child: _PlayerPill(
+              name: 'AI',
+              score: aiScore,
+              isActive: phase == GamePhase.aiTurn,
+              alignLeft: false,
+              isAI: true,
+            ),
+          ),
+          const SizedBox(width: 6),
           _GlassChatBtn(onTap: onChatTap, hasUnread: hasUnread),
         ],
       ),
+    );
+  }
+}
+
+// ── Modern back/nav icon button ──────────────────────────────────
+
+class _NavIconBtn extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  const _NavIconBtn({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Material(
+      color: Colors.white.withValues(alpha: isDark ? 0.06 : 0.14),
+      shape: const CircleBorder(),
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: Colors.white.withValues(alpha: isDark ? 0.10 : 0.22),
+              width: 1.2,
+            ),
+          ),
+          child: Icon(icon, color: const Color(0xFFF1F5F2), size: 16),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Merkez: torba sayısı + enhance badge ──────────────────────────
+
+class _CenterStack extends StatelessWidget {
+  final int tilesLeft;
+  final int enhancesLeft;
+  const _CenterStack({required this.tilesLeft, required this.enhancesLeft});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final low = tilesLeft <= 10;
+    final accent = low ? const Color(0xFFFFB454) : const Color(0xFFEAF0ED);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 280),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          decoration: BoxDecoration(
+            color: low
+                ? const Color(0xFFFFB454)
+                    .withValues(alpha: isDark ? 0.14 : 0.20)
+                : Colors.white.withValues(alpha: isDark ? 0.08 : 0.16),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: low
+                  ? const Color(0xFFFFB454).withValues(alpha: 0.55)
+                  : Colors.white.withValues(alpha: isDark ? 0.10 : 0.22),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.style_rounded, size: 13, color: accent),
+              const SizedBox(width: 4),
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 280),
+                transitionBuilder: (child, anim) => ScaleTransition(
+                  scale: anim,
+                  child: FadeTransition(opacity: anim, child: child),
+                ),
+                child: Text(
+                  '$tilesLeft',
+                  key: ValueKey(tilesLeft),
+                  style: TextStyle(
+                    color: accent,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    height: 1,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 4),
+        _EnhanceBadge(count: enhancesLeft),
+      ],
     );
   }
 }
@@ -927,87 +1108,249 @@ class _EnhanceBadge extends StatelessWidget {
   }
 }
 
-class _ScoreCard extends StatelessWidget {
-  final String label;
+// ── Modern oyuncu kartı: avatar + isim + skor ─────────────────────
+
+class _PlayerPill extends StatelessWidget {
+  final String name;
   final int score;
   final bool isActive;
   final bool alignLeft;
-
-  const _ScoreCard(
-      {required this.label,
-      required this.score,
-      required this.isActive,
-      required this.alignLeft});
+  final bool isAI;
+  const _PlayerPill({
+    required this.name,
+    required this.score,
+    required this.isActive,
+    required this.alignLeft,
+    required this.isAI,
+  });
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final labelColor =
-        isActive ? const Color(0xFFF1F5F2) : const Color(0xFFC2CBC8);
-    final scoreColor = const Color(0xFFFFFFFF);
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOut,
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
-        color: isActive
-            ? _kActive.withValues(alpha: isDark ? 0.22 : 0.26)
-            : Colors.white.withValues(alpha: isDark ? 0.06 : 0.12),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isActive
+              ? [
+                  _kActive.withValues(alpha: isDark ? 0.32 : 0.34),
+                  _kActive.withValues(alpha: isDark ? 0.14 : 0.18),
+                ]
+              : [
+                  Colors.white.withValues(alpha: isDark ? 0.08 : 0.16),
+                  Colors.white.withValues(alpha: isDark ? 0.03 : 0.08),
+                ],
+        ),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-            color: isActive
-                ? _kActive
-                : Colors.white.withValues(alpha: isDark ? 0.0 : 0.12),
-            width: 1.5),
+          color: isActive
+              ? _kActive.withValues(alpha: 0.85)
+              : Colors.white.withValues(alpha: isDark ? 0.10 : 0.20),
+          width: 1.4,
+        ),
+        boxShadow: isActive
+            ? [
+                BoxShadow(
+                  color: _kActive.withValues(alpha: 0.28),
+                  blurRadius: 12,
+                  offset: const Offset(0, 3),
+                ),
+              ]
+            : null,
       ),
-      child: Column(
-        crossAxisAlignment:
-            alignLeft ? CrossAxisAlignment.start : CrossAxisAlignment.end,
-        children: [
-          Row(
-            mainAxisAlignment:
-                alignLeft ? MainAxisAlignment.start : MainAxisAlignment.end,
-            children: [
-              if (isActive && !alignLeft)
-                Container(
-                    width: 6,
-                    height: 6,
-                    margin: const EdgeInsets.only(right: 5),
-                    decoration: const BoxDecoration(
-                        color: _kActive, shape: BoxShape.circle)),
-              Text(label,
-                  style: TextStyle(
-                      color: labelColor,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500)),
-              if (isActive && alignLeft)
-                Container(
-                    width: 6,
-                    height: 6,
-                    margin: const EdgeInsets.only(left: 5),
-                    decoration: const BoxDecoration(
-                        color: _kActive, shape: BoxShape.circle)),
-            ],
-          ),
-          const SizedBox(height: 2),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 350),
-            transitionBuilder: (child, anim) => SlideTransition(
-              position:
-                  Tween<Offset>(begin: const Offset(0, -0.4), end: Offset.zero)
-                      .animate(
-                CurvedAnimation(parent: anim, curve: Curves.easeOut),
-              ),
-              child: FadeTransition(opacity: anim, child: child),
-            ),
-            child: Text(
-              '$score',
-              key: ValueKey(score),
-              style: const TextStyle(
-                      fontSize: 30, fontWeight: FontWeight.bold, height: 1)
-                  .copyWith(color: scoreColor),
-            ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: alignLeft
+            ? [
+                _Avatar(isAI: isAI),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _NameScore(
+                    name: name,
+                    score: score,
+                    isActive: isActive,
+                    alignLeft: true,
+                  ),
+                ),
+              ]
+            : [
+                Expanded(
+                  child: _NameScore(
+                    name: name,
+                    score: score,
+                    isActive: isActive,
+                    alignLeft: false,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _Avatar(isAI: isAI),
+              ],
+      ),
+    );
+  }
+}
+
+class _Avatar extends StatelessWidget {
+  final bool isAI;
+  const _Avatar({required this.isAI});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: 30,
+      height: 30,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isAI
+              ? const [Color(0xFF6A8DAD), Color(0xFF3F5870)]
+              : const [Color(0xFF4CAF50), Color(0xFF2E7D32)],
+        ),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: isDark ? 0.20 : 0.34),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.18),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
           ),
         ],
+      ),
+      child: Icon(
+        isAI ? Icons.smart_toy_rounded : Icons.person_rounded,
+        size: 16,
+        color: Colors.white.withValues(alpha: 0.95),
+      ),
+    );
+  }
+}
+
+class _NameScore extends StatelessWidget {
+  final String name;
+  final int score;
+  final bool isActive;
+  final bool alignLeft;
+  const _NameScore({
+    required this.name,
+    required this.score,
+    required this.isActive,
+    required this.alignLeft,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment:
+          alignLeft ? CrossAxisAlignment.start : CrossAxisAlignment.end,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isActive && alignLeft) ...[
+              const _ActiveDot(),
+              const SizedBox(width: 5),
+            ],
+            Flexible(
+              child: Text(
+                name,
+                style: TextStyle(
+                  color: const Color(0xFFEAF0ED)
+                      .withValues(alpha: isActive ? 1.0 : 0.75),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.2,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (isActive && !alignLeft) ...[
+              const SizedBox(width: 5),
+              const _ActiveDot(),
+            ],
+          ],
+        ),
+        const SizedBox(height: 1),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 350),
+          transitionBuilder: (child, anim) => SlideTransition(
+            position:
+                Tween<Offset>(begin: const Offset(0, -0.4), end: Offset.zero)
+                    .animate(
+              CurvedAnimation(parent: anim, curve: Curves.easeOut),
+            ),
+            child: FadeTransition(opacity: anim, child: child),
+          ),
+          child: Text(
+            '$score',
+            key: ValueKey(score),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+              height: 1.0,
+              letterSpacing: -0.5,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ActiveDot extends StatefulWidget {
+  const _ActiveDot();
+
+  @override
+  State<_ActiveDot> createState() => _ActiveDotState();
+}
+
+class _ActiveDotState extends State<_ActiveDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c;
+
+  @override
+  void initState() {
+    super.initState();
+    _c = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, __) => Container(
+        width: 6,
+        height: 6,
+        decoration: BoxDecoration(
+          color: _kActive,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: _kActive.withValues(alpha: 0.4 + 0.4 * _c.value),
+              blurRadius: 6,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1059,15 +1402,20 @@ class _BottomPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.of(context).padding.bottom;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final panelBg = isDark ? _kBottomBg : const Color(0xFFE8E2D4);
+    final handleColor = isDark
+        ? Colors.white.withValues(alpha: 0.12)
+        : Colors.black.withValues(alpha: 0.18);
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
       decoration: BoxDecoration(
-        color: _kBottomBg,
+        color: panelBg,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
         boxShadow: [
           BoxShadow(
-              color: Colors.black54,
+              color: Colors.black.withValues(alpha: isDark ? 0.55 : 0.18),
               blurRadius: 20,
               offset: const Offset(0, -4))
         ],
@@ -1087,7 +1435,7 @@ class _BottomPanel extends StatelessWidget {
             decoration: BoxDecoration(
                 color: isInStealMode
                     ? _kStealActive.withValues(alpha: 0.6)
-                    : Colors.white.withValues(alpha: 0.12),
+                    : handleColor,
                 borderRadius: BorderRadius.circular(2)),
           ),
 
@@ -1227,8 +1575,12 @@ class _BottomPanel extends StatelessWidget {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _kPrimary,
                   foregroundColor: Colors.white,
-                  disabledBackgroundColor: const Color(0xFF2A2A2A),
-                  disabledForegroundColor: Colors.white24,
+                  disabledBackgroundColor: isDark
+                      ? const Color(0xFF2A2A2A)
+                      : Colors.black.withValues(alpha: 0.10),
+                  disabledForegroundColor: isDark
+                      ? Colors.white24
+                      : Colors.black.withValues(alpha: 0.32),
                   padding: const EdgeInsets.symmetric(vertical: 15),
                   elevation: isEnabled ? 6 : 0,
                   shadowColor: _kPrimary.withValues(alpha: 0.5),
@@ -1250,7 +1602,10 @@ class _BottomPanel extends StatelessWidget {
   }
 }
 
-// Küçük ikon+etiket aksiyon butonu
+// Modern ikon + etiket aksiyon butonu (geri al, geç, vebijerk)
+//
+// Pill-shape, ripple, theme-aware. Disabled state daha az silik —
+// kullanıcı tıklanabilirliği anlasın diye.
 class _ActionBtn extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -1266,35 +1621,51 @@ class _ActionBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseColor = isDark ? Colors.white : const Color(0xFF18242C);
+    final activeOpacity = enabled ? 1.0 : 0.30;
+    final fg = baseColor.withValues(alpha: activeOpacity * 0.85);
+    final bgTint = isDark
+        ? Colors.white.withValues(alpha: enabled ? 0.07 : 0.03)
+        : Colors.black.withValues(alpha: enabled ? 0.045 : 0.02);
+    final borderTint = isDark
+        ? Colors.white.withValues(alpha: enabled ? 0.10 : 0.04)
+        : Colors.black.withValues(alpha: enabled ? 0.08 : 0.03);
+
     return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: enabled ? 0.06 : 0.02),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-                color: Colors.white.withValues(alpha: enabled ? 0.14 : 0.05)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon,
-                  color: enabled
-                      ? Colors.white60
-                      : Colors.white.withValues(alpha: 0.20),
-                  size: 18),
-              const SizedBox(height: 3),
-              Text(label,
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          splashColor: _kPrimary.withValues(alpha: 0.18),
+          highlightColor: _kPrimary.withValues(alpha: 0.08),
+          child: Ink(
+            decoration: BoxDecoration(
+              color: bgTint,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: borderTint, width: 1),
+            ),
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: fg, size: 20),
+                const SizedBox(height: 4),
+                Text(
+                  label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                      color: enabled
-                          ? Colors.white.withValues(alpha: 0.45)
-                          : Colors.white.withValues(alpha: 0.15),
-                      fontSize: 9)),
-            ],
+                    color: fg,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.15,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1317,63 +1688,82 @@ class _StealBtn extends StatelessWidget {
     this.onTap,
   });
 
-  static const _kSteal = Color(0xFF00BFA5);
+  static const _kStealIdle = Color(0xFF00BFA5);
   static const _kStealActive = Color(0xFFFF6F00);
 
   @override
   Widget build(BuildContext context) {
-    final color = isActive ? _kStealActive : _kSteal;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent = isActive ? _kStealActive : _kStealIdle;
     final dimmed = !isEnabled && !isActive;
+    final baseColor = isDark ? Colors.white : const Color(0xFF18242C);
+    final dimmedColor = baseColor.withValues(alpha: 0.30);
 
     return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          HapticFeedback.mediumImpact();
-          onTap?.call();
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(
-            color: dimmed
-                ? Colors.white.withValues(alpha: 0.02)
-                : isActive
-                    ? _kStealActive.withValues(alpha: 0.15)
-                    : _kSteal.withValues(alpha: 0.10),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.mediumImpact();
+            onTap?.call();
+          },
+          borderRadius: BorderRadius.circular(14),
+          splashColor: accent.withValues(alpha: 0.24),
+          highlightColor: accent.withValues(alpha: 0.10),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut,
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
               color: dimmed
-                  ? Colors.white.withValues(alpha: 0.05)
-                  : color.withValues(alpha: isActive ? 0.75 : 0.45),
-              width: isActive ? 1.5 : 1.0,
+                  ? (isDark
+                      ? Colors.white.withValues(alpha: 0.03)
+                      : Colors.black.withValues(alpha: 0.02))
+                  : accent.withValues(alpha: isActive ? 0.18 : 0.12),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: dimmed
+                    ? (isDark
+                        ? Colors.white.withValues(alpha: 0.05)
+                        : Colors.black.withValues(alpha: 0.05))
+                    : accent.withValues(alpha: isActive ? 0.85 : 0.55),
+                width: isActive ? 1.5 : 1,
+              ),
+              boxShadow: isActive
+                  ? [
+                      BoxShadow(
+                        color: _kStealActive.withValues(alpha: 0.28),
+                        blurRadius: 10,
+                        offset: const Offset(0, 2),
+                      ),
+                    ]
+                  : null,
             ),
-            boxShadow: isActive
-                ? [
-                    BoxShadow(
-                        color: _kStealActive.withValues(alpha: 0.25),
-                        blurRadius: 8)
-                  ]
-                : null,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                isActive ? '⚡' : '🎯',
-                style: const TextStyle(fontSize: 14, height: 1),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                isActive ? L.steal : '${L.steal} ($stealsLeft)',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: dimmed ? Colors.white.withValues(alpha: 0.15) : color,
-                  fontSize: 9,
-                  fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  isActive
+                      ? Icons.flash_on_rounded
+                      : Icons.center_focus_strong_rounded,
+                  size: 20,
+                  color: dimmed ? dimmedColor : accent,
                 ),
-              ),
-            ],
+                const SizedBox(height: 4),
+                Text(
+                  isActive ? L.steal : '${L.steal} ($stealsLeft)',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: dimmed ? dimmedColor : accent,
+                    fontSize: 11,
+                    fontWeight: isActive ? FontWeight.w700 : FontWeight.w600,
+                    letterSpacing: 0.15,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1750,6 +2140,7 @@ class _GameMenuSheet extends StatefulWidget {
   final VoidCallback onPass;
   final void Function(List<GameTile>) onExchange;
   final VoidCallback onResign;
+  final VoidCallback? onShop;
 
   const _GameMenuSheet({
     required this.tilesLeft,
@@ -1758,6 +2149,7 @@ class _GameMenuSheet extends StatefulWidget {
     required this.onPass,
     required this.onExchange,
     required this.onResign,
+    this.onShop,
   });
 
   @override
@@ -1822,6 +2214,21 @@ class _GameMenuSheetState extends State<_GameMenuSheet> {
               ? () => setState(() => _exchangeMode = true)
               : null,
         ),
+        if (widget.onShop != null) ...[
+          const SizedBox(height: 10),
+          _SheetOption(
+            icon: Icons.savings_rounded,
+            iconColor: const Color(0xFF00BFA5),
+            title: L.current == AppLocale.tr ? 'Peyv Mağazası' : 'Suka Peyv',
+            subtitle: L.current == AppLocale.tr
+                ? 'Geliştirme veya çalma hakkı al'
+                : 'Mafê Pêşkeftin an Dizînê bistîne',
+            onTap: () {
+              Navigator.pop(context);
+              widget.onShop?.call();
+            },
+          ),
+        ],
         const SizedBox(height: 10),
         _SheetOption(
           icon: Icons.flag_rounded,

@@ -23,6 +23,10 @@ class Kurdle {
 
   static final StatsService _statsService = StatsService();
 
+  /// Wordle level-up notifier — UI bunu dinleyip overlay gösterir.
+  static ValueNotifier<({int oldLevel, int newLevel, int xpGained, int peyvGained})?>
+      get wordleLevelUp => _statsService.lastReward;
+
   final _baseDate = DateTime(2021, DateTime.june, 19);
 
   late Context _context;

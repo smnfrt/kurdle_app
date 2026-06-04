@@ -1,5 +1,6 @@
 import 'dart:async';
-import 'package:firebase_messaging/firebase_messaging.dart' show AuthorizationStatus;
+import 'package:firebase_messaging/firebase_messaging.dart'
+    show AuthorizationStatus;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kurdle_app/services/app_locale.dart';
@@ -36,6 +37,7 @@ import 'package:kurdle_app/app_theme.dart';
 const _kPrimary = Color(0xFF3FBE6F);
 const _kGold = Color(0xFFFFD27A);
 const _kGoldDim = Color(0xFFB8860B);
+const _kHomeWideCardHeight = 156.0;
 
 void _showAboutDialog(BuildContext ctx) {
   HapticFeedback.selectionClick();
@@ -157,25 +159,28 @@ class _HomeScreenState extends State<HomeScreen>
   int _streak = 0;
   bool _streakAtRisk = false;
   late AnimationController _entranceCtrl;
-  List<MultiplayerRoom> _pendingInvites = [];
+  List<GameInvite> _pendingInvites = [];
   final Set<String> _notifiedInviteCodes = <String>{};
-  StreamSubscription<List<MultiplayerRoom>>? _inviteSub;
+  StreamSubscription<List<GameInvite>>? _inviteSub;
+  StreamSubscription<String?>? _authSub;
   late final void Function(String) _onNotificationInviteTap;
   late final VoidCallback _onOpenMyGames;
   List<MultiplayerRoom> _activeRooms = [];
   StreamSubscription<List<MultiplayerRoom>>? _activeRoomsSub;
+  String? _multiplayerListenerUid;
 
   @override
   void initState() {
     super.initState();
+    L.notifier.addListener(_onLocaleChanged);
     _entranceCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 700),
     )..forward();
     _checkOnboarding();
     _loadStreak();
-    _listenInvites();
-    _listenActiveRooms();
+    _listenAuthChanges();
+    _restartMultiplayerListeners(AuthService.instance.currentUser?.uid);
     _onNotificationInviteTap = _handleNotificationInviteTap;
     NotificationService.instance.onInviteTap(_onNotificationInviteTap);
     _onOpenMyGames = _handleOpenMyGames;
@@ -184,12 +189,38 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   void dispose() {
+    L.notifier.removeListener(_onLocaleChanged);
     _entranceCtrl.dispose();
+    _authSub?.cancel();
     _inviteSub?.cancel();
     _activeRoomsSub?.cancel();
     NotificationService.instance.offInviteTap(_onNotificationInviteTap);
     homeOpenMyGamesTick.removeListener(_onOpenMyGames);
     super.dispose();
+  }
+
+  void _onLocaleChanged() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _setAppLocale(AppLocale locale) async {
+    L.set(locale);
+    final settings = await SettingsService().load();
+    settings.appLocale = locale;
+    await SettingsService().save(settings);
+    if (mounted) setState(() {});
+  }
+
+  void _listenAuthChanges() {
+    _authSub = AuthService.instance.userStream
+        .map((user) => user?.uid)
+        .distinct()
+        .listen((uid) {
+      _restartMultiplayerListeners(uid);
+      if (uid != null) {
+        NotificationService.instance.syncFcmTokenToFirestore();
+      }
+    });
   }
 
   void _handleOpenMyGames() {
@@ -210,20 +241,10 @@ class _HomeScreenState extends State<HomeScreen>
           },
           onAcceptInvite: (inv) async {
             Navigator.pop(context);
-            final uid = AuthService.instance.effectiveUid;
-            final name = AuthService.instance.effectiveDisplayName;
-            if (uid == null) return;
-            final err = await MultiplayerService.instance
-                .joinRoom(inv.roomCode, uid, name);
-            if (err == null && mounted) {
-              Navigator.push(
-                  context,
-                  appRoute(
-                      FriendGameScreen(roomCode: inv.roomCode, myUid: uid)));
-            }
+            await _acceptInviteAndOpen(inv);
           },
           onDeclineInvite: (inv) =>
-              MultiplayerService.instance.declineInvite(inv.roomCode),
+              MultiplayerService.instance.declineInvite(inv.inviteId),
           onOpenRoom: (room) {
             Navigator.pop(context);
             final uid = AuthService.instance.effectiveUid ?? '';
@@ -239,19 +260,46 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
-  Future<void> _handleNotificationInviteTap(String roomCode) async {
+  Future<void> _acceptInviteAndOpen(GameInvite invite) async {
+    final uid = AuthService.instance.effectiveUid;
+    final name = AuthService.instance.effectiveDisplayName;
+    if (uid == null) return;
+    try {
+      final roomCode =
+          await MultiplayerService.instance.acceptInvite(invite, uid, name);
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        appRoute(FriendGameScreen(roomCode: roomCode, myUid: uid)),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            L.current == AppLocale.tr
+                ? 'Davet artık geçerli değil.'
+                : 'Vexwendin êdî derbasdar nîne.',
+          ),
+          backgroundColor: const Color(0xFFD32F2F),
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleNotificationInviteTap(String invitePayload) async {
     if (!mounted) return;
-    final inv = _pendingInvites.firstWhere(
-      (r) => r.roomCode == roomCode,
-      orElse: () => MultiplayerRoom(
-        roomCode: '',
-        hostUid: '',
-        hostName: '',
-        status: '',
-        currentTurnUid: '',
-      ),
-    );
-    if (inv.roomCode.isEmpty) return;
+    final uid = await _uidForNotificationNavigation();
+    if (!mounted || uid == null) return;
+
+    final inviteId = invitePayload.startsWith('invite:')
+        ? invitePayload.substring('invite:'.length)
+        : invitePayload;
+    final invite = await MultiplayerService.instance.getInvite(inviteId);
+    if (!mounted || invite == null) return;
+
+    if (invite.toUserId != uid || invite.status != 'pending') return;
+
     final accepted = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -267,7 +315,7 @@ class _HomeScreenState extends State<HomeScreen>
           ],
         ),
         content: Text(
-          '${inv.hostName} seni oyuna davet etti.',
+          '${invite.fromDisplayName} seni oyuna davet etti.',
           style: const TextStyle(color: Colors.white70, fontSize: 14),
         ),
         actions: [
@@ -289,46 +337,74 @@ class _HomeScreenState extends State<HomeScreen>
     );
     if (!mounted || accepted == null) return;
     if (accepted == false) {
-      await MultiplayerService.instance.declineInvite(inv.roomCode);
+      await MultiplayerService.instance.declineInvite(invite.inviteId);
       return;
     }
-    final uid = AuthService.instance.effectiveUid;
-    final name = AuthService.instance.effectiveDisplayName;
-    if (uid == null) return;
-    final err =
-        await MultiplayerService.instance.joinRoom(inv.roomCode, uid, name);
-    if (err == null && mounted) {
-      Navigator.push(context,
-          appRoute(FriendGameScreen(roomCode: inv.roomCode, myUid: uid)));
+    await _acceptInviteAndOpen(invite);
+  }
+
+  Future<String?> _uidForNotificationNavigation() async {
+    final current = AuthService.instance.currentUser?.uid;
+    if (current != null) return current;
+    try {
+      final user = await AuthService.instance.userStream
+          .firstWhere((user) => user != null)
+          .timeout(const Duration(seconds: 3));
+      return user?.uid;
+    } catch (_) {
+      return AuthService.instance.currentUser?.uid;
     }
   }
 
-  void _listenInvites() {
-    final uid = AuthService.instance.currentUser?.uid;
-    if (uid == null || !FirebaseService.isAvailable) return;
+  void _restartMultiplayerListeners(String? uid) {
+    if (_multiplayerListenerUid == uid &&
+        _inviteSub != null &&
+        _activeRoomsSub != null) {
+      return;
+    }
+    _multiplayerListenerUid = uid;
+    _inviteSub?.cancel();
+    _activeRoomsSub?.cancel();
+    _inviteSub = null;
+    _activeRoomsSub = null;
+    _notifiedInviteCodes.clear();
+
+    if (uid == null || !FirebaseService.isAvailable) {
+      if (mounted) {
+        setState(() {
+          _pendingInvites = [];
+          _activeRooms = [];
+        });
+      }
+      return;
+    }
+
     _inviteSub =
         MultiplayerService.instance.inviteStream(uid).listen((invites) {
       if (!mounted) return;
       for (final inv in invites) {
-        if (_notifiedInviteCodes.add(inv.roomCode)) {
+        final payload = 'invite:${inv.inviteId}';
+        if (_notifiedInviteCodes.add(payload)) {
           NotificationService.instance.showInviteNotification(
-            fromName: inv.hostName,
-            roomCode: inv.roomCode,
+            fromName: inv.fromDisplayName,
+            roomCode: payload,
           );
         }
       }
-      final activeCodes = invites.map((i) => i.roomCode).toSet();
+      final activeCodes = invites.map((i) => 'invite:${i.inviteId}').toSet();
       _notifiedInviteCodes.removeWhere((c) => !activeCodes.contains(c));
       setState(() => _pendingInvites = invites);
+    }, onError: (Object e, StackTrace st) {
+      debugPrint('[HomeScreen] invite listener failed for $uid: $e');
+      if (mounted) setState(() => _pendingInvites = []);
     });
-  }
 
-  void _listenActiveRooms() {
-    final uid = AuthService.instance.effectiveUid;
-    if (uid == null || !FirebaseService.isAvailable) return;
     _activeRoomsSub =
         MultiplayerService.instance.myActiveRoomsStream(uid).listen((rooms) {
       if (mounted) setState(() => _activeRooms = rooms);
+    }, onError: (Object e, StackTrace st) {
+      debugPrint('[HomeScreen] active rooms listener failed for $uid: $e');
+      if (mounted) setState(() => _activeRooms = []);
     });
   }
 
@@ -462,7 +538,7 @@ class _HomeScreenState extends State<HomeScreen>
               _HomeHeader(
                 statusBarHeight: top,
                 streak: _streak,
-                onLocaleChanged: () => setState(() {}),
+                onLocaleChanged: _setAppLocale,
                 onSettingsTap: () => _showSettingsSheet(context),
                 onStatsTap: () => _showStatsSheet(context),
                 onOptionsTap: (btnCtx) => _showOptionsMenu(btnCtx),
@@ -527,22 +603,11 @@ class _HomeScreenState extends State<HomeScreen>
                                     existingController: ctrl)),
                               ).then((_) => setState(() {})),
                               onAcceptInvite: (inv) async {
-                                final uid = AuthService.instance.effectiveUid;
-                                final name =
-                                    AuthService.instance.effectiveDisplayName;
-                                if (uid == null) return;
-                                final err = await MultiplayerService.instance
-                                    .joinRoom(inv.roomCode, uid, name);
-                                if (err == null && context.mounted) {
-                                  Navigator.push(
-                                      context,
-                                      appRoute(FriendGameScreen(
-                                          roomCode: inv.roomCode, myUid: uid)));
-                                }
+                                await _acceptInviteAndOpen(inv);
                               },
                               onDeclineInvite: (inv) => MultiplayerService
                                   .instance
-                                  .declineInvite(inv.roomCode),
+                                  .declineInvite(inv.inviteId),
                               onOpenRoom: (room) {
                                 final uid =
                                     AuthService.instance.effectiveUid ?? '';
@@ -563,9 +628,20 @@ class _HomeScreenState extends State<HomeScreen>
                       //   ),
                       // )),
                       // const SizedBox(height: 16),
-                      _stagger(2, _GununKelimesiCard()),
+                      _stagger(
+                          2,
+                          SizedBox(
+                            key: ValueKey('ranking-${L.current}'),
+                            height: _kHomeWideCardHeight,
+                            child: const _SiralamalarCard(),
+                          )),
                       const SizedBox(height: 12),
-                      _stagger(3, _SiralamalarCard()),
+                      _stagger(
+                          3,
+                          const SizedBox(
+                            height: _kHomeWideCardHeight,
+                            child: _GununKelimesiCard(),
+                          )),
                     ],
                   ),
                 ),
@@ -583,7 +659,7 @@ class _HomeScreenState extends State<HomeScreen>
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       builder: (_) => _SettingsSheet(
-        onLocaleChanged: () => setState(() {}),
+        onLocaleChanged: _setAppLocale,
         onHowToTap: () => _showHowTo(context),
       ),
     );
@@ -1086,13 +1162,14 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
 
   Future<void> _loadState() async {
     final svc = DailyWordService.instance;
-    final played = svc.hasPlayedTodayLocal || await svc.hasPlayedToday();
-    final stats = await svc.fetchTodayStats();
+    final played =
+        svc.hasPlayedTodayLocal || await svc.hasPlayedChallengeToday();
+    final stats = await svc.fetchChallengeStats();
     if (mounted) {
       setState(() {
         _hasPlayed = played;
-        _challengePlays = stats?.totalPlayed ?? 0;
-        _perfectRuns = stats?.totalWon ?? 0;
+        _challengePlays = stats?.challengePlays ?? 0;
+        _perfectRuns = stats?.perfectRuns ?? 0;
         _loading = false;
       });
     }
@@ -1191,7 +1268,7 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
     final mutedText =
         isDark ? Colors.white.withValues(alpha: 0.45) : const Color(0xFF6D7680);
     return Padding(
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.all(8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1227,7 +1304,7 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
             ],
           ),
 
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
 
           // ── Bugünkü hedef + kalan süre ───────────────────────────
           Row(
@@ -1256,7 +1333,7 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
             ],
           ),
 
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
 
           // ── 3 Aşama göstergesi ───────────────────────────────────
           Row(
@@ -1290,7 +1367,7 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
             ],
           ),
 
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
 
           // ── Alt satır: istatistik + buton ────────────────────────
           Row(
@@ -1395,7 +1472,7 @@ class _StagePreview extends StatelessWidget {
     return Expanded(
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
-        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 7),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
         decoration: BoxDecoration(
           color: isActive
               ? color.withValues(alpha: 0.16)
@@ -1432,20 +1509,20 @@ class _StagePreview extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: 1),
             Text(percent,
                 style: TextStyle(
                     color: isActive
                         ? (isDark ? Colors.white : const Color(0xFF273039))
                         : (isDark ? Colors.white70 : const Color(0xFF4E5963)),
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.bold)),
             Text(seconds,
                 style: TextStyle(
                     color: isDark
                         ? Colors.white.withValues(alpha: 0.35)
                         : const Color(0xFF6B747D),
-                    fontSize: 10)),
+                    fontSize: 9)),
           ],
         ),
       ),
@@ -2006,10 +2083,10 @@ class _GamePairPanel extends StatefulWidget {
   final VoidCallback onUsername;
   final VoidCallback onRandom;
   final void Function(dynamic) onResume;
-  final void Function(MultiplayerRoom) onAcceptInvite;
-  final void Function(MultiplayerRoom) onDeclineInvite;
+  final void Function(GameInvite) onAcceptInvite;
+  final void Function(GameInvite) onDeclineInvite;
   final void Function(MultiplayerRoom) onOpenRoom;
-  final List<MultiplayerRoom> invites;
+  final List<GameInvite> invites;
   final List<MultiplayerRoom> activeRooms;
 
   const _GamePairPanel({
@@ -2076,8 +2153,6 @@ class _GamePairPanelState extends State<_GamePairPanel> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark ? Colors.white : const Color(0xFF16212A);
-    final subtitleColor = isDark ? Colors.white38 : const Color(0xFF3F4E58);
-    final chevronColor = isDark ? Colors.white38 : const Color(0xFF52636E);
     final dividerColor =
         isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFD8E2E7);
     final panelBorderColor = isDark
@@ -2091,12 +2166,18 @@ class _GamePairPanelState extends State<_GamePairPanel> {
     final myGamesIconBg =
         isDark ? _kGold.withValues(alpha: 0.12) : const Color(0xFFFFF4DA);
     final titleWeight = isDark ? FontWeight.bold : FontWeight.w800;
-    final subtitleWeight = isDark ? FontWeight.normal : FontWeight.w700;
-    final store = GameStore.instance;
-    final hasActiveGame = store.activeController != null &&
-        store.activeRecord != null &&
-        !store.activeRecord!.isFinished;
-    final totalActive = (hasActiveGame ? 1 : 0) + widget.activeRooms.length;
+    final myUid = AuthService.instance.effectiveUid;
+    final gamesAwaitingMove = myUid == null
+        ? 0
+        : widget.activeRooms.where((r) => r.currentTurnUid == myUid).length;
+    final myGamesBadgeCount = gamesAwaitingMove + widget.invites.length;
+    final localActive = GameStore.instance.activeRecord;
+    final openGamesCount =
+        (localActive != null && !localActive.isFinished ? 1 : 0) +
+            widget.activeRooms.length;
+    final myGamesSubtitle = L.current == AppLocale.tr
+        ? '$openGamesCount açık oyun'
+        : '$openGamesCount lîstik vekirî';
 
     return Container(
       decoration: BoxDecoration(
@@ -2111,9 +2192,17 @@ class _GamePairPanelState extends State<_GamePairPanel> {
         border: Border.all(color: panelBorderColor, width: 1.2),
         boxShadow: [
           BoxShadow(
-              color: panelShadowColor,
-              blurRadius: 16,
-              offset: const Offset(0, 6)),
+            color: panelShadowColor,
+            blurRadius: 22,
+            offset: const Offset(0, 12),
+          ),
+          BoxShadow(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.03)
+                : Colors.white.withValues(alpha: 0.75),
+            blurRadius: 2,
+            offset: const Offset(0, -1),
+          ),
         ],
       ),
       child: IntrinsicHeight(
@@ -2125,70 +2214,100 @@ class _GamePairPanelState extends State<_GamePairPanel> {
               child: ClipRRect(
                 borderRadius:
                     const BorderRadius.horizontal(left: Radius.circular(17)),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Başlık
-                    Expanded(
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: () => _showNewGameSheet(context),
-                          borderRadius: const BorderRadius.horizontal(
-                              left: Radius.circular(17)),
-                          splashColor: _kPrimary.withValues(alpha: 0.10),
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 22, 12, 22),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 46,
-                                  height: 46,
-                                  decoration: BoxDecoration(
-                                    color: newGameIconBg,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                        color: _kPrimary.withValues(
-                                            alpha: isDark ? 0.3 : 0.45)),
-                                  ),
-                                  child: const Icon(
-                                      Icons.play_circle_fill_rounded,
-                                      color: _kPrimary,
-                                      size: 24),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(L.newGame,
-                                          style: TextStyle(
-                                              color: titleColor,
-                                              fontSize: 15,
-                                              fontWeight: titleWeight),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis),
-                                      Text(L.howToPlay,
-                                          style: TextStyle(
-                                              color: subtitleColor,
-                                              fontSize: 11,
-                                              fontWeight: subtitleWeight),
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis),
-                                    ],
-                                  ),
-                                ),
-                                Icon(Icons.chevron_right_rounded,
-                                    color: chevronColor, size: 20),
-                              ],
-                            ),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => _showNewGameSheet(context),
+                    borderRadius: const BorderRadius.horizontal(
+                        left: Radius.circular(17)),
+                    splashColor: _kPrimary.withValues(alpha: 0.10),
+                    child: Ink(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: isDark
+                              ? [
+                                  _kPrimary.withValues(alpha: 0.18),
+                                  Colors.white.withValues(alpha: 0.03),
+                                ]
+                              : const [
+                                  Color(0xFFFFFFFF),
+                                  Color(0xFFE0F3E6),
+                                ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        border: Border(
+                          top: BorderSide(
+                            color: Colors.white
+                                .withValues(alpha: isDark ? 0.08 : 0.95),
+                          ),
+                          bottom: BorderSide(
+                            color: _kPrimary.withValues(
+                                alpha: isDark ? 0.20 : 0.28),
+                            width: 1.4,
                           ),
                         ),
                       ),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 22, 10, 22),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 46,
+                              height: 46,
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    newGameIconBg,
+                                    _kPrimary.withValues(
+                                        alpha: isDark ? 0.08 : 0.26),
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: _kPrimary.withValues(
+                                      alpha: isDark ? 0.35 : 0.52),
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: _kPrimary.withValues(alpha: 0.28),
+                                    blurRadius: 16,
+                                    offset: const Offset(0, 8),
+                                  ),
+                                  BoxShadow(
+                                    color: Colors.white.withValues(
+                                        alpha: isDark ? 0.05 : 0.95),
+                                    blurRadius: 1,
+                                    offset: const Offset(0, -1),
+                                  ),
+                                ],
+                              ),
+                              child: const Icon(Icons.play_circle_fill_rounded,
+                                  color: _kPrimary, size: 25),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  L.newGame,
+                                  style: TextStyle(
+                                    color: titleColor,
+                                    fontSize: 17,
+                                    fontWeight: titleWeight,
+                                  ),
+                                  maxLines: 1,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -2208,78 +2327,155 @@ class _GamePairPanelState extends State<_GamePairPanel> {
                     borderRadius: const BorderRadius.horizontal(
                         right: Radius.circular(17)),
                     splashColor: _kGold.withValues(alpha: 0.10),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 22, 16, 22),
-                      child: Row(
-                        children: [
-                          Stack(
-                            clipBehavior: Clip.none,
-                            children: [
-                              Container(
-                                width: 46,
-                                height: 46,
-                                decoration: BoxDecoration(
-                                  color: myGamesIconBg,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                      color: _kGold.withValues(
-                                          alpha: isDark ? 0.3 : 0.5)),
-                                ),
-                                child: const Icon(Icons.grid_view_rounded,
-                                    color: _kGold, size: 24),
-                              ),
-                              if (widget.invites.isNotEmpty)
-                                Positioned(
-                                  right: -4,
-                                  top: -4,
-                                  child: Container(
-                                    width: 14,
-                                    height: 14,
-                                    decoration: const BoxDecoration(
-                                      color: Color(0xFFFF5252),
-                                      shape: BoxShape.circle,
+                    child: Ink(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: isDark
+                              ? [
+                                  _kGold.withValues(alpha: 0.18),
+                                  Colors.white.withValues(alpha: 0.03),
+                                ]
+                              : const [
+                                  Color(0xFFFFFFFF),
+                                  Color(0xFFFFEFC5),
+                                ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        border: Border(
+                          top: BorderSide(
+                            color: Colors.white
+                                .withValues(alpha: isDark ? 0.08 : 0.95),
+                          ),
+                          bottom: BorderSide(
+                            color:
+                                _kGold.withValues(alpha: isDark ? 0.22 : 0.34),
+                            width: 1.4,
+                          ),
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 22, 12, 22),
+                        child: Row(
+                          children: [
+                            Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                Container(
+                                  width: 46,
+                                  height: 46,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        myGamesIconBg,
+                                        _kGold.withValues(
+                                            alpha: isDark ? 0.08 : 0.30),
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
                                     ),
-                                    child: Center(
-                                      child: Text('${widget.invites.length}',
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: _kGold.withValues(
+                                          alpha: isDark ? 0.35 : 0.56),
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: _kGold.withValues(alpha: 0.30),
+                                        blurRadius: 16,
+                                        offset: const Offset(0, 8),
+                                      ),
+                                      BoxShadow(
+                                        color: Colors.white.withValues(
+                                            alpha: isDark ? 0.05 : 0.95),
+                                        blurRadius: 1,
+                                        offset: const Offset(0, -1),
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Icon(Icons.grid_view_rounded,
+                                      color: _kGold, size: 25),
+                                ),
+                                if (myGamesBadgeCount > 0)
+                                  Positioned(
+                                    right: -7,
+                                    top: -7,
+                                    child: Container(
+                                      constraints: const BoxConstraints(
+                                        minWidth: 18,
+                                        minHeight: 18,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 5, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFFF5252),
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: isDark
+                                              ? const Color(0xFF141E2B)
+                                              : const Color(0xFFF4F8FA),
+                                          width: 2,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: const Color(0xFFFF5252)
+                                                .withValues(alpha: 0.35),
+                                            blurRadius: 8,
+                                            offset: const Offset(0, 3),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          '$myGamesBadgeCount',
                                           style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 8,
-                                              fontWeight: FontWeight.bold)),
+                                            color: Colors.white,
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
                                     ),
                                   ),
-                                ),
-                            ],
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(L.myGames,
-                                    style: TextStyle(
-                                        color: titleColor,
-                                        fontSize: 15,
-                                        fontWeight: titleWeight),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis),
-                                Text(
-                                  totalActive > 0
-                                      ? L.gamesCount(totalActive)
-                                      : L.noGames,
-                                  style: TextStyle(
-                                      color: subtitleColor,
-                                      fontSize: 11,
-                                      fontWeight: subtitleWeight),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
                               ],
                             ),
-                          ),
-                          Icon(Icons.chevron_right_rounded,
-                              color: chevronColor, size: 20),
-                        ],
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      L.myGames,
+                                      style: TextStyle(
+                                        color: titleColor,
+                                        fontSize: 17,
+                                        fontWeight: titleWeight,
+                                      ),
+                                      maxLines: 1,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    myGamesSubtitle,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: isDark
+                                          ? Colors.white.withValues(alpha: 0.48)
+                                          : const Color(0xFF4E5961),
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -2329,7 +2525,6 @@ class _NewGameSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final mq = MediaQuery.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final sheetBg = isDark ? const Color(0xFF101824) : const Color(0xFFE6EEF2);
     final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
     final mutedColor =
         isDark ? Colors.white.withValues(alpha: 0.40) : const Color(0xFF52636E);
@@ -2337,8 +2532,21 @@ class _NewGameSheet extends StatelessWidget {
         isDark ? Colors.white.withValues(alpha: 0.15) : const Color(0xFF9AABB5);
     return Container(
       decoration: BoxDecoration(
-        color: sheetBg,
+        gradient: LinearGradient(
+          colors: isDark
+              ? const [Color(0xFF132033), Color(0xFF0E1724)]
+              : const [Color(0xFFF8FBFC), Color(0xFFE6EEF2)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.18),
+            blurRadius: 28,
+            offset: const Offset(0, -8),
+          ),
+        ],
       ),
       padding: EdgeInsets.fromLTRB(20, 12, 20, 24 + mq.viewInsets.bottom),
       child: Column(
@@ -2361,9 +2569,23 @@ class _NewGameSheet extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: _kPrimary.withValues(alpha: 0.14),
+                  gradient: LinearGradient(
+                    colors: [
+                      _kPrimary.withValues(alpha: isDark ? 0.18 : 0.16),
+                      _kPrimary.withValues(alpha: isDark ? 0.08 : 0.26),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: _kPrimary.withValues(alpha: 0.35)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _kPrimary.withValues(alpha: 0.18),
+                      blurRadius: 12,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
                 ),
                 child: const Icon(Icons.play_circle_fill_rounded,
                     color: _kPrimary, size: 24),
@@ -2389,6 +2611,7 @@ class _NewGameSheet extends StatelessWidget {
             icon: Icons.people_alt_rounded,
             color: const Color(0xFF64B5F6),
             label: L.friendPlay,
+            subtitle: L.friendPlaySub,
             onTap: () => _pickWithTime(context, onFriend),
           ),
           const SizedBox(height: 12),
@@ -2396,6 +2619,7 @@ class _NewGameSheet extends StatelessWidget {
             icon: Icons.alternate_email_rounded,
             color: const Color(0xFFBA68C8),
             label: L.byUsername,
+            subtitle: L.searchByUsername,
             onTap: () => _pickDirect(context, onUsername),
           ),
           const SizedBox(height: 12),
@@ -2403,6 +2627,7 @@ class _NewGameSheet extends StatelessWidget {
             icon: Icons.search_rounded,
             color: const Color(0xFFFFB74D),
             label: L.findPlayer,
+            subtitle: L.findPlayerSub,
             onTap: () => _pickDirect(context, onRandom),
           ),
           const SizedBox(height: 8),
@@ -2416,60 +2641,145 @@ class _SheetOption extends StatelessWidget {
   final IconData icon;
   final Color color;
   final String label;
+  final String subtitle;
   final VoidCallback onTap;
   const _SheetOption(
       {required this.icon,
       required this.color,
       required this.label,
+      required this.subtitle,
       required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final tileBg = isDark ? const Color(0xFF1A2535) : const Color(0xFFF4F8FA);
-    final borderColor = isDark
-        ? Colors.white.withValues(alpha: 0.06)
-        : const Color(0xFF7B8992).withValues(alpha: 0.55);
-    final textColor = isDark ? Colors.white70 : const Color(0xFF25313A);
-    final chevronColor =
-        isDark ? Colors.white.withValues(alpha: 0.18) : const Color(0xFF5E6B74);
-    return Material(
-      color: tileBg,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: borderColor),
+    final tileBg = isDark ? const Color(0xFF162233) : const Color(0xFFF8FBFC);
+    final borderColor =
+        isDark ? Colors.white.withValues(alpha: 0.08) : const Color(0xFFD6E1E7);
+    final textColor = isDark ? Colors.white : const Color(0xFF18242C);
+    final mutedColor =
+        isDark ? Colors.white.withValues(alpha: 0.52) : const Color(0xFF52636E);
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.34 : 0.16),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+          BoxShadow(
+            color: color.withValues(alpha: isDark ? 0.14 : 0.20),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: InkWell(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          onTap();
-        },
-        borderRadius: BorderRadius.circular(16),
-        splashColor: color.withValues(alpha: 0.10),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-          child: Row(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: color.withValues(alpha: 0.3)),
-                ),
-                child: Icon(icon, color: color, size: 22),
+      child: Material(
+        color: tileBg,
+        elevation: 0,
+        surfaceTintColor: color.withValues(alpha: 0.08),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: borderColor),
+        ),
+        child: InkWell(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onTap();
+          },
+          borderRadius: BorderRadius.circular(12),
+          splashColor: color.withValues(alpha: 0.10),
+          child: Ink(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: isDark
+                    ? [
+                        Colors.white.withValues(alpha: 0.08),
+                        color.withValues(alpha: 0.08),
+                      ]
+                    : const [Color(0xFFFFFFFF), Color(0xFFEAF1F4)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(label,
-                    style: TextStyle(
-                        color: textColor,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600)),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              child: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          color.withValues(alpha: isDark ? 0.20 : 0.14),
+                          color.withValues(alpha: isDark ? 0.10 : 0.24),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: color.withValues(alpha: 0.3)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: color.withValues(alpha: 0.18),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                        BoxShadow(
+                          color: Colors.white
+                              .withValues(alpha: isDark ? 0.04 : 0.85),
+                          blurRadius: 1,
+                          offset: const Offset(0, -1),
+                        ),
+                      ],
+                    ),
+                    child: Icon(icon, color: color, size: 22),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(label,
+                            style: TextStyle(
+                                color: textColor,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w700),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 3),
+                        Text(subtitle,
+                            style: TextStyle(color: mutedColor, fontSize: 12),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          color.withValues(alpha: isDark ? 0.20 : 0.16),
+                          color.withValues(alpha: isDark ? 0.10 : 0.26),
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: color.withValues(alpha: 0.18)),
+                    ),
+                    child: Icon(Icons.arrow_forward_rounded,
+                        color: color, size: 18),
+                  ),
+                ],
               ),
-              Icon(Icons.chevron_right_rounded, color: chevronColor, size: 20),
-            ],
+            ),
           ),
         ),
       ),
@@ -2481,10 +2791,10 @@ class _SheetOption extends StatelessWidget {
 
 class _MyGamesSheet extends StatefulWidget {
   final void Function(dynamic) onResume;
-  final void Function(MultiplayerRoom) onAcceptInvite;
-  final void Function(MultiplayerRoom) onDeclineInvite;
+  final void Function(GameInvite) onAcceptInvite;
+  final void Function(GameInvite) onDeclineInvite;
   final void Function(MultiplayerRoom) onOpenRoom;
-  final List<MultiplayerRoom> invites;
+  final List<GameInvite> invites;
   final List<MultiplayerRoom> activeRooms;
 
   const _MyGamesSheet({
@@ -2501,8 +2811,10 @@ class _MyGamesSheet extends StatefulWidget {
 }
 
 class _MyGamesSheetState extends State<_MyGamesSheet>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final TabController _tabs;
+  late final AnimationController _entranceCtrl;
+  Future<List<MultiplayerRoom>>? _finishedRoomsFuture;
 
   static String _timeAgo(DateTime t) {
     final d = DateTime.now().difference(t);
@@ -2528,10 +2840,20 @@ class _MyGamesSheetState extends State<_MyGamesSheet>
   void initState() {
     super.initState();
     _tabs = TabController(length: 3, vsync: this);
+    _entranceCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 320),
+    )..forward();
+    final uid = AuthService.instance.effectiveUid;
+    if (uid != null && FirebaseService.isAvailable) {
+      _finishedRoomsFuture =
+          MultiplayerService.instance.myFinishedRooms(uid, limit: 20);
+    }
   }
 
   @override
   void dispose() {
+    _entranceCtrl.dispose();
     _tabs.dispose();
     super.dispose();
   }
@@ -2545,7 +2867,64 @@ class _MyGamesSheetState extends State<_MyGamesSheet>
     }
     return ListView(
       padding: EdgeInsets.fromLTRB(20, 12, 20, 24 + mq.viewPadding.bottom),
-      children: items,
+      children: [
+        for (var i = 0; i < items.length; i++)
+          _SheetStaggerItem(
+            animation: _entranceCtrl,
+            index: i,
+            child: items[i],
+          ),
+      ],
+    );
+  }
+
+  Widget _buildFinishedTab(List<Widget> localItems, String myUid, bool isTr) {
+    final mq = MediaQuery.of(context);
+    final future = _finishedRoomsFuture;
+    return FutureBuilder<List<MultiplayerRoom>>(
+      future: future,
+      builder: (ctx, snap) {
+        final mpRooms = snap.data ?? const <MultiplayerRoom>[];
+        final mpItems = mpRooms
+            .map((room) => Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _FinishedMultiplayerCard(
+                    room: room,
+                    myUid: myUid,
+                    isTr: isTr,
+                  ),
+                ))
+            .toList();
+        final all = [...localItems, ...mpItems];
+        if (all.isEmpty && snap.connectionState != ConnectionState.waiting) {
+          return Center(
+            child:
+                _EmptyHint(isTr ? 'Biten oyun yok' : 'Lîstikeke qediyayî tune'),
+          );
+        }
+        return ListView(
+          padding: EdgeInsets.fromLTRB(20, 12, 20, 24 + mq.viewPadding.bottom),
+          children: [
+            for (var i = 0; i < all.length; i++)
+              _SheetStaggerItem(
+                animation: _entranceCtrl,
+                index: i,
+                child: all[i],
+              ),
+            if (snap.connectionState == ConnectionState.waiting)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Center(
+                  child: SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -2557,18 +2936,20 @@ class _MyGamesSheetState extends State<_MyGamesSheet>
     final mq = MediaQuery.of(context);
     final myUid = AuthService.instance.effectiveUid ?? '';
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final sheetBg = isDark ? const Color(0xFF101824) : const Color(0xFFE6EEF2);
     final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
-    final tabBg =
-        isDark ? Colors.white.withValues(alpha: 0.06) : const Color(0xFFF4F8FA);
     final handleColor =
         isDark ? Colors.white.withValues(alpha: 0.15) : const Color(0xFF9AABB5);
     final selectedTabColor =
-        isDark ? _kPrimary.withValues(alpha: 0.2) : const Color(0xFFE8F7ED);
+        isDark ? _kPrimary.withValues(alpha: 0.24) : const Color(0xFFE8F7ED);
     final unselectedTabColor =
         isDark ? Colors.white54 : const Color(0xFF667681);
 
     final isTr = L.current == AppLocale.tr;
+    final activeCount = active.length + widget.activeRooms.length;
+    final myTurnCount =
+        widget.activeRooms.where((r) => r.currentTurnUid == myUid).length +
+            active.length;
+    final inviteCount = widget.invites.length;
 
     final activeItems = active
         .map((rec) => Padding(
@@ -2612,151 +2993,292 @@ class _MyGamesSheetState extends State<_MyGamesSheet>
             ))
         .toList();
 
-    return Container(
-      height: mq.size.height * 0.85,
-      decoration: BoxDecoration(
-        color: sheetBg,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-      ),
-      child: Column(
-        children: [
-          // pill
-          Container(
-            width: 40,
-            height: 4,
-            margin: const EdgeInsets.only(top: 12, bottom: 16),
-            decoration: BoxDecoration(
-                color: handleColor, borderRadius: BorderRadius.circular(2)),
+    return AnimatedBuilder(
+      animation: _entranceCtrl,
+      builder: (context, child) {
+        final eased = Curves.easeOutCubic.transform(_entranceCtrl.value);
+        return Opacity(
+          opacity: eased,
+          child: Transform.translate(
+            offset: Offset(0, 28 * (1 - eased)),
+            child: child,
           ),
-          // Başlık
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Row(
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: _kGold.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: _kGold.withValues(alpha: 0.35)),
-                  ),
-                  child: const Icon(Icons.grid_view_rounded,
-                      color: _kGold, size: 24),
-                ),
-                const SizedBox(width: 14),
-                Text(L.myGames,
-                    style: TextStyle(
-                        color: titleColor,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold)),
-              ],
+        );
+      },
+      child: Container(
+        height: mq.size.height * 0.85,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isDark
+                ? const [
+                    Color(0xFF111A27),
+                    Color(0xFF0C1420),
+                    Color(0xFF08101B)
+                  ]
+                : const [Color(0xFFFBFEFF), Color(0xFFEAF2F6)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          ),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          border: Border(
+            top: BorderSide(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.10)
+                  : Colors.white.withValues(alpha: 0.88),
             ),
           ),
-          const SizedBox(height: 12),
-          // TabBar
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Container(
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.18),
+              blurRadius: 28,
+              offset: const Offset(0, -8),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Container(
+              width: 46,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 14),
               decoration: BoxDecoration(
-                color: tabBg,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.06)
-                      : const Color(0xFFD6E1E7),
-                ),
-              ),
-              child: TabBar(
-                controller: _tabs,
-                indicator: BoxDecoration(
-                  color: selectedTabColor,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: _kPrimary.withValues(alpha: 0.5)),
-                ),
-                indicatorSize: TabBarIndicatorSize.tab,
-                dividerColor: Colors.transparent,
-                labelColor: isDark ? Colors.white : const Color(0xFF1F5E37),
-                unselectedLabelColor: unselectedTabColor,
-                labelStyle:
-                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                unselectedLabelStyle:
-                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w400),
-                tabs: [
-                  Tab(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.play_circle_rounded, size: 16),
-                          const SizedBox(width: 4),
-                          Text(isTr ? 'Devam Eden' : 'Berdewam'),
-                          if (active.isNotEmpty ||
-                              multiplayerItems.isNotEmpty) ...[
-                            const SizedBox(width: 4),
-                            _TabBadge(active.length + multiplayerItems.length,
-                                _kPrimary),
+                  color: handleColor, borderRadius: BorderRadius.circular(2)),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              _kPrimary.withValues(alpha: isDark ? 0.30 : 0.18),
+                              _kGold.withValues(alpha: isDark ? 0.16 : 0.28),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                              color: _kPrimary.withValues(alpha: 0.36)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: _kPrimary.withValues(alpha: 0.18),
+                              blurRadius: 16,
+                              offset: const Offset(0, 7),
+                            ),
                           ],
-                        ],
+                        ),
+                        child: const Icon(Icons.sports_esports_rounded,
+                            color: _kPrimary, size: 24),
                       ),
-                    ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(L.myGames,
+                                style: TextStyle(
+                                    color: titleColor,
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w900)),
+                            const SizedBox(height: 2),
+                            Text(
+                              isTr
+                                  ? 'Canlı oyun merkezi'
+                                  : 'Navenda lîstikên zindî',
+                              style: TextStyle(
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.42)
+                                    : const Color(0xFF52636E),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: Icon(Icons.close_rounded,
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.55)
+                                : const Color(0xFF52636E)),
+                      ),
+                    ],
                   ),
-                  Tab(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.flag_rounded, size: 16),
-                          const SizedBox(width: 4),
-                          Text(isTr ? 'Biten' : 'Qediyayî'),
-                          if (finished.isNotEmpty) ...[
-                            const SizedBox(width: 4),
-                            _TabBadge(finished.length, Colors.white38),
-                          ],
-                        ],
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _SheetMetricChip(
+                          icon: Icons.play_arrow_rounded,
+                          label: isTr ? 'Sıra sende' : 'Dor li te',
+                          value: '$myTurnCount',
+                          color: _kPrimary,
+                        ),
                       ),
-                    ),
-                  ),
-                  Tab(
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.mail_rounded, size: 16),
-                          const SizedBox(width: 4),
-                          Text(isTr ? 'Davetler' : 'Vexwendin'),
-                          if (widget.invites.isNotEmpty) ...[
-                            const SizedBox(width: 4),
-                            _TabBadge(
-                                widget.invites.length, const Color(0xFF64B5F6)),
-                          ],
-                        ],
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _SheetMetricChip(
+                          icon: Icons.grid_view_rounded,
+                          label: isTr ? 'Açık oyun' : 'Lîstik vekirî',
+                          value: '$activeCount',
+                          color: const Color(0xFF64B5F6),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _SheetMetricChip(
+                          icon: Icons.mail_rounded,
+                          label: isTr ? 'Davet' : 'Vexwendin',
+                          value: '$inviteCount',
+                          color: _kGold,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 4),
-          // TabBarView
-          Expanded(
-            child: TabBarView(
-              controller: _tabs,
-              children: [
-                _tabView([...activeItems, ...multiplayerItems],
-                    'Aktif oyun yok', 'Lîstikek çalak tune'),
-                _tabView(
-                    finishedItems, 'Biten oyun yok', 'Lîstikeke qediyayî tune'),
-                _tabView(inviteItems, 'Bekleyen davet yok',
-                    'Vexwendinek li bendê tune'),
-              ],
+            const SizedBox(height: 14),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: isDark
+                        ? [
+                            Colors.white.withValues(alpha: 0.07),
+                            Colors.white.withValues(alpha: 0.025),
+                          ]
+                        : const [Color(0xFFFFFFFF), Color(0xFFEAF1F4)],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.08)
+                        : const Color(0xFFD6E1E7),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color:
+                          Colors.black.withValues(alpha: isDark ? 0.20 : 0.08),
+                      blurRadius: 12,
+                      offset: const Offset(0, 5),
+                    ),
+                    BoxShadow(
+                      color:
+                          Colors.white.withValues(alpha: isDark ? 0.03 : 0.85),
+                      blurRadius: 1,
+                      offset: const Offset(0, -1),
+                    ),
+                  ],
+                ),
+                child: TabBar(
+                  controller: _tabs,
+                  indicator: BoxDecoration(
+                    color: selectedTabColor,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: _kPrimary.withValues(alpha: 0.5)),
+                    boxShadow: [
+                      BoxShadow(
+                        color:
+                            _kPrimary.withValues(alpha: isDark ? 0.20 : 0.10),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  dividerColor: Colors.transparent,
+                  padding: const EdgeInsets.all(4),
+                  labelColor: isDark ? Colors.white : const Color(0xFF1F5E37),
+                  unselectedLabelColor: unselectedTabColor,
+                  labelStyle: const TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w700),
+                  unselectedLabelStyle: const TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w500),
+                  tabs: [
+                    Tab(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.play_circle_rounded, size: 16),
+                            const SizedBox(width: 4),
+                            Text(isTr ? 'Devam Eden' : 'Berdewam'),
+                            if (active.isNotEmpty ||
+                                multiplayerItems.isNotEmpty) ...[
+                              const SizedBox(width: 4),
+                              _TabBadge(activeCount, _kPrimary),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                    Tab(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.flag_rounded, size: 16),
+                            const SizedBox(width: 4),
+                            Text(isTr ? 'Biten' : 'Qediyayî'),
+                            if (finished.isNotEmpty) ...[
+                              const SizedBox(width: 4),
+                              _TabBadge(finished.length, Colors.white38),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                    Tab(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.mail_rounded, size: 16),
+                            const SizedBox(width: 4),
+                            Text(isTr ? 'Davetler' : 'Vexwendin'),
+                            if (widget.invites.isNotEmpty) ...[
+                              const SizedBox(width: 4),
+                              _TabBadge(widget.invites.length,
+                                  const Color(0xFF64B5F6)),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 4),
+            // TabBarView
+            Expanded(
+              child: TabBarView(
+                controller: _tabs,
+                children: [
+                  _tabView([...activeItems, ...multiplayerItems],
+                      'Aktif oyun yok', 'Lîstikek çalak tune'),
+                  _buildFinishedTab(finishedItems, myUid, isTr),
+                  _tabView(inviteItems, 'Bekleyen davet yok',
+                      'Vexwendinek li bendê tune'),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -2807,6 +3329,391 @@ class _EmptyHint extends StatelessWidget {
   }
 }
 
+class _SheetMetricChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  const _SheetMetricChip({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isDark
+              ? [
+                  color.withValues(alpha: 0.16),
+                  Colors.white.withValues(alpha: 0.035),
+                ]
+              : [
+                  Colors.white,
+                  color.withValues(alpha: 0.11),
+                ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: isDark ? 0.24 : 0.2)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.16 : 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.58)
+                    : const Color(0xFF52636E),
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          Text(
+            value,
+            style: TextStyle(
+              color: isDark ? Colors.white : const Color(0xFF18242C),
+              fontSize: 15,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SheetStaggerItem extends StatelessWidget {
+  final Animation<double> animation;
+  final int index;
+  final Widget child;
+
+  const _SheetStaggerItem({
+    required this.animation,
+    required this.index,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (_, __) {
+        final delay = (index * 0.08).clamp(0.0, 0.35);
+        final progress = ((animation.value - delay) / (1 - delay))
+            .clamp(0.0, 1.0)
+            .toDouble();
+        final eased = Curves.easeOutCubic.transform(progress);
+        return Opacity(
+          opacity: eased,
+          child: Transform.translate(
+            offset: Offset(0, 18 * (1 - eased)),
+            child: Transform.scale(
+              scale: 0.985 + (0.015 * eased),
+              alignment: Alignment.topCenter,
+              child: child,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _PressableScale extends StatefulWidget {
+  final Widget child;
+
+  const _PressableScale({required this.child});
+
+  @override
+  State<_PressableScale> createState() => _PressableScaleState();
+}
+
+class _PressableScaleState extends State<_PressableScale> {
+  bool _pressed = false;
+
+  void _setPressed(bool pressed) {
+    if (_pressed == pressed) return;
+    setState(() => _pressed = pressed);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Listener(
+      onPointerDown: (_) => _setPressed(true),
+      onPointerCancel: (_) => _setPressed(false),
+      onPointerUp: (_) => _setPressed(false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.975 : 1,
+        duration: const Duration(milliseconds: 110),
+        curve: Curves.easeOutCubic,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+class _PulseGlow extends StatefulWidget {
+  final Color color;
+  final Widget child;
+
+  const _PulseGlow({
+    required this.color,
+    required this.child,
+  });
+
+  @override
+  State<_PulseGlow> createState() => _PulseGlowState();
+}
+
+class _PulseGlowState extends State<_PulseGlow>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) {
+        final t = Curves.easeInOut.transform(_ctrl.value);
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: widget.color.withValues(alpha: 0.16 + (0.13 * t)),
+                blurRadius: 18 + (10 * t),
+                spreadRadius: 0.5 + (1.5 * t),
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: widget.child,
+        );
+      },
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  final String text;
+  final Color color;
+  final IconData? icon;
+
+  const _StatusPill({
+    required this.text,
+    required this.color,
+    this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: isDark ? 0.18 : 0.14),
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(color: color.withValues(alpha: 0.34)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, color: color, size: 12),
+            const SizedBox(width: 4),
+          ],
+          Text(
+            text,
+            style: TextStyle(
+              color: color,
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PlayerAvatar extends StatelessWidget {
+  final String name;
+  final Color color;
+  final IconData? icon;
+
+  const _PlayerAvatar({
+    required this.name,
+    required this.color,
+    this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final initial = name.trim().isEmpty ? '?' : name.trim()[0].toUpperCase();
+    return Container(
+      width: 58,
+      height: 58,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [
+            color.withValues(alpha: 0.95),
+            color.withValues(alpha: 0.26),
+            const Color(0xFF111A27),
+          ],
+        ),
+        border: Border.all(color: color.withValues(alpha: 0.72), width: 1.2),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.26),
+            blurRadius: 16,
+            offset: const Offset(0, 7),
+          ),
+        ],
+      ),
+      child: Center(
+        child: icon == null
+            ? Text(
+                initial,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w900,
+                ),
+              )
+            : Icon(icon, color: Colors.white, size: 26),
+      ),
+    );
+  }
+}
+
+class _MiniBoardPreview extends StatelessWidget {
+  final List<Map<String, dynamic>> cells;
+  final Color accent;
+  final String fallbackWord;
+
+  const _MiniBoardPreview({
+    this.cells = const [],
+    required this.accent,
+    this.fallbackWord = 'PEYVOK',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final letters = <String, String>{};
+    for (final cell in cells.take(9)) {
+      final r = cell['r'] as int?;
+      final c = cell['c'] as int?;
+      final l = cell['l'] as String?;
+      if (r != null && c != null && l != null && l.isNotEmpty) {
+        letters['${r % 5}:${c % 5}'] = l.characters.first;
+      }
+    }
+    if (letters.isEmpty) {
+      final chars = fallbackWord.characters.take(5).toList();
+      for (var i = 0; i < chars.length; i++) {
+        letters['2:$i'] = chars[i];
+      }
+    }
+
+    return Container(
+      width: 82,
+      height: 82,
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            accent.withValues(alpha: 0.16),
+            Colors.white.withValues(alpha: 0.04),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: accent.withValues(alpha: 0.24)),
+      ),
+      child: GridView.builder(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: EdgeInsets.zero,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 5,
+          mainAxisSpacing: 2,
+          crossAxisSpacing: 2,
+        ),
+        itemCount: 25,
+        itemBuilder: (_, i) {
+          final r = i ~/ 5;
+          final c = i % 5;
+          final letter = letters['$r:$c'];
+          final hasLetter = letter != null;
+          return Container(
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: hasLetter
+                  ? const Color(0xFFFFD27A)
+                  : Colors.white.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(2),
+              border: Border.all(
+                color: hasLetter
+                    ? const Color(0xFFE0B35A)
+                    : Colors.white.withValues(alpha: 0.04),
+              ),
+            ),
+            child: hasLetter
+                ? Text(
+                    letter,
+                    style: const TextStyle(
+                      color: Color(0xFF392600),
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      height: 1,
+                    ),
+                  )
+                : const SizedBox.shrink(),
+          );
+        },
+      ),
+    );
+  }
+}
+
 class _ActiveGameCard extends StatelessWidget {
   final GameRecord record;
   final VoidCallback onTap;
@@ -2815,87 +3722,123 @@ class _ActiveGameCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final tileBg =
-        isDark ? Colors.white.withValues(alpha: 0.04) : const Color(0xFFF4F8FA);
-    final borderColor = isDark
-        ? Colors.white.withValues(alpha: 0.06)
-        : const Color(0xFF7B8992).withValues(alpha: 0.55);
-    final textColor = isDark ? Colors.white70 : const Color(0xFF25313A);
-    return Material(
-      color: isDark ? _kPrimary.withValues(alpha: 0.07) : tileBg,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(14),
-        side: BorderSide(color: borderColor),
-      ),
-      child: InkWell(
-        onTap: () {
-          HapticFeedback.selectionClick();
-          onTap();
-        },
-        borderRadius: BorderRadius.circular(14),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              Container(
-                width: 10,
-                height: 10,
-                decoration: const BoxDecoration(
-                    shape: BoxShape.circle, color: _kPrimary),
+    final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
+    final mutedColor =
+        isDark ? Colors.white.withValues(alpha: 0.56) : const Color(0xFF52636E);
+    final lastMove = record.lastMoveAt == null
+        ? (L.current == AppLocale.tr ? 'Yeni oyun' : 'Lîstika nû')
+        : _MyGamesSheetState._timeAgo(record.lastMoveAt!);
+
+    return _PulseGlow(
+      color: _kPrimary,
+      child: _PressableScale(
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                color: _kPrimary.withValues(alpha: isDark ? 0.18 : 0.12),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      L.current == AppLocale.tr
-                          ? 'AI ile Oyun'
-                          : 'Lîstik bi AI',
-                      style: TextStyle(
-                          color: textColor,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      '${record.playerScore} — ${record.aiScore}',
-                      style: TextStyle(
-                          color:
-                              isDark ? Colors.white38 : const Color(0xFF52636E),
-                          fontSize: 12),
-                    ),
-                    if (record.lastMoveAt != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        _MyGamesSheetState._timeAgo(record.lastMoveAt!),
-                        style: TextStyle(
-                            color: isDark
-                                ? Colors.white.withValues(alpha: 0.25)
-                                : const Color(0xFF667681),
-                            fontSize: 11),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: _kPrimary.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _kPrimary.withValues(alpha: 0.4)),
-                ),
-                child: Text(
-                  L.current == AppLocale.tr ? 'Devam Et' : 'Berdewam bike',
-                  style: const TextStyle(
-                      color: _kPrimary,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold),
-                ),
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.10),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
               ),
             ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+            child: InkWell(
+              onTap: () {
+                HapticFeedback.mediumImpact();
+                onTap();
+              },
+              borderRadius: BorderRadius.circular(14),
+              splashColor: _kPrimary.withValues(alpha: 0.12),
+              child: Ink(
+                height: 126,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: isDark
+                        ? const [Color(0xFF183A2B), Color(0xFF101A26)]
+                        : const [Color(0xFFFFFFFF), Color(0xFFE7F7EC)],
+                    begin: Alignment.centerLeft,
+                    end: Alignment.centerRight,
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: _kPrimary.withValues(alpha: 0.44)),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    children: [
+                      const _PlayerAvatar(
+                        name: 'AI',
+                        color: _kPrimary,
+                        icon: Icons.smart_toy_rounded,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              L.current == AppLocale.tr
+                                  ? 'AI ile Oyun'
+                                  : 'Lîstik bi AI',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: titleColor,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(height: 5),
+                            Text(
+                              '${record.playerScore} — ${record.aiScore}',
+                              style: TextStyle(
+                                color: titleColor.withValues(alpha: 0.86),
+                                fontSize: 20,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            const SizedBox(height: 7),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 5,
+                              children: [
+                                _StatusPill(
+                                  text: L.current == AppLocale.tr
+                                      ? 'SIRA SENDE'
+                                      : 'DOR LI TE',
+                                  color: _kPrimary,
+                                  icon: Icons.play_arrow_rounded,
+                                ),
+                                Text(
+                                  lastMove,
+                                  style: TextStyle(
+                                    color: mutedColor,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const _MiniBoardPreview(accent: _kPrimary),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ),
@@ -2910,6 +3853,19 @@ class _MultiplayerGameCard extends StatelessWidget {
   const _MultiplayerGameCard(
       {required this.room, required this.myUid, required this.onTap});
 
+  String _lastMoveWordLabel() {
+    final words = room.lastMoveWords
+        .map((w) => (
+              word: (w['word'] as String? ?? '').trim().toUpperCase(),
+              score: w['score'] as int?,
+            ))
+        .where((w) => w.word.isNotEmpty)
+        .toList(growable: false);
+    if (words.isEmpty) return L.current == AppLocale.tr ? 'Hamle' : 'Lîstin';
+    words.sort((a, b) => (b.score ?? -1).compareTo(a.score ?? -1));
+    return words.first.word;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isMyTurn = room.currentTurnUid == myUid;
@@ -2919,128 +3875,191 @@ class _MultiplayerGameCard extends StatelessWidget {
     final oppName =
         isHost ? (room.guestName ?? L.opponentFallback) : room.hostName;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final dotColor = isMyTurn
-        ? _kPrimary
-        : (isDark ? Colors.white38 : const Color(0xFF9AABB5));
-    final tileColor = isDark
-        ? (isMyTurn ? const Color(0xFF1A3A2A) : const Color(0xFF1A2030))
-        : (isMyTurn ? const Color(0xFFF4F8FA) : const Color(0xFFEAF1F4));
-    final borderColor = isDark
-        ? Colors.transparent
-        : (isMyTurn
-            ? _kPrimary.withValues(alpha: 0.32)
-            : const Color(0xFFD6E1E7));
     final titleColor = isDark ? Colors.white : const Color(0xFF25313A);
-    final mutedColor = isDark ? Colors.white38 : const Color(0xFF52636E);
+    final mutedColor =
+        isDark ? Colors.white.withValues(alpha: 0.55) : const Color(0xFF52636E);
+    final accent = isMyTurn
+        ? _kPrimary
+        : (isDark ? const Color(0xFF60718A) : const Color(0xFF6E8292));
 
     final lastBy = room.lastMoveBy;
     final lastScore = room.lastMoveScore;
+    final isPositiveMove = (lastScore ?? 0) >= 0;
+    final moveTextColor = isDark
+        ? (isPositiveMove ? const Color(0xFFFFD54F) : const Color(0xFFEF9A9A))
+        : (isPositiveMove ? const Color(0xFF6B4D00) : const Color(0xFF9B1C1C));
     String? lastMoveText;
     if (lastBy != null && lastScore != null) {
-      final byMe =
-          (lastBy == 'host' && isHost) || (lastBy == 'guest' && !isHost);
-      final who = byMe ? L.you : oppName;
-      lastMoveText = L.moveScoreLine(who, lastScore);
+      lastMoveText = L.moveWordScoreLine(_lastMoveWordLabel(), lastScore);
     }
+    final statusText = isMyTurn
+        ? (L.current == AppLocale.tr ? 'SIRA SENDE' : 'DOR LI TE')
+        : (L.current == AppLocale.tr ? 'RAKIPTE' : 'LI HEMBER');
+    final lastMoveAt = room.lastMoveAt == null
+        ? null
+        : _MyGamesSheetState._timeAgo(room.lastMoveAt!);
 
-    return Opacity(
-      opacity: isMyTurn ? 1.0 : 0.45,
-      child: Material(
-        color: tileColor,
-        shape: RoundedRectangleBorder(
+    final card = _PressableScale(
+      child: Container(
+        decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: borderColor),
+          boxShadow: [
+            if (isMyTurn)
+              BoxShadow(
+                color: _kPrimary.withValues(alpha: isDark ? 0.18 : 0.12),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.09),
+              blurRadius: 16,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
-        child: InkWell(
-          onTap: () {
-            HapticFeedback.selectionClick();
-            onTap();
-          },
+        child: Material(
+          color: Colors.transparent,
           borderRadius: BorderRadius.circular(14),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              children: [
-                Container(
-                  width: 10,
-                  height: 10,
-                  decoration:
-                      BoxDecoration(shape: BoxShape.circle, color: dotColor),
+          child: InkWell(
+            onTap: () {
+              HapticFeedback.mediumImpact();
+              onTap();
+            },
+            borderRadius: BorderRadius.circular(14),
+            splashColor: accent.withValues(alpha: 0.12),
+            child: Ink(
+              height: 126,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: isDark
+                      ? [
+                          isMyTurn
+                              ? const Color(0xFF183A2B)
+                              : const Color(0xFF182235),
+                          const Color(0xFF101827),
+                        ]
+                      : [
+                          Colors.white,
+                          isMyTurn
+                              ? const Color(0xFFE7F7EC)
+                              : const Color(0xFFEAF1F4),
+                        ],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        oppName,
-                        style: TextStyle(
-                            color: titleColor,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        '$myScore — $oppScore',
-                        style: TextStyle(color: mutedColor, fontSize: 12),
-                      ),
-                      if (lastMoveText != null) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          lastMoveText,
-                          style: TextStyle(
-                            color: (lastScore ?? 0) >= 0
-                                ? const Color(0xFFFFD54F)
-                                : const Color(0xFFEF9A9A),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: accent.withValues(alpha: isMyTurn ? 0.44 : 0.18),
+                ),
+              ),
+              child: Stack(
+                children: [
+                  Positioned(
+                    left: 0,
+                    top: 28,
+                    bottom: 28,
+                    child: Container(
+                      width: 4,
+                      decoration: BoxDecoration(
+                        color: accent,
+                        borderRadius: const BorderRadius.horizontal(
+                          right: Radius.circular(4),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: accent.withValues(alpha: 0.45),
+                            blurRadius: 10,
                           ),
-                          overflow: TextOverflow.ellipsis,
+                        ],
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Row(
+                      children: [
+                        _PlayerAvatar(name: oppName, color: accent),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                oppName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: titleColor,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              const SizedBox(height: 5),
+                              Text(
+                                '$myScore — $oppScore',
+                                style: TextStyle(
+                                  color: titleColor.withValues(alpha: 0.86),
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              const SizedBox(height: 7),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 5,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  _StatusPill(
+                                    text: statusText,
+                                    color: accent,
+                                    icon: isMyTurn
+                                        ? Icons.play_arrow_rounded
+                                        : Icons.hourglass_bottom_rounded,
+                                  ),
+                                  if (lastMoveText != null)
+                                    Text(
+                                      lastMoveText,
+                                      style: TextStyle(
+                                        color: moveTextColor,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    )
+                                  else if (lastMoveAt != null)
+                                    Text(
+                                      lastMoveAt,
+                                      style: TextStyle(
+                                        color: mutedColor,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        _MiniBoardPreview(
+                          cells: room.boardState,
+                          accent: accent,
                         ),
                       ],
-                      const SizedBox(height: 2),
-                      Text(
-                        isMyTurn ? L.yourTurnShort : L.opponentTurnShort,
-                        style: TextStyle(
-                          color: isMyTurn
-                              ? _kPrimary.withValues(alpha: 0.8)
-                              : mutedColor,
-                          fontSize: 11,
-                          fontWeight:
-                              isMyTurn ? FontWeight.w600 : FontWeight.normal,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-                if (isMyTurn)
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: _kPrimary.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8),
-                      border:
-                          Border.all(color: _kPrimary.withValues(alpha: 0.4)),
-                    ),
-                    child: Text(
-                      L.play,
-                      style: const TextStyle(
-                          color: _kPrimary,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold),
-                    ),
-                  )
-                else
-                  Icon(Icons.hourglass_bottom_rounded,
-                      color: isDark ? Colors.white24 : const Color(0xFF9AABB5),
-                      size: 18),
-              ],
+                ],
+              ),
             ),
           ),
         ),
       ),
+    );
+
+    return Opacity(
+      opacity: isMyTurn ? 1.0 : 0.78,
+      child: isMyTurn ? _PulseGlow(color: _kPrimary, child: card) : card,
     );
   }
 }
@@ -3056,53 +4075,446 @@ class _FinishedGameCard extends StatelessWidget {
     final color = won
         ? const Color(0xFFFFB300)
         : (isDark ? Colors.white38 : const Color(0xFF667681));
-    final tileBg =
-        isDark ? Colors.white.withValues(alpha: 0.04) : const Color(0xFFF4F8FA);
-    final borderColor =
-        isDark ? Colors.white.withValues(alpha: 0.06) : const Color(0xFFD6E1E7);
-    final mutedColor = isDark ? Colors.white38 : const Color(0xFF52636E);
+    final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
+    final mutedColor =
+        isDark ? Colors.white.withValues(alpha: 0.50) : const Color(0xFF52636E);
     final timeColor =
-        isDark ? Colors.white.withValues(alpha: 0.2) : const Color(0xFF667681);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        isDark ? Colors.white.withValues(alpha: 0.34) : const Color(0xFF667681);
+    return Ink(
       decoration: BoxDecoration(
-        color: tileBg,
+        gradient: LinearGradient(
+          colors: isDark
+              ? [Colors.white.withValues(alpha: 0.07), const Color(0xFF101827)]
+              : const [Color(0xFFFFFFFF), Color(0xFFEAF1F4)],
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+        ),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: borderColor),
-      ),
-      child: Row(
-        children: [
-          Text(won ? '🏆' : '💀', style: const TextStyle(fontSize: 20)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  won
-                      ? (L.current == AppLocale.tr ? 'Kazandın' : 'Tu biri')
-                      : (L.current == AppLocale.tr
-                          ? 'Kaybettin'
-                          : 'Tu şikestî'),
-                  style: TextStyle(
-                      color: color, fontSize: 14, fontWeight: FontWeight.w600),
-                ),
-                const SizedBox(height: 3),
-                Text('${record.playerScore} — ${record.aiScore}',
-                    style: TextStyle(color: mutedColor, fontSize: 12)),
-                Text(_MyGamesSheetState._timeAgo(record.startedAt),
-                    style: TextStyle(color: timeColor, fontSize: 11)),
-              ],
-            ),
+        border:
+            Border.all(color: color.withValues(alpha: isDark ? 0.20 : 0.24)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.07),
+            blurRadius: 14,
+            offset: const Offset(0, 7),
           ),
         ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            _PlayerAvatar(
+              name: won ? 'W' : 'L',
+              color: color,
+              icon: won ? Icons.emoji_events_rounded : Icons.flag_rounded,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    won
+                        ? (L.current == AppLocale.tr ? 'Kazandın' : 'Tu biri')
+                        : (L.current == AppLocale.tr
+                            ? 'Kaybettin'
+                            : 'Tu şikestî'),
+                    style: TextStyle(
+                        color: color,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 5),
+                  Text('${record.playerScore} — ${record.aiScore}',
+                      style: TextStyle(
+                          color: titleColor.withValues(alpha: 0.84),
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900)),
+                  const SizedBox(height: 6),
+                  Text(_MyGamesSheetState._timeAgo(record.startedAt),
+                      style: TextStyle(
+                          color: timeColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700)),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            _StatusPill(
+              text: L.current == AppLocale.tr ? 'BİTTİ' : 'QEDIYA',
+              color: mutedColor,
+              icon: Icons.check_rounded,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FinishedMultiplayerCard extends StatelessWidget {
+  final MultiplayerRoom room;
+  final String myUid;
+  final bool isTr;
+  const _FinishedMultiplayerCard({
+    required this.room,
+    required this.myUid,
+    required this.isTr,
+  });
+
+  void _showDetails(BuildContext context) {
+    HapticFeedback.selectionClick();
+    final isHost = room.hostUid == myUid;
+    final myScore = isHost ? room.hostScore : room.guestScore;
+    final oppScore = isHost ? room.guestScore : room.hostScore;
+    final oppName = isHost
+        ? (room.guestName ?? (isTr ? 'Rakip' : 'Hember'))
+        : room.hostName;
+    final myName =
+        isHost ? room.hostName : (room.guestName ?? (isTr ? 'Sen' : 'Tu'));
+
+    final iWon = room.winner == (isHost ? 'host' : 'guest');
+    final isDraw = room.winner == 'draw';
+
+    String? reasonText;
+    switch (room.finishReason) {
+      case 'forfeit':
+        final byMe = room.finishedBy == myUid;
+        reasonText = byMe
+            ? (isTr ? 'Sen çekildin' : 'Tu vekişiyî')
+            : (isTr ? 'Rakip çekildi' : 'Hember vekişî');
+        break;
+      case 'pass_limit':
+        reasonText = isTr
+            ? '4 pas atıldı — oyun otomatik bitti'
+            : '4 pas hatin avêtin — lîstik bi xwe qediya';
+        break;
+      case 'natural_end':
+        reasonText = isTr ? 'Tüm harfler bitti' : 'Hemû tîp qediyan';
+        break;
+      default:
+        reasonText = null;
+    }
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dialogBg = isDark ? const Color(0xFF1A2535) : Colors.white;
+    final fg = isDark ? Colors.white : const Color(0xFF18242C);
+    final muted = fg.withValues(alpha: 0.65);
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: dialogBg,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Row(
+          children: [
+            Icon(
+              isDraw
+                  ? Icons.handshake_rounded
+                  : (iWon ? Icons.emoji_events_rounded : Icons.flag_rounded),
+              color: isDraw
+                  ? const Color(0xFF64B5F6)
+                  : (iWon ? const Color(0xFFFFB300) : muted),
+              size: 28,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                isDraw
+                    ? (isTr ? 'Berabere' : 'Wekhev')
+                    : (iWon
+                        ? (isTr ? 'Kazandın' : 'Tu biriyî')
+                        : (isTr ? 'Kaybettin' : 'Tu şikestî')),
+                style: TextStyle(
+                    color: fg, fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: fg.withValues(alpha: 0.04),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: fg.withValues(alpha: 0.08)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(myName,
+                            style: TextStyle(color: muted, fontSize: 11),
+                            overflow: TextOverflow.ellipsis),
+                        Text('$myScore',
+                            style: TextStyle(
+                                color: iWon ? const Color(0xFFFFB300) : fg,
+                                fontSize: 26,
+                                fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                  Container(
+                      width: 1, height: 36, color: fg.withValues(alpha: 0.10)),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(oppName,
+                            style: TextStyle(color: muted, fontSize: 11),
+                            overflow: TextOverflow.ellipsis),
+                        Text('$oppScore',
+                            style: TextStyle(
+                                color: !iWon && !isDraw
+                                    ? const Color(0xFFFFB300)
+                                    : fg,
+                                fontSize: 26,
+                                fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (reasonText != null) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(Icons.info_outline_rounded, size: 16, color: muted),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      reasonText,
+                      style: TextStyle(color: muted, fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            if (room.finishedAt != null) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Icon(Icons.schedule_rounded, size: 16, color: muted),
+                  const SizedBox(width: 6),
+                  Text(
+                    _MyGamesSheetState._timeAgo(room.finishedAt!),
+                    style: TextStyle(color: muted, fontSize: 13),
+                  ),
+                ],
+              ),
+            ],
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(Icons.tag_rounded, size: 16, color: muted),
+                const SizedBox(width: 6),
+                Text(
+                  '${isTr ? 'Oda kodu' : 'Koda Ode'}: ${room.roomCode}',
+                  style: TextStyle(color: muted, fontSize: 12),
+                ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(isTr ? 'Tamam' : 'Baş'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isHost = room.hostUid == myUid;
+    final myScore = isHost ? room.hostScore : room.guestScore;
+    final oppScore = isHost ? room.guestScore : room.hostScore;
+    final oppName = isHost
+        ? (room.guestName ?? (isTr ? 'Rakip' : 'Hember'))
+        : room.hostName;
+
+    final myResult = (room.winner == 'draw')
+        ? 'draw'
+        : (room.winner == (isHost ? 'host' : 'guest'))
+            ? 'won'
+            : 'lost';
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final won = myResult == 'won';
+    final draw = myResult == 'draw';
+    final color = won
+        ? const Color(0xFFFFB300)
+        : (draw
+            ? const Color(0xFF64B5F6)
+            : (isDark ? Colors.white38 : const Color(0xFF667681)));
+    final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
+    final mutedColor =
+        isDark ? Colors.white.withValues(alpha: 0.52) : const Color(0xFF52636E);
+    final timeColor =
+        isDark ? Colors.white.withValues(alpha: 0.34) : const Color(0xFF667681);
+
+    // Bitiş sebebi etiketi
+    String? reasonTag;
+    switch (room.finishReason) {
+      case 'forfeit':
+        reasonTag = isTr ? 'Çekilme' : 'Vekişîn';
+        break;
+      case 'pass_limit':
+        reasonTag = isTr ? 'Pas limiti' : 'Sînorê Pas';
+        break;
+      case 'natural_end':
+        reasonTag = isTr ? 'Doğal son' : 'Dawiya Asayî';
+        break;
+    }
+
+    return _PressableScale(
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.07),
+              blurRadius: 14,
+              offset: const Offset(0, 7),
+            ),
+          ],
+        ),
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            splashColor: color.withValues(alpha: 0.10),
+            onTap: () => _showDetails(context),
+            child: Ink(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: isDark
+                      ? [
+                          color.withValues(alpha: 0.11),
+                          const Color(0xFF101827),
+                        ]
+                      : const [Color(0xFFFFFFFF), Color(0xFFEAF1F4)],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: color.withValues(alpha: 0.22)),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    _PlayerAvatar(
+                      name: oppName,
+                      color: color,
+                      icon: won
+                          ? Icons.emoji_events_rounded
+                          : (draw
+                              ? Icons.handshake_rounded
+                              : Icons.flag_rounded),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  won
+                                      ? (isTr ? 'Kazandın' : 'Tu biri')
+                                      : draw
+                                          ? (isTr ? 'Berabere' : 'Wekhev')
+                                          : (isTr ? 'Kaybettin' : 'Tu şikestî'),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: color,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                              if (reasonTag != null) ...[
+                                const SizedBox(width: 6),
+                                _StatusPill(text: reasonTag, color: mutedColor),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(height: 5),
+                          Text(
+                            '${isTr ? 'vs' : 'li dijî'} $oppName',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                color: mutedColor,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700),
+                          ),
+                          const SizedBox(height: 5),
+                          Row(
+                            children: [
+                              Text(
+                                '$myScore — $oppScore',
+                                style: TextStyle(
+                                  color: titleColor.withValues(alpha: 0.84),
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                              if (room.finishedAt != null) ...[
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    _MyGamesSheetState._timeAgo(
+                                        room.finishedAt!),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                        color: timeColor,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w700),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    _MiniBoardPreview(
+                      cells: room.boardState,
+                      accent: color,
+                      fallbackWord: 'BITTI',
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
 }
 
 class _InviteCard extends StatelessWidget {
-  final MultiplayerRoom invite;
+  final GameInvite invite;
   final VoidCallback onAccept;
   final VoidCallback onDecline;
   const _InviteCard(
@@ -3113,181 +4525,151 @@ class _InviteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final borderColor = isDark
-        ? Colors.white.withValues(alpha: 0.06)
-        : const Color(0xFF7B8992).withValues(alpha: 0.55);
-    final textColor = isDark ? Colors.white70 : const Color(0xFF25313A);
+    final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
+    final mutedColor =
+        isDark ? Colors.white.withValues(alpha: 0.52) : const Color(0xFF52636E);
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: isDark
-              ? [_blue.withValues(alpha: 0.10), _blue.withValues(alpha: 0.04)]
-              : const [Color(0xFFF4F8FA), Color(0xFFEAF1F4)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-            color: isDark ? _blue.withValues(alpha: 0.35) : borderColor,
-            width: 1.2),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-              color: _blue.withValues(alpha: 0.08),
-              blurRadius: 12,
-              offset: const Offset(0, 4))
+              color: _blue.withValues(alpha: isDark ? 0.13 : 0.10),
+              blurRadius: 18,
+              offset: const Offset(0, 8)),
+          BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.24 : 0.07),
+              blurRadius: 14,
+              offset: const Offset(0, 7)),
         ],
       ),
-      child: Column(
-        children: [
-          // Üst: kim davet etti
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
-            child: Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: _blue.withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: _blue.withValues(alpha: 0.4)),
-                  ),
-                  child: const Icon(Icons.sports_esports_rounded,
-                      color: _blue, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(invite.hostName,
+      child: Ink(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isDark
+                ? [_blue.withValues(alpha: 0.15), const Color(0xFF101827)]
+                : const [Color(0xFFFFFFFF), Color(0xFFEAF4FB)],
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+          ),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: _blue.withValues(alpha: 0.34), width: 1.2),
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+              child: Row(
+                children: [
+                  _PlayerAvatar(name: invite.fromDisplayName, color: _blue),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          invite.fromDisplayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                              color: textColor,
+                              color: titleColor,
                               fontSize: 15,
-                              fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 2),
-                      Text(L.inviteFrom,
+                              fontWeight: FontWeight.w900),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          L.inviteFrom,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                              color: isDark
-                                  ? Colors.white.withValues(alpha: 0.45)
-                                  : const Color(0xFF52636E),
-                              fontSize: 12)),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _blue.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Container(
-                          width: 6,
-                          height: 6,
-                          decoration: const BoxDecoration(
-                              color: _blue, shape: BoxShape.circle)),
-                      const SizedBox(width: 5),
-                      Text(L.current == AppLocale.tr ? 'Bekliyor' : 'Hêvî dike',
-                          style: const TextStyle(
-                              color: _blue,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Alt: butonlar tam genişlik yan yana
-          Container(
-            height: 1,
-            margin: const EdgeInsets.symmetric(horizontal: 16),
-            color: _blue.withValues(alpha: 0.15),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-            child: Row(
-              children: [
-                // Reddet
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      HapticFeedback.selectionClick();
-                      onDecline();
-                    },
-                    child: Container(
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: isDark
-                            ? Colors.white.withValues(alpha: 0.06)
-                            : const Color(0xFFF4F8FA),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color: isDark
-                                ? Colors.white.withValues(alpha: 0.10)
-                                : const Color(0xFFD6E1E7)),
-                      ),
-                      child: Center(
-                        child: Text(L.decline,
-                            style: TextStyle(
-                                color: isDark
-                                    ? Colors.white.withValues(alpha: 0.55)
-                                    : const Color(0xFF52636E),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600)),
-                      ),
+                              color: mutedColor,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700),
+                        ),
+                        const SizedBox(height: 8),
+                        _StatusPill(
+                          text: L.current == AppLocale.tr
+                              ? 'DAVET BEKLİYOR'
+                              : 'VEXWENDIN LI BENDÊ',
+                          color: _blue,
+                          icon: Icons.mail_rounded,
+                        ),
+                      ],
                     ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                // Kabul Et
-                Expanded(
-                  flex: 2,
-                  child: GestureDetector(
-                    onTap: () {
-                      HapticFeedback.mediumImpact();
-                      onAccept();
-                    },
-                    child: Container(
-                      height: 44,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF42A5F5), Color(0xFF1E88E5)],
+                  const SizedBox(width: 10),
+                  const _MiniBoardPreview(
+                    accent: _blue,
+                    fallbackWord: 'DAVET',
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              height: 1,
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              color: _blue.withValues(alpha: 0.18),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        HapticFeedback.selectionClick();
+                        onDecline();
+                      },
+                      icon: const Icon(Icons.close_rounded, size: 16),
+                      label: Text(L.decline),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 44),
+                        foregroundColor: isDark
+                            ? Colors.white.withValues(alpha: 0.62)
+                            : const Color(0xFF52636E),
+                        side: BorderSide(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.12)
+                              : const Color(0xFFD6E1E7),
                         ),
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                              color: _blue.withValues(alpha: 0.3),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3))
-                        ],
-                      ),
-                      child: Center(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.check_rounded,
-                                color: Colors.white, size: 16),
-                            const SizedBox(width: 6),
-                            Text(L.accept,
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold)),
-                          ],
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        textStyle: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
+                    child: FilledButton.icon(
+                      onPressed: () {
+                        HapticFeedback.mediumImpact();
+                        onAccept();
+                      },
+                      icon: const Icon(Icons.check_rounded, size: 17),
+                      label: Text(L.accept),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size(0, 44),
+                        backgroundColor: const Color(0xFF1E88E5),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        textStyle: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -3322,7 +4704,6 @@ class _TimeControlSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final mq = MediaQuery.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final sheetBg = isDark ? const Color(0xFF101824) : const Color(0xFFE6EEF2);
     final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
     final mutedColor =
         isDark ? Colors.white.withValues(alpha: 0.40) : const Color(0xFF52636E);
@@ -3330,8 +4711,21 @@ class _TimeControlSheet extends StatelessWidget {
         isDark ? Colors.white.withValues(alpha: 0.15) : const Color(0xFF9AABB5);
     return Container(
       decoration: BoxDecoration(
-        color: sheetBg,
+        gradient: LinearGradient(
+          colors: isDark
+              ? const [Color(0xFF132033), Color(0xFF0E1724)]
+              : const [Color(0xFFF8FBFC), Color(0xFFE6EEF2)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.18),
+            blurRadius: 28,
+            offset: const Offset(0, -8),
+          ),
+        ],
       ),
       padding: EdgeInsets.fromLTRB(20, 12, 20, 24 + mq.viewInsets.bottom),
       child: Column(
@@ -3352,10 +4746,24 @@ class _TimeControlSheet extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: Colors.orange.withValues(alpha: 0.14),
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.orange.withValues(alpha: isDark ? 0.18 : 0.16),
+                      Colors.orange.withValues(alpha: isDark ? 0.08 : 0.28),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                   borderRadius: BorderRadius.circular(12),
                   border:
                       Border.all(color: Colors.orange.withValues(alpha: 0.35)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.orange.withValues(alpha: 0.18),
+                      blurRadius: 12,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
                 ),
                 child: const Icon(Icons.timer_rounded,
                     color: Colors.orange, size: 24),
@@ -3382,8 +4790,12 @@ class _TimeControlSheet extends StatelessWidget {
                   color: isDark
                       ? Colors.white.withValues(alpha: 0.04)
                       : const Color(0xFFF4F8FA),
+                  elevation: isDark ? 8 : 5,
+                  shadowColor:
+                      Colors.black.withValues(alpha: isDark ? 0.38 : 0.16),
+                  surfaceTintColor: opt.color.withValues(alpha: 0.08),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(8),
                     side: BorderSide(
                       color: isDark
                           ? Colors.white.withValues(alpha: 0.06)
@@ -3395,7 +4807,7 @@ class _TimeControlSheet extends StatelessWidget {
                       HapticFeedback.selectionClick();
                       onSelected(opt.seconds);
                     },
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(8),
                     splashColor: opt.color.withValues(alpha: 0.10),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
@@ -3406,10 +4818,26 @@ class _TimeControlSheet extends StatelessWidget {
                             width: 46,
                             height: 46,
                             decoration: BoxDecoration(
-                              color: opt.color.withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(12),
+                              gradient: LinearGradient(
+                                colors: [
+                                  opt.color
+                                      .withValues(alpha: isDark ? 0.20 : 0.14),
+                                  opt.color
+                                      .withValues(alpha: isDark ? 0.10 : 0.24),
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(8),
                               border: Border.all(
                                   color: opt.color.withValues(alpha: 0.3)),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: opt.color.withValues(alpha: 0.18),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
                             ),
                             child: Icon(opt.icon, color: opt.color, size: 22),
                           ),
@@ -3665,7 +5093,7 @@ class _SubOption extends StatelessWidget {
 class _HomeHeader extends StatelessWidget {
   final double statusBarHeight;
   final int streak;
-  final VoidCallback onLocaleChanged;
+  final ValueChanged<AppLocale> onLocaleChanged;
   final VoidCallback onSettingsTap;
   final VoidCallback onStatsTap;
   final void Function(BuildContext) onOptionsTap;
@@ -3940,7 +5368,7 @@ class _MenuRow extends StatelessWidget {
 // ── Ayarlar sheet ────────────────────────────────────────────────
 
 class _SettingsSheet extends StatefulWidget {
-  final VoidCallback onLocaleChanged;
+  final ValueChanged<AppLocale> onLocaleChanged;
   final VoidCallback onHowToTap;
   const _SettingsSheet(
       {required this.onLocaleChanged, required this.onHowToTap});
@@ -3988,11 +5416,11 @@ class _SettingsSheetState extends State<_SettingsSheet> {
     final s = await SettingsService().load();
     if (value) {
       // Toggle ON: izin iste, gerçek granted durumuna göre kaydet
-      final settings = await NotificationService.instance
-          .requestNotificationPermission();
-      final granted = settings.authorizationStatus ==
-              AuthorizationStatus.authorized ||
-          settings.authorizationStatus == AuthorizationStatus.provisional;
+      final settings =
+          await NotificationService.instance.requestNotificationPermission();
+      final granted =
+          settings.authorizationStatus == AuthorizationStatus.authorized ||
+              settings.authorizationStatus == AuthorizationStatus.provisional;
       s.notifsEnabled = granted;
       if (!mounted) return;
       setState(() => _notifs = granted);
@@ -4002,7 +5430,6 @@ class _SettingsSheetState extends State<_SettingsSheet> {
     }
     await SettingsService().save(s);
   }
-
 
   Future<void> _setSound(bool value) async {
     setState(() => _sound = value);
@@ -4203,9 +5630,9 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                     iconColor: const Color(0xFF4CAF50),
                     label: L.language,
                     trailing: _LangSwitcher(
-                      onChanged: () {
+                      onChanged: (locale) {
+                        widget.onLocaleChanged(locale);
                         setState(() {});
-                        widget.onLocaleChanged();
                       },
                     ),
                   ),
@@ -4753,7 +6180,7 @@ class _StatCell extends StatelessWidget {
 // ── Dil seçici ───────────────────────────────────────────────────
 
 class _LangSwitcher extends StatelessWidget {
-  final VoidCallback onChanged;
+  final ValueChanged<AppLocale> onChanged;
   const _LangSwitcher({required this.onChanged});
 
   @override
@@ -4780,16 +6207,14 @@ class _LangSwitcher extends StatelessWidget {
               label: 'KU',
               active: cur == AppLocale.ku,
               onTap: () {
-                L.set(AppLocale.ku);
-                onChanged();
+                onChanged(AppLocale.ku);
               }),
           const SizedBox(width: 4),
           _LangBtn(
               label: 'TR',
               active: cur == AppLocale.tr,
               onTap: () {
-                L.set(AppLocale.tr);
-                onChanged();
+                onChanged(AppLocale.tr);
               }),
         ],
       ),

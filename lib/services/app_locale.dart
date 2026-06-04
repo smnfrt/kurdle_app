@@ -1,9 +1,17 @@
+import 'package:flutter/foundation.dart';
+
 enum AppLocale { tr, ku }
 
 class L {
   static AppLocale _current = AppLocale.ku;
+  static final ValueNotifier<AppLocale> notifier =
+      ValueNotifier<AppLocale>(_current);
   static AppLocale get current => _current;
-  static void set(AppLocale l) => _current = l;
+  static void set(AppLocale l) {
+    if (_current == l) return;
+    _current = l;
+    notifier.value = l;
+  }
 
   // ── Genel ──────────────────────────────────────────────────────
   static String get appSubtitle =>
@@ -42,9 +50,22 @@ class L {
       _s('Kullanıcı adı ara...', 'Navê bikarhêner bigere...');
   static String get inviteSent =>
       _s('Davet gönderildi!', 'Vexwendin hat şandin!');
-  static String get inviteFailed => _s(
-      'Davet gönderilemedi. Tekrar dene.',
+  static String get inviteValidTwoDays =>
+      _s('Bu davet 2 gün geçerli olacak.', 'Ev vexwendin 2 rojan derbasdar e.');
+  static String get inviteStaysOpen => _s(
+      'Başka menülere geçebilirsin, davetin açık kalır.',
+      'Tu dikarî biçî menuyên din, vexwendina te vekirî dimîne.');
+  static String get keepInviteOpen =>
+      _s('Davet açık kalsın', 'Vexwendin vekirî bimîne');
+  static String get cancelInvite =>
+      _s('Daveti iptal et', 'Vexwendinê betal bike');
+  static String get inviteCancelled =>
+      _s('Davet iptal edildi.', 'Vexwendin hat betalkirin.');
+  static String get inviteFailed => _s('Davet gönderilemedi. Tekrar dene.',
       'Vexwendin neşê hat şandin. Dîsa biceribîne.');
+  static String get pendingInviteAlreadyExists => _s(
+      'Bu oyuncuyla devam eden bir davet isteğin var. Yanıtlanana kadar yeni davet gönderemezsin.',
+      'Bi vî lîstikvanî re vexwendineke rawestî heye. Heta bersiv neyê, tu nikarî vexwendineke nû bişînî.');
   static String get offlineBanner =>
       _s('İnternet bağlantısı yok', 'Girêdana înternetê tune');
   static String get privacyPolicy =>
@@ -58,13 +79,12 @@ class L {
   static String get onboardingStart => _s('Hemen Oyna', 'Niha Bilîze');
 
   static String get onboardingWelcomeTitle =>
-      _s('Peyvok\'a Hoş Geldin!', 'Bi Xêr Hatî Peyvok!');
+      _s('Peyvok\'ye Hoş Geldin!', 'Bi Xêr Hatî Peyvok!');
   static String get onboardingWelcomeSubtitle => _s(
       'Kurmancî kelime oyunları artık tek uygulamada — Wordle, Scrabble, multiplayer.',
       'Lîstikên peyvên Kurmancî di yek sepanê de — Wordle, Scrabble, gelek lîstikvan.');
 
-  static String get onboardingWordleTitle =>
-      _s('Günün Kelimesi', 'Peyva Rojê');
+  static String get onboardingWordleTitle => _s('Günün Kelimesi', 'Peyva Rojê');
   static String get onboardingWordleSubtitle => _s(
       'Her gün yeni bir 5 harfli Kurmancî kelime. 6 denemende bul.',
       'Her roj peyveke nû ya 5-tîpî ya Kurmancî. Di 6 hewlan de bibîne.');
@@ -87,8 +107,7 @@ class L {
       'Oynadığın her kelimenin anlamı parmağının ucunda — Türkçe + Kurmancî.',
       'Wateya her peyva ku tu dilîzî di destê te de ye — Tirkî + Kurmancî.');
 
-  static String get onboardingStreakTitle =>
-      _s('Hazır mısın?', 'Tu amade yî?');
+  static String get onboardingStreakTitle => _s('Hazır mısın?', 'Tu amade yî?');
   static String get onboardingStreakSubtitle => _s(
       'Günlük serini başlat, rozetler kazan, sözlüğü keşfet. Şimdi başla!',
       'Rêzika xwe ya rojane dest pê bike, rozetan bistîne, ferhengê keşfe bike. Niha dest pê bike!');
@@ -135,7 +154,7 @@ class L {
   static String get codeCopied => _s('Kod kopyalandı!', 'Kod hat kopîkirin!');
   static String shareInviteMessage(String code) => _s(
         'Peyvok oda kodu: $code\nBenimle oynamak için kodu uygulamaya gir.',
-        'Koda odeya Peyvokê: $code\nJi bo ku bi min re bilîzî, kodê têxe sepanê.',
+        'Koda odeya Peyvok: $code\nJi bo ku bi min re bilîzî, kodê têxe sepanê.',
       );
   static String get cancelRoom => _s('İptal Et', 'Betal bike');
   static String get myScore => _s('Senin Skorun', 'Xala te');
@@ -155,6 +174,11 @@ class L {
   static String moveScoreLine(String playerName, int score) {
     final sign = score >= 0 ? '+' : '';
     return _s('$playerName: $sign$score puan', '$playerName: $sign$score xal');
+  }
+
+  static String moveWordScoreLine(String word, int score) {
+    final sign = score >= 0 ? '+' : '';
+    return _s('$word: $sign$score puan', '$word: $sign$score xal');
   }
 
   static String get myGames => _s('Oyunlarım', 'Lîstikên min');
@@ -180,6 +204,7 @@ class L {
   static String get resignConfirm => _s('Gerçekten teslim olmak istiyor musun?',
       'Tu bi rastî dixwazî teslîm bibî?');
   static String get cancel => _s('Vazgeç', 'Dev berde');
+  static String get done => _s('Tamam', 'Baş');
   static String get play => _s('Oyna', 'Bilîze');
   static String get recall => _s('Geri Al', 'Vegerîne');
   static String get shuffle => _s('Karıştır', 'Tevlihev bike');
@@ -285,6 +310,13 @@ class L {
   static String stealsLeft(int n) => _s('$n hak', '$n maf');
   static String get noTilesInBag =>
       _s('Torbada harf kalmadı', 'Di torê de tîp nemaye');
+  static String get notEnoughPeyv => _s('Yeterli Peyv yok.', 'Peyv têr tune.');
+  static String get shopOffline => _s('Bağlantı yok — alışveriş yapılamadı.',
+      'Girêdan tune — kirîn pêk nehat.');
+  static String get purchaseFailed =>
+      _s('Satın alma başarısız.', 'Kirîn bi ser neket.');
+  static String purchased(String item) =>
+      _s('$item alındı.', '$item hat kirîn.');
   static String get rankingGreat =>
       _s('Harika gidiyorsun! 🎉', 'Gelek baş e! 🎉');
   static String rankingBehind(int rank, String gap) =>
@@ -352,6 +384,53 @@ class L {
   static String get chat => _s('Sohbet', 'Sohbet');
   static String get remaining => _s('kalan', 'maye');
   static String get you => _s('Sen', 'Tu');
+
+  // ── ProfileScreen ──────────────────────────────────────────────
+  static String get profileTitle => _s('Profilim', 'Profîla Min');
+  static String get anonymousUser =>
+      _s('Anonim Kullanıcı', 'Bikarhênerê Bênav');
+  static String get playerFallback => _s('Oyuncu', 'Lîstikvan');
+  static String get statsHeading => _s('İstatistikler', 'Statîstîk');
+  static String get achievementsHeading => _s('Rozetler', 'Rozetan');
+  static String get statGames => _s('Oyun', 'Lîstik');
+  static String get statWinRate => _s('Kazanma', 'Berdestî');
+  static String get statStreak => _s('Seri', 'Rêzik');
+  static String get statHighScore => _s('En Yüksek', 'Herî Bilind');
+  static String levelLabel(int n) => _s('Seviye $n', 'Asta $n');
+  static String xpToNext(int xp) =>
+      _s('Sonraki seviyeye $xp XP', 'Ji bo asta din $xp XP');
+  static String get nameUpdated => _s('İsim güncellendi', 'Nav nû kir');
+  static String get offlineProfile => _s(
+      'Firebase bağlantısı yok — profil bilgileri görüntülenemiyor.',
+      'Girêdana Firebase tune — agahiyên profîlê nayên nîşandan.');
+  static String get achievementUnlocked => _s('Kazanıldı', 'Hat bidestxistin');
+
+  // Seviye unvanları
+  static List<String> get levelTitles => L.current == AppLocale.tr
+      ? const [
+          'Yeni Başlayan',
+          'Çırak',
+          'Öğrenci',
+          'Usta Aday',
+          'Usta',
+          'İleri Usta',
+          'Uzman',
+          'Şampiyon',
+          'Efsane',
+          'Peyvok Ustası',
+        ]
+      : const [
+          'Destpêker',
+          'Şagird',
+          'Xwendekar',
+          'Berbi Hosta',
+          'Hosta',
+          'Hosta yê Pêşket',
+          'Pispor',
+          'Şampiyon',
+          'Efsane',
+          'Hosta yê Peyvok',
+        ];
 
   // ── HowToPlayScreen ────────────────────────────────────────────
   static String get rulesTitle => _s('Oyun Kuralları', 'Rêzikên Lîstikê');
@@ -448,6 +527,30 @@ class L {
   static String get timeRemaining => _s('kaldı', 'maye');
   static String get nextWord => _s('Sonraki Kelime', 'Peyvê Paşê');
   static String get showCorrect => _s('Doğru Cevap', 'Bersiva Rast');
+  static String get dailyRetryTitle => _s('Yeniden Dene', 'Dîsa Biceribîne');
+  static String dailyRetryButton(int cost) =>
+      _s('Yeniden Dene ($cost Peyv)', 'Dîsa Biceribîne ($cost Peyv)');
+  static String get dailyRetrySignInTitle =>
+      _s('Giriş gerekli', 'Têketin pêwîst e');
+  static String get dailyRetrySignInBody => _s(
+      'Yeniden başlatmak için giriş yapmalısın.',
+      'Ji bo dîsa dest pê bikî divê têkevî.');
+  static String get dailyRetryLockedTitle =>
+      _s('Henüz açılmadı', 'Hîn venebûye');
+  static String dailyRetryLockedBody(int level) => _s(
+      'Daily yeniden başlatma Seviye 7\'de açılır. Şu an Seviye $level\'desin.',
+      'Dîsa destpêkirina rojane di Asta 7 de vedibe. Tu niha li Asta $level î.');
+  static String get dailyRetryNoPeyvTitle =>
+      _s('Yeterli Peyv yok', 'Peyv têr nîne');
+  static String dailyRetryNoPeyvBody(int cost, int balance) => _s(
+      '$cost Peyv gerekli. Bakiyen: $balance Peyv.',
+      '$cost Peyv pêwîst e. Balansa te: $balance Peyv.');
+  static String dailyRetryConfirmBody(int cost, int balance) => _s(
+      '$cost Peyv harcayarak günün challenge\'ını yeniden oynamak ister misin?\n\nBakiyen: $balance Peyv',
+      'Tu dixwazî bi xerckirina $cost Peyv pêşangiriya rojê dîsa bilîzî?\n\nBalansa te: $balance Peyv');
+  static String spendPeyv(int cost) =>
+      _s('Harca ($cost Peyv)', 'Bide ($cost Peyv)');
+  static String get retryAgain => _s('Tekrar dene.', 'Dîsa biceribîne.');
 
   // ── AI rakip zorluğu ───────────────────────────────────────────
   static String get aiDifficulty => _s('AI Zorluğu', 'Astengiya AI');

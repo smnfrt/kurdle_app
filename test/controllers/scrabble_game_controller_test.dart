@@ -54,14 +54,38 @@ void main() {
 
     test('all steals available', () {
       final ctrl = _newController();
-      expect(ctrl.playerStealsLeft, ScrabbleGameController.maxStealsPerGame);
+      expect(ctrl.playerStealsLeft, ctrl.maxStealsPerGame);
       expect(ctrl.isInStealMode, false);
     });
 
     test('full enhance budget available', () {
       final ctrl = _newController();
-      expect(ctrl.playerEnhancesLeft,
-          ScrabbleGameController.maxEnhancesPerGame);
+      expect(ctrl.playerEnhancesLeft, ctrl.maxEnhancesPerGame);
+    });
+
+    test('level bonuses increase enhance and steal budgets', () {
+      final ctrl = ScrabbleGameController(
+        _kSampleWordlist,
+        turnTimeLimitSeconds: null,
+        aiDifficulty: AiDifficulty.easy,
+        playerLevel: 4,
+      );
+      expect(ctrl.maxEnhancesPerGame,
+          ScrabbleGameController.baseEnhancesPerGame + 1);
+      expect(
+          ctrl.maxStealsPerGame, ScrabbleGameController.baseStealsPerGame + 1);
+      expect(ctrl.playerStealsLeft, ctrl.maxStealsPerGame);
+    });
+
+    test('shop grants add mid-game budgets', () {
+      final ctrl = _newController();
+      final enhances = ctrl.maxEnhancesPerGame;
+      final steals = ctrl.maxStealsPerGame;
+      ctrl.grantExtraEnhance();
+      ctrl.grantExtraSteal();
+      expect(ctrl.maxEnhancesPerGame, enhances + 1);
+      expect(ctrl.maxStealsPerGame, steals + 1);
+      expect(ctrl.playerStealsLeft, steals + 1);
     });
   });
 

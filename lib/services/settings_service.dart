@@ -19,6 +19,7 @@ class SettingsService {
           hapticEnabled: true,
           notifsEnabled: true,
           ferhengDefinitionLanguage: AppLocale.tr,
+          appLocale: AppLocale.ku,
           aiDifficulty: AiDifficulty.normal);
     }
     final map = json.decode(jsonString);

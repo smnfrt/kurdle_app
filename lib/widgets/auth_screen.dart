@@ -74,12 +74,37 @@ class _AuthScreenState extends State<AuthScreen>
       try {
         await FirestoreService.instance.createUserIfNotExists(user);
       } catch (e) {
-        Log.warn('AuthScreen', 'createUserIfNotExists after Google sign-in failed', e);
+        Log.warn('AuthScreen',
+            'createUserIfNotExists after Google sign-in failed', e);
       }
       _finish();
     } else {
       setState(() {
         _error = 'Google girişi iptal edildi.';
+        _loading = false;
+      });
+    }
+  }
+
+  // ── Facebook ─────────────────────────────────────────────────────
+  Future<void> _facebookSignIn() async {
+    setState(() {
+      _loading = true;
+      _error = '';
+    });
+    final user = await AuthService.instance.signInWithFacebook();
+    if (!mounted) return;
+    if (user != null) {
+      try {
+        await FirestoreService.instance.createUserIfNotExists(user);
+      } catch (e) {
+        Log.warn('AuthScreen',
+            'createUserIfNotExists after Facebook sign-in failed', e);
+      }
+      _finish();
+    } else {
+      setState(() {
+        _error = 'Facebook girişi iptal edildi veya tamamlanamadı.';
         _loading = false;
       });
     }
@@ -132,12 +157,86 @@ class _AuthScreenState extends State<AuthScreen>
           try {
             await FirestoreService.instance.createUserIfNotExists(result.user!);
           } catch (e) {
-            Log.warn('AuthScreen', 'createUserIfNotExists after register failed', e);
+            Log.warn(
+                'AuthScreen', 'createUserIfNotExists after register failed', e);
           }
+          // Doğrulama maili gönder (best-effort)
+          try {
+            await AuthService.instance.sendEmailVerification();
+          } catch (e) {
+            Log.warn('AuthScreen', 'sendEmailVerification failed', e);
+          }
+          if (!mounted) return;
+          await _showVerifySentDialog(email);
+          if (!mounted) return;
         }
         _finish();
       }
     }
+  }
+
+  Future<void> _showVerifySentDialog(String email) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bg = isDark ? _kSurface : _kLightSurface;
+    final fg = isDark ? Colors.white : _kLightText;
+    final muted = isDark ? Colors.white70 : _kLightMuted;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        backgroundColor: bg,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 22, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _kPrimary.withValues(alpha: 0.15),
+                ),
+                child: const Icon(Icons.mark_email_read_rounded,
+                    color: _kPrimary, size: 32),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Doğrulama maili gönderildi',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    color: fg, fontSize: 17, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '$email adresine bir doğrulama bağlantısı gönderdik. '
+                'Mailinize gidip bağlantıya tıklayın. '
+                '(Gelen kutusu boşsa spam/junk klasörünü kontrol edin.)',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: muted, fontSize: 13, height: 1.4),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _kPrimary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Tamam',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _anonymousContinue() async {
@@ -165,9 +264,11 @@ class _AuthScreenState extends State<AuthScreen>
     final bottom = MediaQuery.of(context).padding.bottom;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark ? Colors.white : _kLightText;
-    final bodyColor = isDark ? Colors.white.withValues(alpha: 0.4) : _kLightMuted;
-    final dividerColor =
-        isDark ? Colors.white12 : const Color(0xFF74838C).withValues(alpha: 0.55);
+    final bodyColor =
+        isDark ? Colors.white.withValues(alpha: 0.4) : _kLightMuted;
+    final dividerColor = isDark
+        ? Colors.white12
+        : const Color(0xFF74838C).withValues(alpha: 0.55);
     final fieldIconColor = isDark ? Colors.white38 : const Color(0xFF4A5963);
 
     return Scaffold(
@@ -263,6 +364,11 @@ class _AuthScreenState extends State<AuthScreen>
                     // ── Google butonu ────────────────────────────────
                     _GoogleBtn(onTap: _loading ? null : _googleSignIn),
 
+                    const SizedBox(height: 12),
+
+                    // ── Facebook butonu ──────────────────────────────
+                    _FacebookBtn(onTap: _loading ? null : _facebookSignIn),
+
                     const SizedBox(height: 18),
 
                     // ── Ayraç ────────────────────────────────────────
@@ -351,7 +457,8 @@ class _AuthScreenState extends State<AuthScreen>
                           color: const Color(0xFFFF6B6B).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                              color: const Color(0xFFFF6B6B).withValues(alpha: 0.4)),
+                              color: const Color(0xFFFF6B6B)
+                                  .withValues(alpha: 0.4)),
                         ),
                         child: Row(
                           children: [
@@ -439,7 +546,8 @@ class _AuthScreenState extends State<AuthScreen>
                           decoration: BoxDecoration(
                             color: isDark
                                 ? Colors.white.withValues(alpha: 0.08)
-                                : const Color(0xFF9CABAD).withValues(alpha: 0.75),
+                                : const Color(0xFF9CABAD)
+                                    .withValues(alpha: 0.75),
                             borderRadius: BorderRadius.circular(14),
                             border: Border.all(
                                 color: isDark
@@ -482,7 +590,8 @@ class _AuthScreenState extends State<AuthScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final dialogBg = isDark ? _kSurface : _kLightSurface;
     final titleColor = isDark ? Colors.white : _kLightText;
-    final bodyColor = isDark ? Colors.white.withValues(alpha: 0.55) : _kLightMuted;
+    final bodyColor =
+        isDark ? Colors.white.withValues(alpha: 0.55) : _kLightMuted;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -638,6 +747,61 @@ class _GoogleGPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_GoogleGPainter _) => false;
+}
+
+// ── Facebook butonu ────────────────────────────────────────────────
+
+class _FacebookBtn extends StatelessWidget {
+  final VoidCallback? onTap;
+  const _FacebookBtn({this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedOpacity(
+        opacity: onTap == null ? 0.5 : 1.0,
+        duration: const Duration(milliseconds: 150),
+        child: Container(
+          height: 52,
+          decoration: BoxDecoration(
+            color: const Color(0xFF1877F2),
+            borderRadius: BorderRadius.circular(14),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.15),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3)),
+            ],
+          ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'f',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  height: 1,
+                ),
+              ),
+              SizedBox(width: 12),
+              Text(
+                'Facebook ile Giriş Yap',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ── Metin alanı ───────────────────────────────────────────────────

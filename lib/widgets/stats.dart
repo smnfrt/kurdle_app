@@ -72,59 +72,60 @@ class _StatsState extends State<StatsWidget> {
                                     fontSize: 18,
                                   ),
                                 )),
-                                // Scrabble skor paneli
+                                // XP/Peyv ödül tablosu (deneme sayısına göre)
                                 Padding(
-                                  padding: const EdgeInsets.fromLTRB(10, 10, 10, 0),
+                                  padding:
+                                      const EdgeInsets.fromLTRB(10, 10, 10, 0),
                                   child: Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 10, horizontal: 12),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFF538d4e).withValues(alpha: 0.15),
+                                      color: const Color(0xFF538d4e)
+                                          .withValues(alpha: 0.15),
                                       borderRadius: BorderRadius.circular(8),
                                       border: Border.all(
-                                        color: const Color(0xFF538d4e).withValues(alpha: 0.4),
+                                        color: const Color(0xFF538d4e)
+                                            .withValues(alpha: 0.4),
                                       ),
                                     ),
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                                      children: [
-                                        Column(children: [
-                                          const Text('⭐', style: TextStyle(fontSize: 20)),
-                                          Text(
-                                            '${widget.stats.totalScore}',
-                                            style: const TextStyle(
-                                              fontSize: 22,
-                                              fontWeight: FontWeight.bold,
-                                              color: Color(0xFFFFD700),
-                                            ),
-                                          ),
-                                          const Text('Puan',
-                                              style: TextStyle(fontSize: 11)),
-                                        ]),
-                                        Container(width: 1, height: 40,
-                                            color: const Color(0xFF538d4e).withValues(alpha: 0.4)),
-                                        Column(children: [
-                                          const Text('🏆', style: TextStyle(fontSize: 20)),
-                                          Text(
-                                            '${widget.stats.highScore}',
-                                            style: const TextStyle(
-                                              fontSize: 22,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          const Text('Rekor',
-                                              style: TextStyle(fontSize: 11)),
-                                        ]),
-                                        Container(width: 1, height: 40,
-                                            color: const Color(0xFF538d4e).withValues(alpha: 0.4)),
-                                        Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: const [
-                                            Text('1. deneme = ×6', style: TextStyle(fontSize: 10)),
-                                            Text('2. deneme = ×5', style: TextStyle(fontSize: 10)),
-                                            Text('3. deneme = ×4', style: TextStyle(fontSize: 10)),
-                                            Text('4+ deneme = ×3–1', style: TextStyle(fontSize: 10)),
-                                          ],
-                                        ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: const [
+                                        Text('🎯 Ödüller',
+                                            style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.bold)),
+                                        SizedBox(height: 4),
+                                        _RewardLine(
+                                            tries: '1 deneme',
+                                            xp: 170,
+                                            peyv: 17,
+                                            tag: ' (en iyi)'),
+                                        _RewardLine(
+                                            tries: '2 deneme',
+                                            xp: 150,
+                                            peyv: 15),
+                                        _RewardLine(
+                                            tries: '3 deneme',
+                                            xp: 130,
+                                            peyv: 13),
+                                        _RewardLine(
+                                            tries: '4 deneme',
+                                            xp: 110,
+                                            peyv: 11),
+                                        _RewardLine(
+                                            tries: '5 deneme',
+                                            xp: 90,
+                                            peyv: 9),
+                                        _RewardLine(
+                                            tries: '6 deneme',
+                                            xp: 70,
+                                            peyv: 7),
+                                        _RewardLine(
+                                            tries: 'Kayıp',
+                                            xp: 10,
+                                            peyv: 0),
                                       ],
                                     ),
                                   ),
@@ -429,6 +430,82 @@ class _StatsState extends State<StatsWidget> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _RewardLine extends StatelessWidget {
+  final String tries;
+  final int xp;
+  final int peyv;
+  final String tag;
+  const _RewardLine({
+    required this.tries,
+    required this.xp,
+    required this.peyv,
+    this.tag = '',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 1),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              tries,
+              style: const TextStyle(fontSize: 11),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFD700).withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              '+$xp XP',
+              style: const TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFFB8860B),
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          if (peyv > 0)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: const Color(0xFF00BFA5).withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                '+$peyv Peyv',
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF00786A),
+                ),
+              ),
+            ),
+          if (tag.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: Text(
+                tag,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: Colors.grey.withValues(alpha: 0.8),
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

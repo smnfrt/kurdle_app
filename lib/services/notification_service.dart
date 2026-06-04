@@ -4,6 +4,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:kurdle_app/services/logging_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -23,12 +24,24 @@ class NotificationService {
   late final _fcm = FirebaseMessaging.instance;
   final _local = FlutterLocalNotificationsPlugin();
 
-  static const _channelId   = 'peyvok_daily';
+  static const _channelId = 'peyvok_daily';
   static const _channelName = 'Günlük Hatırlatıcı';
+  static const _deviceIdKey = 'notification_device_id';
 
   // Bildirime tıklandığında ya da app kapalıyken açıldığında set edilir.
   String? pendingInviteRoomCode;
   final List<void Function(String roomCode)> _onInviteTap = [];
+  String? _foregroundRoomCode;
+
+  void markRoomForeground(String roomCode) {
+    _foregroundRoomCode = roomCode;
+  }
+
+  void clearRoomForeground(String roomCode) {
+    if (_foregroundRoomCode == roomCode) {
+      _foregroundRoomCode = null;
+    }
+  }
 
   void onInviteTap(void Function(String roomCode) cb) {
     _onInviteTap.add(cb);
@@ -51,6 +64,12 @@ class NotificationService {
         cb(code);
       }
     }
+  }
+
+  String? _roomCodeFromMessage(RemoteMessage message) {
+    final code = message.data['roomCode'];
+    if (code is String && code.isNotEmpty) return code;
+    return null;
   }
 
   /// Kullanıcı bildirim açmak istediğinde (Settings toggle, streak ayarı vs.)
@@ -80,6 +99,7 @@ class NotificationService {
     final androidImpl = _local.resolvePlatformSpecificImplementation<
         AndroidFlutterLocalNotificationsPlugin>();
     await androidImpl?.createNotificationChannel(androidChannel);
+    await androidImpl?.requestNotificationsPermission();
 
     // Plugin başlat
     const initSettings = InitializationSettings(
@@ -111,6 +131,8 @@ class NotificationService {
     FirebaseMessaging.onMessage.listen((message) {
       final notification = message.notification;
       if (notification == null) return;
+      final roomCode = _roomCodeFromMessage(message);
+      if (roomCode != null && roomCode == _foregroundRoomCode) return;
       _local.show(
         notification.hashCode,
         notification.title,
@@ -123,7 +145,23 @@ class NotificationService {
             priority: Priority.high,
           ),
         ),
+        payload: roomCode,
       );
+    });
+
+    FirebaseMessaging.onMessageOpenedApp.listen((message) {
+      final roomCode = _roomCodeFromMessage(message);
+      if (roomCode != null) _dispatchInviteTap(roomCode);
+    });
+
+    final initialMessage = await _fcm.getInitialMessage();
+    if (initialMessage != null) {
+      final roomCode = _roomCodeFromMessage(initialMessage);
+      if (roomCode != null) pendingInviteRoomCode = roomCode;
+    }
+
+    _fcm.onTokenRefresh.listen((_) {
+      syncFcmTokenToFirestore();
     });
 
     // Günlük hatırlatıcıyı planla (planlama hata verirse uygulamayı kilitleme)
@@ -167,11 +205,13 @@ class NotificationService {
         scheduled,
         details,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.time,
       );
     } catch (e) {
-      Log.warn('NotificationService', 'exact daily reminder schedule failed, falling back to inexact', e);
+      Log.warn('NotificationService',
+          'exact daily reminder schedule failed, falling back to inexact', e);
       // Tam zamanlı alarm izni yok — yaklaşık zamanlı ile devam et
       await _local.zonedSchedule(
         0,
@@ -180,7 +220,8 @@ class NotificationService {
         scheduled,
         details,
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.time,
       );
     }
@@ -217,7 +258,8 @@ class NotificationService {
         matchDateTimeComponents: DateTimeComponents.time,
       );
     } catch (e) {
-      Log.warn('NotificationService', 'exact streak reminder schedule failed, falling back to inexact', e);
+      Log.warn('NotificationService',
+          'exact streak reminder schedule failed, falling back to inexact', e);
       await _local.zonedSchedule(
         1,
         'Peyvok 🔥',
@@ -261,10 +303,14 @@ class NotificationService {
         tzTime,
         details,
         androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
       );
     } catch (e) {
-      Log.warn('NotificationService', 'exact tournament reminder schedule failed, falling back to inexact', e);
+      Log.warn(
+          'NotificationService',
+          'exact tournament reminder schedule failed, falling back to inexact',
+          e);
       await _local.zonedSchedule(
         1,
         '🏆 Turnuva Başlıyor!',
@@ -272,12 +318,23 @@ class NotificationService {
         tzTime,
         details,
         androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        uiLocalNotificationDateInterpretation: UILocalNotificationDateInterpretation.absoluteTime,
+        uiLocalNotificationDateInterpretation:
+            UILocalNotificationDateInterpretation.absoluteTime,
       );
     }
   }
 
   Future<String?> getFcmToken() => _fcm.getToken();
+
+  Future<String> _deviceId() async {
+    final prefs = await SharedPreferences.getInstance();
+    var id = prefs.getString(_deviceIdKey);
+    if (id == null || id.isEmpty) {
+      id = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+      await prefs.setString(_deviceIdKey, id);
+    }
+    return id;
+  }
 
   /// Mevcut FCM token'ını signed-in kullanıcının Firestore dokümanına
   /// yazar (`users/{uid}.fcmToken`). Cloud Function bu alana göre
@@ -289,15 +346,19 @@ class NotificationService {
       if (user == null) return;
       final token = await _fcm.getToken();
       if (token == null || token.isEmpty) return;
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .set(
-            {'fcmToken': token, 'lastSeen': FieldValue.serverTimestamp()},
-            SetOptions(merge: true),
-          );
+      final deviceId = await _deviceId();
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).set(
+        {
+          'fcmToken': token,
+          'fcmTokens': {deviceId: token},
+          'lastSeen': FieldValue.serverTimestamp(),
+        },
+        SetOptions(merge: true),
+      );
     } catch (e) {
-      // Auth/Firestore offline modunda sessizce yoksay
+      if (kDebugMode) {
+        debugPrint('[NotificationService] syncFcmTokenToFirestore failed: $e');
+      }
     }
   }
 
@@ -305,21 +366,27 @@ class NotificationService {
     required String fromName,
     required String roomCode,
   }) async {
-    await _local.show(
-      roomCode.hashCode,
-      'Yeni Oyun Daveti 🎮',
-      '$fromName seni oyuna davet etti',
-      NotificationDetails(
-        android: AndroidNotificationDetails(
-          _channelId,
-          _channelName,
-          importance: Importance.max,
-          priority: Priority.high,
-          ticker: 'Davet',
+    try {
+      await _local.show(
+        roomCode.hashCode,
+        'Yeni Oyun Daveti 🎮',
+        '$fromName seni oyuna davet etti',
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            _channelId,
+            _channelName,
+            importance: Importance.max,
+            priority: Priority.high,
+            ticker: 'Davet',
+          ),
         ),
-      ),
-      payload: roomCode,
-    );
+        payload: roomCode,
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('[NotificationService] showInviteNotification failed: $e');
+      }
+    }
   }
 
   /// Multiplayer'da rakip hamle yapıp sıra sana geçtiğinde gösterilir.
@@ -332,25 +399,33 @@ class NotificationService {
     String? wordPlayed,
     int? score,
   }) async {
-    final body = wordPlayed != null && wordPlayed.isNotEmpty
-        ? (score != null && score > 0
-            ? '$opponentName "$wordPlayed" oynadı (+$score puan) — sıra sende!'
-            : '$opponentName "$wordPlayed" oynadı — sıra sende!')
-        : '$opponentName hamlesini yaptı — sıra sende!';
-    await _local.show(
-      'move-$roomCode'.hashCode,
-      'Senin sıran 🎯',
-      body,
-      NotificationDetails(
-        android: AndroidNotificationDetails(
-          _channelId,
-          _channelName,
-          importance: Importance.high,
-          priority: Priority.high,
-          ticker: 'Hamle',
+    final cleanWord = wordPlayed?.trim();
+    final scoreText =
+        score == null ? '' : ' (${score > 0 ? '+' : ''}$score puan)';
+    final body = cleanWord != null && cleanWord.isNotEmpty
+        ? '$opponentName "$cleanWord" oynadı$scoreText — sıra sende!'
+        : '$opponentName hamlesini yaptı$scoreText — sıra sende!';
+    try {
+      await _local.show(
+        'move-$roomCode'.hashCode,
+        'Senin sıran 🎯',
+        body,
+        NotificationDetails(
+          android: AndroidNotificationDetails(
+            _channelId,
+            _channelName,
+            importance: Importance.high,
+            priority: Priority.high,
+            ticker: 'Hamle',
+          ),
         ),
-      ),
-      payload: roomCode,
-    );
+        payload: roomCode,
+      );
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint(
+            '[NotificationService] showOpponentMoveNotification failed: $e');
+      }
+    }
   }
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kurdle_app/route_transitions.dart';
@@ -30,9 +31,9 @@ class _UsernameMatchScreenState extends State<UsernameMatchScreen> {
   Timer? _debounce;
 
   // Davet gönderildi durumu
-  String? _inviteRoomCode;
   String? _inviteeName;
-  StreamSubscription<MultiplayerRoom?>? _roomSub;
+  String? _activeInviteId;
+  StreamSubscription<GameInvite?>? _inviteSub;
   bool _waitingAccept = false;
 
   @override
@@ -51,7 +52,7 @@ class _UsernameMatchScreenState extends State<UsernameMatchScreen> {
     _ctrl.dispose();
     _focus.dispose();
     _debounce?.cancel();
-    _roomSub?.cancel();
+    _inviteSub?.cancel();
     super.dispose();
   }
 
@@ -75,6 +76,10 @@ class _UsernameMatchScreenState extends State<UsernameMatchScreen> {
     final myUid = AuthService.instance.effectiveUid;
     final results = await FirestoreService.instance
         .searchUsersByName(query, excludeUid: myUid);
+    if (kDebugMode) {
+      debugPrint(
+          '[UsernameMatchScreen] search query="$query" myUid=$myUid results=${results.length}');
+    }
     if (mounted) {
       setState(() {
         _results = results;
@@ -88,9 +93,18 @@ class _UsernameMatchScreenState extends State<UsernameMatchScreen> {
   Future<void> _invite(UserProfile target) async {
     HapticFeedback.mediumImpact();
     final uid = AuthService.instance.effectiveUid;
-    if (uid == null) return;
+    if (uid == null) {
+      if (kDebugMode) {
+        debugPrint('[UsernameMatchScreen] invite skipped: uid is null');
+      }
+      return;
+    }
 
     final myName = AuthService.instance.effectiveDisplayName;
+    if (kDebugMode) {
+      debugPrint(
+          '[UsernameMatchScreen] invite tapped host=$uid invitee=${target.uid} name=${target.displayName}');
+    }
 
     setState(() {
       _waitingAccept = true;
@@ -98,27 +112,62 @@ class _UsernameMatchScreenState extends State<UsernameMatchScreen> {
     });
 
     try {
-      final code = await MultiplayerService.instance
-          .createInviteRoom(uid, myName, target.uid);
+      final invite = await MultiplayerService.instance
+          .createPersistentInvite(uid, myName, target.uid, target.displayName);
       if (!mounted) return;
-      setState(() => _inviteRoomCode = code);
-
-      _roomSub = MultiplayerService.instance.roomStream(code).listen((room) {
-        if (!mounted || room == null) return;
-        if (room.status == 'active') {
-          _roomSub?.cancel();
+      if (kDebugMode) {
+        debugPrint(
+            '[UsernameMatchScreen] persistent invite created id=${invite.inviteId}');
+      }
+      setState(() => _activeInviteId = invite.inviteId);
+      _inviteSub = MultiplayerService.instance
+          .inviteDocStream(invite.inviteId)
+          .listen((current) {
+        if (!mounted || current == null) return;
+        if (current.status == 'accepted' && current.roomCode != null) {
+          _inviteSub?.cancel();
           Navigator.pushReplacement(
             context,
-            appRoute(FriendGameScreen(roomCode: code, myUid: uid)),
+            appRoute(FriendGameScreen(roomCode: current.roomCode!, myUid: uid)),
           );
+          return;
+        }
+        if (current.status == 'declined' ||
+            current.status == 'cancelled' ||
+            current.status == 'expired') {
+          _inviteSub?.cancel();
+          setState(() {
+            _waitingAccept = false;
+            _inviteeName = null;
+            _activeInviteId = null;
+          });
         }
       });
+    } on PendingInviteException catch (e) {
+      if (kDebugMode) {
+        debugPrint(
+            '[UsernameMatchScreen] invite blocked: pending invite ${e.inviteId}');
+      }
+      if (!mounted) return;
+      setState(() {
+        _waitingAccept = false;
+        _inviteeName = null;
+        _activeInviteId = null;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(L.pendingInviteAlreadyExists),
+          backgroundColor: const Color(0xFFF57C00),
+          duration: const Duration(seconds: 4),
+        ),
+      );
     } catch (e) {
       Log.error('UsernameMatchScreen', 'createInviteRoom failed', e);
       if (!mounted) return;
       setState(() {
         _waitingAccept = false;
-        _inviteRoomCode = null;
+        _inviteeName = null;
+        _activeInviteId = null;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -130,20 +179,28 @@ class _UsernameMatchScreenState extends State<UsernameMatchScreen> {
     }
   }
 
-  Future<void> _cancelInvite() async {
+  void _leaveWaiting() {
     HapticFeedback.selectionClick();
-    _roomSub?.cancel();
-    final code = _inviteRoomCode;
-    if (code != null) {
-      await MultiplayerService.instance.cancelRandomSearch(code);
-    }
+    _inviteSub?.cancel();
     if (mounted) {
       setState(() {
         _waitingAccept = false;
-        _inviteRoomCode = null;
         _inviteeName = null;
+        _activeInviteId = null;
       });
     }
+  }
+
+  Future<void> _cancelInvite() async {
+    HapticFeedback.mediumImpact();
+    final uid = AuthService.instance.effectiveUid;
+    final inviteId = _activeInviteId;
+    if (uid == null || inviteId == null) {
+      _leaveWaiting();
+      return;
+    }
+    await MultiplayerService.instance.cancelInvite(inviteId, uid);
+    _leaveWaiting();
   }
 
   // ── UI ───────────────────────────────────────────────────────────
@@ -160,8 +217,8 @@ class _UsernameMatchScreenState extends State<UsernameMatchScreen> {
 
     return PopScope(
       canPop: !_waitingAccept,
-      onPopInvokedWithResult: (didPop, _) async {
-        if (!didPop && _waitingAccept) await _cancelInvite();
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && _waitingAccept) _leaveWaiting();
       },
       child: Scaffold(
         backgroundColor: bg,
@@ -219,7 +276,7 @@ class _UsernameMatchScreenState extends State<UsernameMatchScreen> {
             onTap: () async {
               HapticFeedback.selectionClick();
               if (_waitingAccept) {
-                await _cancelInvite();
+                _leaveWaiting();
               } else {
                 Navigator.pop(context);
               }
@@ -388,32 +445,56 @@ class _UsernameMatchScreenState extends State<UsernameMatchScreen> {
               style: const TextStyle(
                   color: _kPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
           const SizedBox(height: 4),
-          Text(L.waitingAccept,
+          Text(L.inviteValidTwoDays,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: mutedColor, fontSize: 12)),
+          const SizedBox(height: 4),
+          Text(L.inviteStaysOpen,
               textAlign: TextAlign.center,
               style: TextStyle(color: mutedColor, fontSize: 12)),
           const SizedBox(height: 36),
           _AnimatedDots(),
-          const SizedBox(height: 48),
+          const SizedBox(height: 36),
           Padding(
             padding: EdgeInsets.fromLTRB(32, 0, 32, bottom + 16),
-            child: SizedBox(
-              width: double.infinity,
-              child: TextButton(
-                onPressed: _cancelInvite,
-                style: TextButton.styleFrom(
-                  backgroundColor: isDark
-                      ? Colors.white.withValues(alpha: 0.06)
-                      : const Color(0xFFF4F8FA),
-                  foregroundColor:
-                      isDark ? Colors.white54 : const Color(0xFF52636E),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+            child: Column(
+              children: [
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton(
+                    onPressed: _leaveWaiting,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: _kPrimary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: Text(L.keepInviteOpen,
+                        style: const TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w700)),
+                  ),
                 ),
-                child: Text(L.cancel,
-                    style: const TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w600)),
-              ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: _cancelInvite,
+                    style: TextButton.styleFrom(
+                      backgroundColor: isDark
+                          ? const Color(0xFFEF5350).withValues(alpha: 0.10)
+                          : const Color(0xFFFFEBEE),
+                      foregroundColor: const Color(0xFFEF5350),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14)),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    child: Text(L.cancelInvite,
+                        style: const TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ],
             ),
           ),
         ],

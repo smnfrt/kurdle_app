@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kurdle_app/controllers/board_touch_controller.dart';
@@ -8,10 +9,15 @@ import 'package:kurdle_app/models/board_cell.dart';
 import 'package:kurdle_app/models/game_tile.dart';
 import 'package:kurdle_app/models/word_board.dart';
 import 'package:kurdle_app/services/app_locale.dart';
+import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/board_layout_service.dart';
 import 'package:kurdle_app/services/ferheng_service.dart';
+import 'package:kurdle_app/services/firebase_service.dart';
+import 'package:kurdle_app/services/firestore_service.dart';
 import 'package:kurdle_app/services/game_score_service.dart';
 import 'package:kurdle_app/services/language_config.dart';
+import 'package:kurdle_app/services/level_rewards.dart';
+import 'package:kurdle_app/services/match_chat_service.dart';
 import 'package:kurdle_app/services/multiplayer_service.dart';
 import 'package:kurdle_app/services/scoring_service.dart';
 import 'package:kurdle_app/services/sound_service.dart';
@@ -20,6 +26,7 @@ import 'package:kurdle_app/services/word_validator_service.dart';
 import 'package:kurdle_app/route_transitions.dart';
 import 'package:kurdle_app/services/wordlist_loader.dart';
 import 'package:kurdle_app/widgets/letter_rack_widget.dart';
+import 'package:kurdle_app/widgets/game_chat_panel.dart';
 import 'package:kurdle_app/widgets/scrabble_board_widget.dart';
 
 const _kBgDark = Color(0xFF0D1520);
@@ -31,14 +38,15 @@ const _kTopStartLight = Color(0xFFD2DDE4);
 const _kCardLight = Color(0xFFF4F8FA);
 // Functional / brand renkleri tema-bağımsız.
 const _kPrimary = Color(0xFF4CAF50);
-const _kBlue = Color(0xFF64B5F6);
 const _kError = Color(0xFFFF6B6B);
 
 // Build-time theme-aware ortak getter'lar. Build() içinden çağrılır.
 Color _bgFor(BuildContext ctx) =>
     Theme.of(ctx).brightness == Brightness.dark ? _kBgDark : _kBgLight;
 Color _topStartFor(BuildContext ctx) =>
-    Theme.of(ctx).brightness == Brightness.dark ? _kTopStartDark : _kTopStartLight;
+    Theme.of(ctx).brightness == Brightness.dark
+        ? _kTopStartDark
+        : _kTopStartLight;
 Color _cardFor(BuildContext ctx) =>
     Theme.of(ctx).brightness == Brightness.dark ? _kCardDark : _kCardLight;
 const _kInitialBoardZoom = 2.05;
@@ -67,6 +75,11 @@ class _FriendGameScreenState extends State<FriendGameScreen>
   // ── Firestore ─────────────────────────────────────────────────────
   MultiplayerRoom? _room;
   StreamSubscription<MultiplayerRoom?>? _sub;
+  StreamSubscription<int>? _chatUnreadSub;
+  String? _chatRoomCode;
+  int _chatUnreadCount = 0;
+  final Map<String, _MeaningTabEntry> _meaningCache = {};
+  final Set<String> _meaningWarmInFlight = {};
 
   // ── Local game state ─────────────────────────────────────────────
   WordBoard _localBoard = BoardLayoutService.createClassicLayout();
@@ -92,6 +105,11 @@ class _FriendGameScreenState extends State<FriendGameScreen>
   // ── Game over ─────────────────────────────────────────────────────
   bool _gameOverShown = false;
 
+  // ── Player progression info (avatar frame + title) ──────────────
+  int _myLevel = 1;
+  int _oppLevel = 1;
+  bool _levelsFetched = false;
+
   // ── FX: turn banner / error shake ─────────────────────────────────
   AnimationController? _turnBannerCtrl;
   String _turnBannerText = '';
@@ -108,6 +126,7 @@ class _FriendGameScreenState extends State<FriendGameScreen>
   @override
   void initState() {
     super.initState();
+    NotificationService.instance.markRoomForeground(widget.roomCode);
     _touchCtrl = BoardTouchController(
       transformCtrl: _zoomController,
       vsync: this,
@@ -130,7 +149,9 @@ class _FriendGameScreenState extends State<FriendGameScreen>
 
   @override
   void dispose() {
+    NotificationService.instance.clearRoomForeground(widget.roomCode);
     _sub?.cancel();
+    _chatUnreadSub?.cancel();
     _turnBannerCtrl?.dispose();
     _errorShakeCtrl?.dispose();
     _zoomController.removeListener(_touchCtrl.onTransformChanged);
@@ -204,6 +225,7 @@ class _FriendGameScreenState extends State<FriendGameScreen>
         .where((w) => w.cells.length >= 2)
         .map((w) => {
               'word': w.word,
+              'score': w.score,
               'cells': w.cells.map((c) => '${c.row}:${c.column}').toList(),
             })
         .toList(growable: false);
@@ -226,20 +248,58 @@ class _FriendGameScreenState extends State<FriendGameScreen>
         .toList(growable: false);
   }
 
-  void _showWordMeanings(List<String> words) async {
+  String _meaningKey(String word) => word.trim().toUpperCase();
+
+  List<String> _uniqueMeaningWords(Iterable<String> words) {
     final seen = <String>{};
-    final uniqueWords = <String>[
+    return [
       for (final word in words)
-        if (word.trim().isNotEmpty && seen.add(word.trim().toUpperCase()))
-          word.trim()
+        if (word.trim().isNotEmpty && seen.add(_meaningKey(word))) word.trim()
     ];
+  }
+
+  Future<_MeaningTabEntry> _loadMeaningEntry(String word) async {
+    final result = await FerhengService.instance.lookupMeaning(
+      word,
+      acceptedInGame: true,
+    );
+    final text = result.displayGameMeaning().trim();
+    return _MeaningTabEntry(
+      word: result.displayWord,
+      meaning: text.isEmpty ? L.dictionaryEntryMissingMeaning : text,
+    );
+  }
+
+  void _warmMeaningCache(Iterable<String> words) {
+    final uniqueWords = _uniqueMeaningWords(words);
+    for (final word in uniqueWords) {
+      final key = _meaningKey(word);
+      if (_meaningCache.containsKey(key) ||
+          _meaningWarmInFlight.contains(key)) {
+        continue;
+      }
+      _meaningWarmInFlight.add(key);
+      unawaited(_loadMeaningEntry(word).then((entry) {
+        _meaningCache[key] = entry;
+      }).catchError((_) {
+        _meaningCache[key] =
+            _MeaningTabEntry(word: word, meaning: L.dictionaryWordNotFound);
+      }).whenComplete(() {
+        _meaningWarmInFlight.remove(key);
+      }));
+    }
+  }
+
+  void _showWordMeanings(List<String> words) async {
+    final uniqueWords = _uniqueMeaningWords(words);
     if (uniqueWords.isEmpty) return;
     HapticFeedback.selectionClick();
 
     final entries = ValueNotifier<List<_MeaningTabEntry>>(
       uniqueWords
-          .map(
-              (word) => _MeaningTabEntry(word: word, meaning: L.meaningLoading))
+          .map((word) =>
+              _meaningCache[_meaningKey(word)] ??
+              _MeaningTabEntry(word: word, meaning: L.meaningLoading))
           .toList(growable: false),
     );
     var dialogOpen = true;
@@ -264,20 +324,16 @@ class _FriendGameScreenState extends State<FriendGameScreen>
     });
 
     try {
-      final results = await Future.wait(uniqueWords.map(
-        (word) => FerhengService.instance.lookupMeaning(
-          word,
-          acceptedInGame: true,
-        ),
-      ));
+      final results = await Future.wait(uniqueWords.map((word) async {
+        final key = _meaningKey(word);
+        final cached = _meaningCache[key];
+        if (cached != null) return cached;
+        final entry = await _loadMeaningEntry(word);
+        _meaningCache[key] = entry;
+        return entry;
+      }));
       if (!mounted || !dialogOpen) return;
-      entries.value = results.map((result) {
-        final text = result.displayGameMeaning().trim();
-        return _MeaningTabEntry(
-          word: result.displayWord,
-          meaning: text.isEmpty ? L.dictionaryEntryMissingMeaning : text,
-        );
-      }).toList(growable: false);
+      entries.value = results;
     } catch (e) {
       debugPrint('[dictionary_error] $e');
       if (!mounted || !dialogOpen) return;
@@ -291,6 +347,7 @@ class _FriendGameScreenState extends State<FriendGameScreen>
   // ── Init ─────────────────────────────────────────────────────────
 
   Future<void> _init() async {
+    unawaited(FerhengService.instance.init());
     final config = LanguageConfig.current;
     final allWords = await WordlistLoader.loadAssets(config.wordAssets);
     _validator = WordValidatorService(allWords);
@@ -303,11 +360,25 @@ class _FriendGameScreenState extends State<FriendGameScreen>
 
   void _onRoomUpdate(MultiplayerRoom? room) {
     if (room == null || !mounted) return;
+    if (kDebugMode) {
+      debugPrint(
+          '[FriendGameScreen] room=${room.roomCode} status=${room.status} turn=${room.currentTurnUid} host=${room.hostUid} guest=${room.guestUid} winner=${room.winner} finish=${room.finishReason} by=${room.finishedBy} pass=${room.passCount} score=${room.hostScore}-${room.guestScore}');
+    }
     final prev = _room;
+    _ensureChatListener(room);
+    _warmMeaningCache(room.lastMoveWords.map(
+      (word) => (word['word'] as String? ?? '').trim(),
+    ));
     setState(() {
       _room = room;
       _loading = false;
     });
+
+    // İlk yüklemede her iki oyuncunun seviyesini çek (bot olmayanlar için).
+    if (!_levelsFetched) {
+      _levelsFetched = true;
+      _fetchPlayerLevels(room);
+    }
 
     // Sync local state when my turn starts (or on first load)
     final isMyTurn = room.currentTurnUid == widget.myUid;
@@ -316,36 +387,66 @@ class _FriendGameScreenState extends State<FriendGameScreen>
     if (isMyTurn && !wasMyTurn) {
       // Opponent just submitted — refresh board and rack
       _syncFromRoom(room);
-      // Sıra bana geldi: banner + ses + local notification
+      // Sıra bana geldi: ekran zaten açıksa sadece oyun içi banner yeterli.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _showTurnBanner(L.turnIsYours);
       });
       HapticFeedback.mediumImpact();
-      // Local bildirim — app background'da olsa bile çalar
-      final isHost = room.hostUid == widget.myUid;
-      final oppName = isHost
-          ? (room.guestName ?? L.opponentFallback)
-          : room.hostName;
-      NotificationService.instance
-          .showOpponentMoveNotification(
-            opponentName: oppName,
-            roomCode: widget.roomCode,
-          )
-          .catchError((_) {});
     } else if (prev == null) {
       // First load
       _syncFromRoom(room);
     } else if (!isMyTurn) {
-      // Show opponent's committed board
-      setState(() {
-        _localBoard = room.toWordBoard();
-      });
+      // Rakibin sırası ve room güncellendi. Eğer kullanıcı preview taşları
+      // yerleştirmişse onları koruyalım — board'u ezmeyelim. Sıra bize
+      // gelince zaten _syncFromRoom çağrılır ve preview taşlar rafa geri
+      // döner (server rack'i hâlâ onları içerir).
+      if (_localBoard.pendingCells.isEmpty) {
+        setState(() {
+          _localBoard = room.toWordBoard();
+        });
+      }
     }
 
     if (room.status == 'finished' && !_gameOverShown) {
       _gameOverShown = true;
       WidgetsBinding.instance.addPostFrameCallback((_) => _showGameOver(room));
     }
+  }
+
+  void _ensureChatListener(MultiplayerRoom room) {
+    if (room.guestUid == null || room.status == 'waiting_invite') return;
+    if (_chatRoomCode == room.roomCode && _chatUnreadSub != null) return;
+    _chatRoomCode = room.roomCode;
+    MatchChatService.instance.ensureMatch(room);
+    _chatUnreadSub?.cancel();
+    _chatUnreadSub = MatchChatService.instance
+        .unreadCountStream(room.roomCode, widget.myUid)
+        .listen((count) {
+      if (mounted) setState(() => _chatUnreadCount = count);
+    }, onError: (_) {
+      if (mounted) setState(() => _chatUnreadCount = 0);
+    });
+  }
+
+  Future<void> _openGameChat() async {
+    final room = _room;
+    if (room == null) return;
+    HapticFeedback.selectionClick();
+    try {
+      await MatchChatService.instance.ensureMatch(room);
+      await MatchChatService.instance.markRead(room.roomCode, widget.myUid);
+      if (mounted) setState(() => _chatUnreadCount = 0);
+    } catch (_) {}
+    if (!mounted) return;
+    await GameChatPanel.show(
+      context,
+      room: room,
+      myUid: widget.myUid,
+      myName: AuthService.instance.effectiveDisplayName,
+    );
+    try {
+      await MatchChatService.instance.markRead(room.roomCode, widget.myUid);
+    } catch (_) {}
   }
 
   void _syncFromRoom(MultiplayerRoom room) {
@@ -366,13 +467,15 @@ class _FriendGameScreenState extends State<FriendGameScreen>
   bool get _isMyTurn => _room?.currentTurnUid == widget.myUid;
 
   void _onTileTap(GameTile tile) {
-    if (!_isMyTurn || _submitting) return;
+    // Sıra rakipte olsa bile taş seçilebilsin (preview/test için).
+    // Gerçek submit hâlâ _isMyTurn'e gated.
+    if (_submitting) return;
     HapticFeedback.selectionClick();
     setState(() => _selectedTile = _selectedTile?.id == tile.id ? null : tile);
   }
 
   void _onCellTap(int row, int col) {
-    if (!_isMyTurn || _submitting) return;
+    if (_submitting) return;
     final cell = _localBoard.cellAt(row, col);
 
     if (cell.isPending) {
@@ -404,7 +507,7 @@ class _FriendGameScreenState extends State<FriendGameScreen>
   }
 
   void _onTileDrop(int row, int col, GameTile tile) {
-    if (!_isMyTurn || _submitting) return;
+    if (_submitting) return;
     final cell = _localBoard.cellAt(row, col);
     if (cell.hasLetter) return;
     setState(() {
@@ -681,6 +784,60 @@ class _FriendGameScreenState extends State<FriendGameScreen>
 
   // ── Game over ─────────────────────────────────────────────────────
 
+  Future<void> _fetchPlayerLevels(MultiplayerRoom room) async {
+    if (!FirebaseService.isAvailable) return;
+    final isHost = room.hostUid == widget.myUid;
+    final myUid = widget.myUid;
+    final oppUid = isHost ? room.guestUid : room.hostUid;
+    try {
+      final my = await FirestoreService.instance.getProfile(myUid);
+      if (my != null && mounted) {
+        setState(() => _myLevel = my.level);
+      }
+    } catch (_) {}
+    if (oppUid == null || oppUid.startsWith('bot_')) return;
+    try {
+      final opp = await FirestoreService.instance.getProfile(oppUid);
+      if (opp != null && mounted) {
+        setState(() => _oppLevel = opp.level);
+      }
+    } catch (_) {}
+  }
+
+  void _awardMultiplayerReward({
+    required String roomCode,
+    required int myScore,
+    required bool iWon,
+    required bool isDraw,
+  }) {
+    final uid = AuthService.instance.currentUser?.uid;
+    if (uid == null || !FirebaseService.isAvailable) return;
+    final int xp;
+    final int peyv;
+    if (iWon) {
+      xp = 150 + myScore ~/ 10;
+      peyv = 15 + myScore ~/ 30;
+    } else if (isDraw) {
+      xp = 75 + myScore ~/ 15;
+      peyv = 7 + myScore ~/ 45;
+    } else {
+      xp = 30 + myScore ~/ 30;
+      peyv = 3 + myScore ~/ 60;
+    }
+    FirestoreService.instance.awardMultiplayerProgressionOnce(
+      roomCode: roomCode,
+      uid: uid,
+      xp: xp,
+      peyv: peyv,
+      reason: 'multiplayer_${iWon ? 'win' : isDraw ? 'draw' : 'loss'}',
+    );
+    FirestoreService.instance.recordPlayStats(
+      uid: uid,
+      playerScore: myScore,
+      won: iWon,
+    );
+  }
+
   void _showGameOver(MultiplayerRoom room) {
     if (!mounted) return;
     final isHost = room.hostUid == widget.myUid;
@@ -691,6 +848,15 @@ class _FriendGameScreenState extends State<FriendGameScreen>
 
     final iWon = room.winner == (isHost ? 'host' : 'guest');
     final isDraw = room.winner == 'draw';
+
+    // Multiplayer XP/Peyv ödülü — sadece bir kez (idempotent _gameOverShown
+    // guard'ı caller'da sağlıyor). Bots'a karşı kazançlar da sayılır.
+    _awardMultiplayerReward(
+      roomCode: room.roomCode,
+      myScore: myScore,
+      iWon: iWon,
+      isDraw: isDraw,
+    );
 
     SoundService.instance.play(iWon ? SFX.win : SFX.lose);
 
@@ -780,67 +946,72 @@ class _FriendGameScreenState extends State<FriendGameScreen>
     final myScore = isHost ? room.hostScore : room.guestScore;
     final oppScore = isHost ? room.guestScore : room.hostScore;
     final myTurn = _isMyTurn;
+    final boardInteractive = room.status != 'finished';
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
       backgroundColor: _bgFor(context),
       body: Stack(
         children: [
-          // Ambient sahne arka planı: dikey gradient + radial vignette
-          const Positioned.fill(
+          Positioned.fill(
             child: DecoratedBox(
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xFF0E1827), Color(0xFF060A12)],
-                ),
+                gradient: isDark
+                    ? const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [_kBgDark, Color(0xFF111827)],
+                      )
+                    : const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [_kBgLight, Color(0xFFE9F2E2)],
+                      ),
               ),
             ),
           ),
-          Positioned.fill(
-            child: IgnorePointer(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment.topCenter,
-                    radius: 1.2,
-                    colors: [
-                      const Color(0xFF4CAF50).withValues(alpha: 0.06),
-                      Colors.transparent,
-                    ],
+          Stack(
+            children: [
+              Column(
+                children: [
+                  _Header(
+                    myName: myName,
+                    oppName: oppName,
+                    myScore: myScore,
+                    oppScore: oppScore,
+                    myLevel: _myLevel,
+                    oppLevel: _oppLevel,
+                    isMyTurn: myTurn,
+                    bagCount: room.bagLetters.length,
+                    roomCode: widget.roomCode,
+                    chatUnreadCount: _chatUnreadCount,
+                    onBack: () {
+                      Navigator.pop(context);
+                      homeOpenMyGamesTick.value++;
+                    },
+                    onChat: _openGameChat,
+                    onForfeit: () async {
+                      final leave = await _confirmLeave();
+                      if (!leave || !mounted) return;
+                      await MultiplayerService.instance
+                          .leaveRoom(widget.roomCode, widget.myUid);
+                      if (!context.mounted) return;
+                      Navigator.pop(context);
+                    },
                   ),
-                ),
-              ),
-            ),
-          ),
-          SafeArea(
-            child: Stack(
-              children: [
-                Column(
-                  children: [
-                    _Header(
-                      myName: myName,
-                      oppName: oppName,
-                      myScore: myScore,
-                      oppScore: oppScore,
-                      isMyTurn: myTurn,
-                      bagCount: room.bagLetters.length,
-                      roomCode: widget.roomCode,
-                      onBack: () {
-                        Navigator.pop(context);
-                        homeOpenMyGamesTick.value++;
-                      },
-                      onForfeit: () async {
-                        final leave = await _confirmLeave();
-                        if (!leave || !mounted) return;
-                        await MultiplayerService.instance
-                            .leaveRoom(widget.roomCode, widget.myUid);
-                        if (!context.mounted) return;
-                        Navigator.pop(context);
-                      },
-                    ),
-                    // Board — zoom/pan destekli alan
-                    Expanded(
+                  // Board — zoom/pan destekli alan
+                  Expanded(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: isDark
+                              ? const [Color(0xFF101824), Color(0xFF0C1420)]
+                              : const [Color(0xFF87969E), Color(0xFFE9F2E2)],
+                          stops: const [0.0, 0.42],
+                        ),
+                      ),
                       child: LayoutBuilder(
                         builder: (ctx, constraints) {
                           final size =
@@ -850,8 +1021,7 @@ class _FriendGameScreenState extends State<FriendGameScreen>
                           final viewportHeight = _touchCtrl.panEnabled
                               ? constraints.maxHeight
                               : size;
-                          _touchCtrl.viewportSize =
-                              Size(size, viewportHeight);
+                          _touchCtrl.viewportSize = Size(size, viewportHeight);
                           _touchCtrl.contentSize = Size(size, size);
                           _scheduleInitialBoardZoom();
                           return Stack(
@@ -900,15 +1070,21 @@ class _FriendGameScreenState extends State<FriendGameScreen>
                                                   d.velocity.pixelsPerSecond),
                                           child: ScrabbleBoardWidget(
                                             board: _localBoard,
+                                            isDarkMode: isDark,
                                             lastMoveCells:
                                                 room.lastMoveCells.toSet(),
                                             meaningWords:
                                                 _meaningWordsFromRoom(room),
                                             onMeaningTap: _showWordMeanings,
-                                            onTileDrop:
-                                                myTurn ? _onTileDrop : null,
-                                            onCellTap:
-                                                myTurn ? _onCellTap : null,
+                                            onTileDrop: boardInteractive
+                                                ? _onTileDrop
+                                                : null,
+                                            onCellTap: boardInteractive
+                                                ? _onCellTap
+                                                : null,
+                                            onEmptyCellTap: boardInteractive
+                                                ? _onCellTap
+                                                : null,
                                           ),
                                         ),
                                       ),
@@ -927,74 +1103,109 @@ class _FriendGameScreenState extends State<FriendGameScreen>
                         },
                       ),
                     ),
-                    // Error
-                    if (_error.isNotEmpty)
-                      _ErrorShake(
-                        key: ValueKey(_errorTick),
-                        controller: _errorShakeCtrl!,
-                        child: Padding(
+                  ),
+                  // Error
+                  if (_error.isNotEmpty)
+                    _ErrorShake(
+                      key: ValueKey(_errorTick),
+                      controller: _errorShakeCtrl!,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 4),
+                        child: Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 4),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: _kError.withValues(alpha: 0.10),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                  color: _kError.withValues(alpha: 0.45)),
-                            ),
-                            child: Text(
-                              _error,
-                              style:
-                                  const TextStyle(color: _kError, fontSize: 13),
-                              textAlign: TextAlign.start,
-                            ),
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: _kError.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                                color: _kError.withValues(alpha: 0.45)),
+                          ),
+                          child: Text(
+                            _error,
+                            style:
+                                const TextStyle(color: _kError, fontSize: 13),
+                            textAlign: TextAlign.start,
                           ),
                         ),
                       ),
-                    // Turn indicator
-                    if (!myTurn)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                    ),
+                  // Rack — rakibin sırasında bile aktif (preview için)
+                  RepaintBoundary(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 2, 10, 2),
+                      child: LetterRackWidget(
+                        tiles: _myRack,
+                        enabled: !_submitting,
+                        selectedTileId: _selectedTile?.id,
+                        onTileTap: _onTileTap,
+                      ),
+                    ),
+                  ),
+                  // Action buttons — opponent turn'ünde de göster ama
+                  // submit/pass/steal disabled. Recall her zaman aktif
+                  // ki preview temizlenebilsin.
+                  if (myTurn)
+                    RepaintBoundary(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(10, 2, 10, 10),
+                        child: Column(
                           children: [
-                            const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: _kBlue),
+                            // Küçük eylem butonları
+                            Row(
+                              children: [
+                                _SmallBtn(
+                                  label: L.recall,
+                                  icon: Icons.undo_rounded,
+                                  onTap: _submitting ? null : _recallAll,
+                                ),
+                                const SizedBox(width: 8),
+                                _SmallBtn(
+                                  label: L.passTurn,
+                                  icon: Icons.skip_next_rounded,
+                                  onTap: _submitting ? null : _pass,
+                                ),
+                                const SizedBox(width: 8),
+                                _SmallBtn(
+                                  label: _isInStealMode
+                                      ? '⚡ ${L.steal}'
+                                      : '🎯 ${L.steal} ($_myStealsLeft)',
+                                  icon: Icons.auto_awesome_rounded,
+                                  active: _isInStealMode,
+                                  disabled: _myStealsLeft <= 0,
+                                  onTap: (_submitting || _myStealsLeft <= 0)
+                                      ? null
+                                      : () {
+                                          setState(() {
+                                            _isInStealMode = !_isInStealMode;
+                                            if (!_isInStealMode) _recallAll();
+                                          });
+                                          HapticFeedback.mediumImpact();
+                                        },
+                                ),
+                              ],
                             ),
-                            const SizedBox(width: 10),
-                            Text(
-                              '$oppName ${L.opponentTurnSuffix}',
-                              style:
-                                  const TextStyle(color: _kBlue, fontSize: 13),
+                            const SizedBox(height: 10),
+                            // Oyna butonu — premium gradient + glow
+                            _PlayBtn(
+                              loading: _submitting,
+                              steal: _isInStealMode,
+                              label: L.play,
+                              onTap: _submitting ? null : _submit,
                             ),
                           ],
                         ),
                       ),
-                    // Rack
+                    )
+                  else
+                    // Rakibin sırası: kullanıcı preview yerleştirebilsin
+                    // ama submit edilmesin. Recall her zaman aktif.
                     RepaintBoundary(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(10, 2, 10, 2),
-                        child: LetterRackWidget(
-                          tiles: _myRack,
-                          enabled: myTurn && !_submitting,
-                          selectedTileId: _selectedTile?.id,
-                          onTileTap: _onTileTap,
-                        ),
-                      ),
-                    ),
-                    // Action buttons
-                    if (myTurn)
-                      RepaintBoundary(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(10, 2, 10, 10),
-                          child: Column(
-                            children: [
-                              // Küçük eylem butonları
+                        padding: const EdgeInsets.fromLTRB(10, 2, 10, 10),
+                        child: Column(
+                          children: [
+                            if (_localBoard.pendingCells.isNotEmpty)
                               Row(
                                 children: [
                                   _SmallBtn(
@@ -1002,69 +1213,34 @@ class _FriendGameScreenState extends State<FriendGameScreen>
                                     icon: Icons.undo_rounded,
                                     onTap: _submitting ? null : _recallAll,
                                   ),
-                                  const SizedBox(width: 8),
-                                  _SmallBtn(
-                                    label: L.passTurn,
-                                    icon: Icons.skip_next_rounded,
-                                    onTap: _submitting ? null : _pass,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  _SmallBtn(
-                                    label: _isInStealMode
-                                        ? '⚡ ${L.steal}'
-                                        : '🎯 ${L.steal} ($_myStealsLeft)',
-                                    icon: Icons.auto_awesome_rounded,
-                                    active: _isInStealMode,
-                                    disabled: _myStealsLeft <= 0,
-                                    onTap: (_submitting || _myStealsLeft <= 0)
-                                        ? null
-                                        : () {
-                                            setState(() {
-                                              _isInStealMode = !_isInStealMode;
-                                              if (!_isInStealMode) _recallAll();
-                                            });
-                                            HapticFeedback.mediumImpact();
-                                          },
-                                  ),
                                 ],
                               ),
-                              const SizedBox(height: 10),
-                              // Oyna butonu — premium gradient + glow
-                              _PlayBtn(
-                                loading: _submitting,
-                                steal: _isInStealMode,
-                                label: L.play,
-                                onTap: _submitting ? null : _submit,
-                              ),
-                            ],
-                          ),
+                          ],
                         ),
-                      )
-                    else
-                      const SizedBox(height: 16),
-                  ],
+                      ),
+                    ),
+                ],
+              ),
+              // Turn banner overlay
+              if (_turnBannerText.isNotEmpty)
+                _TurnBanner(
+                  controller: _turnBannerCtrl!,
+                  text: _turnBannerText,
                 ),
-                // Turn banner overlay
-                if (_turnBannerText.isNotEmpty)
-                  _TurnBanner(
-                    controller: _turnBannerCtrl!,
-                    text: _turnBannerText,
-                  ),
-                // Skor celebration burst (streak büyütür)
-                if (_celebrateTick > 0)
-                  _CelebrationBurst(
-                    key: ValueKey('celeb-$_celebrateTick'),
-                    score: _celebrateScore,
-                    streak: _streak,
-                  ),
-                // Streak banner — kombo başladığında görünen "x2 / x3 ..."
-                if (_streakBannerTick > 0)
-                  _StreakBanner(
-                    key: ValueKey('streak-$_streakBannerTick'),
-                    streak: _streak,
-                  ),
-              ],
-            ),
+              // Skor celebration burst (streak büyütür)
+              if (_celebrateTick > 0)
+                _CelebrationBurst(
+                  key: ValueKey('celeb-$_celebrateTick'),
+                  score: _celebrateScore,
+                  streak: _streak,
+                ),
+              // Streak banner — kombo başladığında görünen "x2 / x3 ..."
+              if (_streakBannerTick > 0)
+                _StreakBanner(
+                  key: ValueKey('streak-$_streakBannerTick'),
+                  streak: _streak,
+                ),
+            ],
           ),
         ],
       ),
@@ -1113,10 +1289,14 @@ class _Header extends StatefulWidget {
   final String oppName;
   final int myScore;
   final int oppScore;
+  final int myLevel;
+  final int oppLevel;
   final bool isMyTurn;
   final int bagCount;
   final String roomCode;
+  final int chatUnreadCount;
   final VoidCallback onBack;
+  final VoidCallback onChat;
   final VoidCallback onForfeit;
 
   const _Header({
@@ -1124,10 +1304,14 @@ class _Header extends StatefulWidget {
     required this.oppName,
     required this.myScore,
     required this.oppScore,
+    required this.myLevel,
+    required this.oppLevel,
     required this.isMyTurn,
     required this.bagCount,
     required this.roomCode,
+    required this.chatUnreadCount,
     required this.onBack,
+    required this.onChat,
     required this.onForfeit,
   });
 
@@ -1190,22 +1374,29 @@ class _HeaderState extends State<_Header> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
+    final top = MediaQuery.of(context).padding.top;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
-      padding: const EdgeInsets.fromLTRB(6, 4, 6, 8),
+      padding: EdgeInsets.fromLTRB(10, top + 6, 10, 10),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF111A28), Color(0xFF1A2940)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: isDark
+              ? const [Color(0xFF1E2A3A), Color(0xFF101824)]
+              : const [Color(0xFF52616A), Color(0xFF87969E)],
         ),
         border: Border(
-          bottom:
-              BorderSide(color: Colors.white.withValues(alpha: 0.06), width: 1),
+          bottom: BorderSide(
+            color: isDark
+                ? Colors.white10
+                : const Color(0xFF6E7D86).withValues(alpha: 0.75),
+          ),
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.35),
-            blurRadius: 14,
+            color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.12),
+            blurRadius: 12,
             offset: const Offset(0, 4),
           ),
         ],
@@ -1214,7 +1405,7 @@ class _HeaderState extends State<_Header> with TickerProviderStateMixin {
         children: [
           _IconBtn(
             icon: Icons.arrow_back_ios_new_rounded,
-            color: Colors.white70,
+            color: const Color(0xFFF1F5F2),
             onTap: widget.onBack,
           ),
           const SizedBox(width: 4),
@@ -1222,6 +1413,7 @@ class _HeaderState extends State<_Header> with TickerProviderStateMixin {
             child: _PlayerCard(
               name: widget.myName,
               score: widget.myScore,
+              level: widget.myLevel,
               isActive: widget.isMyTurn,
               alignEnd: false,
               pulse: _pulseCtrl,
@@ -1235,6 +1427,7 @@ class _HeaderState extends State<_Header> with TickerProviderStateMixin {
             child: _PlayerCard(
               name: widget.oppName,
               score: widget.oppScore,
+              level: widget.oppLevel,
               isActive: !widget.isMyTurn,
               alignEnd: true,
               pulse: _pulseCtrl,
@@ -1242,6 +1435,11 @@ class _HeaderState extends State<_Header> with TickerProviderStateMixin {
               deltaTick: _oppDeltaTick,
               onDeltaDone: _onOppDeltaDone,
             ),
+          ),
+          const SizedBox(width: 4),
+          _HeaderChatButton(
+            unreadCount: widget.chatUnreadCount,
+            onTap: widget.onChat,
           ),
           const SizedBox(width: 4),
           _IconBtn(
@@ -1269,20 +1467,155 @@ class _IconBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final btn = Material(
-      color: Colors.white.withValues(alpha: 0.05),
+      color: Colors.white.withValues(alpha: isDark ? 0.06 : 0.14),
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
         onTap: onTap,
-        child: SizedBox(
+        child: Container(
           width: 36,
           height: 36,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: Colors.white.withValues(alpha: isDark ? 0.10 : 0.22),
+              width: 1.2,
+            ),
+          ),
           child: Icon(icon, color: color, size: 18),
         ),
       ),
     );
     return tooltip != null ? Tooltip(message: tooltip!, child: btn) : btn;
+  }
+}
+
+class _HeaderChatButton extends StatefulWidget {
+  final int unreadCount;
+  final VoidCallback onTap;
+
+  const _HeaderChatButton({
+    required this.unreadCount,
+    required this.onTap,
+  });
+
+  @override
+  State<_HeaderChatButton> createState() => _HeaderChatButtonState();
+}
+
+class _HeaderChatButtonState extends State<_HeaderChatButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse;
+  bool _pressed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulse = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    );
+    if (widget.unreadCount > 0) _pulse.repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(covariant _HeaderChatButton oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.unreadCount > 0 && !_pulse.isAnimating) {
+      _pulse.repeat(reverse: true);
+    } else if (widget.unreadCount <= 0) {
+      _pulse.stop();
+      _pulse.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return GestureDetector(
+      onTap: widget.onTap,
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) => setState(() => _pressed = false),
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.92 : 1,
+        duration: const Duration(milliseconds: 110),
+        curve: Curves.easeOutCubic,
+        child: AnimatedBuilder(
+          animation: _pulse,
+          builder: (_, __) {
+            final hasUnread = widget.unreadCount > 0;
+            final glow = hasUnread ? (0.28 + 0.34 * _pulse.value) : 0.0;
+            return Stack(
+              clipBehavior: Clip.none,
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withValues(alpha: isDark ? 0.06 : 0.14),
+                    border: Border.all(
+                      color: hasUnread
+                          ? const Color(0xFF64B5F6)
+                              .withValues(alpha: 0.48 + 0.25 * _pulse.value)
+                          : Colors.white
+                              .withValues(alpha: isDark ? 0.10 : 0.22),
+                      width: 1.2,
+                    ),
+                    boxShadow: [
+                      if (hasUnread)
+                        BoxShadow(
+                          color:
+                              const Color(0xFF64B5F6).withValues(alpha: glow),
+                          blurRadius: 14,
+                          spreadRadius: 0.8,
+                        ),
+                    ],
+                  ),
+                  child: const Icon(Icons.chat_bubble_rounded,
+                      color: Color(0xFFF1F5F2), size: 18),
+                ),
+                if (hasUnread)
+                  Positioned(
+                    right: -6,
+                    top: -6,
+                    child: Container(
+                      constraints:
+                          const BoxConstraints(minWidth: 18, minHeight: 18),
+                      padding: const EdgeInsets.symmetric(horizontal: 5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF5350),
+                        borderRadius: BorderRadius.circular(9),
+                        border: Border.all(
+                            color: const Color(0xFF111A28), width: 1.5),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        widget.unreadCount > 9 ? '9+' : '${widget.unreadCount}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w900,
+                          height: 1,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
   }
 }
 
@@ -1322,6 +1655,7 @@ class _BagChip extends StatelessWidget {
 class _PlayerCard extends StatelessWidget {
   final String name;
   final int score;
+  final int level;
   final bool isActive;
   final bool alignEnd;
   final Animation<double> pulse;
@@ -1332,6 +1666,7 @@ class _PlayerCard extends StatelessWidget {
   const _PlayerCard({
     required this.name,
     required this.score,
+    required this.level,
     required this.isActive,
     required this.alignEnd,
     required this.pulse,
@@ -1407,30 +1742,92 @@ class _PlayerCard extends StatelessWidget {
       ),
     );
 
+    // Seviye-bağımlı avatar çerçevesi (Bronz/Gümüş/Altın/Prestige)
+    final frame = avatarFrameAtLevel(level);
+    final frameColor = avatarFrameColor(frame);
+    final avatarRing = frameColor == null
+        ? avatar
+        : Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: frameColor, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: frameColor.withValues(alpha: 0.5),
+                  blurRadius: 8,
+                  spreadRadius: 0.5,
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.all(2),
+            child: avatar,
+          );
+
+    final avatarSize = frameColor == null ? 42.0 : 48.0;
     final avatarStack = SizedBox(
-      width: 42,
-      height: 42,
+      width: avatarSize,
+      height: avatarSize,
       child: Stack(clipBehavior: Clip.none, children: [
-        Center(child: avatar),
+        Center(child: avatarRing),
         onlineDot,
       ]),
     );
+
+    final isTr = L.current == AppLocale.tr;
+    final title = mpTitleAtLevel(level, isTr: isTr);
 
     final textBlock = Column(
       crossAxisAlignment:
           alignEnd ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       children: [
-        Text(
-          name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: isActive ? Colors.white : Colors.white54,
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.2,
-          ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment:
+              alignEnd ? MainAxisAlignment.end : MainAxisAlignment.start,
+          children: [
+            Flexible(
+              child: Text(
+                name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: isActive ? Colors.white : Colors.white54,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ),
+          ],
         ),
+        if (title != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: (frameColor ?? const Color(0xFFFFD700))
+                    .withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: (frameColor ?? const Color(0xFFFFD700))
+                      .withValues(alpha: 0.4),
+                  width: 0.8,
+                ),
+              ),
+              child: Text(
+                title,
+                style: TextStyle(
+                  color: frameColor ?? const Color(0xFFFFD700),
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ),
+          ),
         const SizedBox(height: 2),
         Stack(
           clipBehavior: Clip.none,

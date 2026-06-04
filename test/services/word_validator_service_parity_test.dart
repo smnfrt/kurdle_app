@@ -71,4 +71,19 @@ void main() {
     expect(newCount, greaterThan(50000),
         reason: 'Yeni wordlist çok küçük: $newCount kelime');
   });
+
+  test('kisa sesli harfsiz kisaltmalari oyun kelimesi saymaz', () {
+    final validator = WordValidatorService(
+      ['RR', 'XM', 'XX', 'JKX', 'EZ', 'EV', 'AV'],
+    );
+
+    expect(validator.isValid('rr'), isFalse);
+    expect(validator.isValid('xm'), isFalse);
+    expect(validator.isValid('xx'), isFalse);
+    expect(validator.isValid('jkx'), isFalse);
+
+    expect(validator.isValid('ez'), isTrue);
+    expect(validator.isValid('ev'), isTrue);
+    expect(validator.isValid('av'), isTrue);
+  });
 }

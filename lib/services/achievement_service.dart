@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:kurdle_app/models/achievement.dart';
 import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/firebase_service.dart';
+import 'package:kurdle_app/services/firestore_service.dart';
 import 'package:kurdle_app/services/logging_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -307,6 +308,7 @@ class AchievementService {
     states[id] = next;
     await _persist();
     if (shouldUnlock) {
+      _grantUnlockReward(def);
       _unlockController.add(def);
     }
   }
@@ -324,7 +326,26 @@ class AchievementService {
       unlockedAt: DateTime.now(),
     );
     await _persist();
+    _grantUnlockReward(def);
     _unlockController.add(def);
+  }
+
+  // Tier'a göre XP/Peyv ödülü. Fire-and-forget — unlock akışını bloke etmez.
+  void _grantUnlockReward(AchievementDef def) {
+    final uid = AuthService.instance.currentUser?.uid;
+    if (uid == null || !FirebaseService.isAvailable) return;
+    final (int xp, int peyv) = switch (def.tier) {
+      AchievementTier.bronze   => (50, 5),
+      AchievementTier.silver   => (150, 15),
+      AchievementTier.gold     => (400, 40),
+      AchievementTier.platinum => (1000, 100),
+    };
+    FirestoreService.instance.awardProgression(
+      uid: uid,
+      xp: xp,
+      peyv: peyv,
+      reason: 'achievement_${def.id}',
+    );
   }
 
   /// Mevcut progress'i en az `value`'e çıkar (idempotent çoklu olay için).

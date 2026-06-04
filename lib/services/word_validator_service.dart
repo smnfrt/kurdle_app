@@ -4,6 +4,8 @@ import 'package:kurdle_app/services/word_suggestion_service.dart';
 import 'package:kurdle_app/services/word_normalizer.dart';
 
 class WordValidatorService {
+  static final RegExp _vowelPattern = RegExp(r'[AEÊIİÎOUÛ]');
+
   final Set<String> _words;
 
   /// Kelime uzunluğuna göre gruplanmış sub-listeler. Length-aware sorgular
@@ -33,7 +35,7 @@ class WordValidatorService {
   WordValidatorService._internal(List<String> wordList)
       : _words = wordList
             .map((w) => _normalize(w))
-            .where((w) => w.isNotEmpty)
+            .where(_isPlayableDictionaryWord)
             .toSet(),
         _byLength = {} {
     for (final w in _words) {
@@ -45,6 +47,17 @@ class WordValidatorService {
 
   /// Ferheng ile aynı normalize kuralını kullanır.
   static String _normalize(String w) => WordNormalizer.normalize(w);
+
+  static bool _isPlayableDictionaryWord(String word) {
+    if (word.isEmpty) return false;
+
+    final len = word.characters.length;
+    if (len >= 2 && len <= 3 && !_vowelPattern.hasMatch(word)) {
+      return false;
+    }
+
+    return true;
+  }
 
   bool isValid(String word) => _words.contains(_normalize(word));
 

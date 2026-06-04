@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Peyvok</string>
+    <string name="facebook_app_id">FACEBOOK_APP_ID_BURAYA</string>
+    <string name="fb_login_protocol_scheme">fbFACEBOOK_APP_ID_BURAYA</string>
+    <string name="facebook_client_token">FACEBOOK_CLIENT_TOKEN_BURAYA</string>
 </resources>

@@ -1,11 +1,18 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
 import 'package:kurdle_app/domain.dart';
 import 'package:kurdle_app/domain.dart' as domain;
 import 'package:kurdle_app/game.dart';
+import 'package:kurdle_app/services/auth_service.dart';
+import 'package:kurdle_app/services/firebase_service.dart';
+import 'package:kurdle_app/services/firestore_service.dart';
+import 'package:kurdle_app/services/level_rewards.dart';
 import 'package:kurdle_app/widgets/board.dart';
+import 'package:kurdle_app/widgets/level_up_overlay.dart';
 import 'package:kurdle_app/widgets/how_to.dart';
 import 'package:kurdle_app/widgets/keyboard.dart';
 import 'package:kurdle_app/widgets/settings.dart';
@@ -42,10 +49,238 @@ class _WordleGameScreenState extends State<WordleGameScreen> {
       _streamController.add(_game.settings);
       return value;
     });
+
+    // Wordle XP ödülünü dinle — seviye atlama olduysa overlay göster.
+    Kurdle.wordleLevelUp.addListener(_onLevelUp);
+  }
+
+  // ── Wordle Harf İpucu (L6+, 25 Peyv) ─────────────────────────────
+  static const int _hintCost = 25;
+
+  Future<void> _onHintTap() async {
+    HapticFeedback.lightImpact();
+    final uid = AuthService.instance.currentUser?.uid;
+    if (uid == null || !FirebaseService.isAvailable) {
+      _showHintMsg(
+        title: 'Giriş gerekli',
+        body: 'Harf ipucu için giriş yapman gerekiyor.',
+        icon: Icons.login_rounded,
+      );
+      return;
+    }
+    final profile = await FirestoreService.instance.getProfile(uid);
+    if (!mounted) return;
+    final level = profile?.level ?? 1;
+    final peyv = profile?.peyv ?? 0;
+
+    if (!hasWordleHintUnlock(level)) {
+      _showHintMsg(
+        title: 'Seviye 6 gerekli',
+        body:
+            'Harf İpucu Seviye 6\'da açılır. Şu an Seviye $level\'desin.',
+        icon: Icons.lock_rounded,
+      );
+      return;
+    }
+    if (peyv < _hintCost) {
+      _showHintMsg(
+        title: 'Yeterli Peyv yok',
+        body: '$_hintCost Peyv gerekli. Bakiyen: $peyv Peyv.',
+        icon: Icons.savings_rounded,
+      );
+      return;
+    }
+    if (_game.context.remainingTries == 0) {
+      _showHintMsg(
+        title: 'Oyun bitti',
+        body: 'Bu turda artık ipucu satın alamazsın.',
+        icon: Icons.flag_rounded,
+      );
+      return;
+    }
+
+    final confirm = await _confirmHint(peyv);
+    if (confirm != true || !mounted) return;
+
+    final ok = await FirestoreService.instance.spendPeyv(
+      uid: uid,
+      amount: _hintCost,
+      reason: 'wordle_hint',
+    );
+    if (!mounted) return;
+    if (!ok) {
+      _showHintMsg(
+        title: 'Satın alma başarısız',
+        body: 'Tekrar dene.',
+        icon: Icons.error_outline_rounded,
+      );
+      return;
+    }
+    _revealRandomLetter();
+  }
+
+  Future<bool?> _confirmHint(int currentPeyv) {
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.lightbulb_rounded, color: Color(0xFFFFB300)),
+            SizedBox(width: 8),
+            Text('Harf İpucu'),
+          ],
+        ),
+        content: Text(
+          '$_hintCost Peyv harcayarak cevaptaki bir harfin pozisyonunu '
+          'görmek ister misin?\n\nBakiyen: $currentPeyv Peyv',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Vazgeç'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF00BFA5),
+              foregroundColor: Colors.white,
+            ),
+            child: Text('Harca ($_hintCost Peyv)'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _revealRandomLetter() {
+    final answer = _game.context.answer.toUpperCase();
+    if (answer.isEmpty) return;
+    final idx = Random().nextInt(answer.length);
+    final letter = answer[idx];
+    final position = idx + 1;
+    HapticFeedback.mediumImpact();
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: const [
+            Icon(Icons.lightbulb_rounded, color: Color(0xFFFFB300)),
+            SizedBox(width: 8),
+            Text('İpucu'),
+          ],
+        ),
+        content: RichText(
+          text: TextSpan(
+            style: DefaultTextStyle.of(ctx).style,
+            children: [
+              const TextSpan(text: 'Cevabın '),
+              TextSpan(
+                text: '$position.',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const TextSpan(text: ' harfi: '),
+              TextSpan(
+                text: letter,
+                style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF4CAF50),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Tamam'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showHintMsg({
+    required String title,
+    required String body,
+    required IconData icon,
+  }) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(icon, color: const Color(0xFFFFB300)),
+            const SizedBox(width: 8),
+            Expanded(child: Text(title)),
+          ],
+        ),
+        content: Text(body),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Tamam'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _onLevelUp() {
+    final reward = Kurdle.wordleLevelUp.value;
+    if (reward == null || !mounted) return;
+    // Her oyun sonunda kısa XP/Peyv özetini göster
+    if (reward.xpGained > 0 || reward.peyvGained > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.bolt_rounded,
+                  color: Color(0xFFFFD700), size: 18),
+              const SizedBox(width: 6),
+              Text('+${reward.xpGained} XP',
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
+              if (reward.peyvGained > 0) ...[
+                const SizedBox(width: 14),
+                const Icon(Icons.savings_rounded,
+                    color: Color(0xFF00BFA5), size: 18),
+                const SizedBox(width: 6),
+                Text('+${reward.peyvGained} Peyv',
+                    style: const TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ],
+          ),
+          backgroundColor: const Color(0xFF1A2535),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12)),
+          margin: const EdgeInsets.all(16),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+    // Sadece seviye atlanmış ise tam ekran overlay
+    LevelUpOverlay.maybeShow(
+      context: context,
+      oldLevel: reward.oldLevel,
+      newLevel: reward.newLevel,
+      xpGained: reward.xpGained,
+      peyvGained: reward.peyvGained,
+    );
+    // Reset so subsequent games can trigger again
+    Kurdle.wordleLevelUp.value = null;
   }
 
   @override
   void dispose() {
+    Kurdle.wordleLevelUp.removeListener(_onLevelUp);
     _streamController.close();
     super.dispose();
   }
@@ -160,7 +395,18 @@ class _WordleGameScreenState extends State<WordleGameScreen> {
               centerTitle: true,
               actions: [
                 Padding(
-                  padding: const EdgeInsets.only(left: 16, right: 16),
+                  padding: const EdgeInsets.only(left: 8, right: 8),
+                  child: GestureDetector(
+                    onTap: _onHintTap,
+                    child: Semantics(
+                      label: 'Harf İpucu',
+                      child: const Icon(Icons.lightbulb_outline_rounded,
+                          size: 26),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(left: 8, right: 16),
                   child: GestureDetector(
                     onTap: () => _setDialog(domain.Dialog.stats),
                     child: Semantics(

@@ -3,10 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/achievement_service.dart';
+import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/daily_challenge_service.dart';
 import 'package:kurdle_app/services/daily_streak_service.dart';
 import 'package:kurdle_app/services/daily_word_service.dart';
+import 'package:kurdle_app/services/firebase_service.dart';
+import 'package:kurdle_app/services/firestore_service.dart';
 import 'package:kurdle_app/services/game_store.dart';
+import 'package:kurdle_app/services/level_rewards.dart';
+import 'package:kurdle_app/widgets/level_up_overlay.dart';
 
 // ── Renkler ────────────────────────────────────────────────────────
 const _kBg = Color(0xFF0F1923);
@@ -93,6 +98,21 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen>
     _feedbackCtrl.dispose();
     _stageInCtrl.dispose();
     super.dispose();
+  }
+
+  // ── Retry (Peyv harcanarak yeniden başlatma) ─────────────────────
+  void _retry() {
+    setState(() {
+      _stageIndex = 0;
+      _totalScore = 0;
+      for (var i = 0; i < _stageScores.length; i++) {
+        _stageScores[i] = null;
+      }
+      _inputLetters = [];
+      _phase = _Phase.playing;
+    });
+    // Stage state'ini sıfırlayıp ilk stage'i başlat
+    _startStage();
   }
 
   // ── Stage management ─────────────────────────────────────────────
@@ -202,11 +222,22 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen>
     if (isPerfect) _totalScore += DailyChallengeService.perfectBonus;
 
     GameStore.instance.dailyBonusPoints += _totalScore;
-    DailyWordService.instance.recordChallengeResult(
+    DailyWordService.instance
+        .recordChallengeResult(
       stagesCompleted: completed,
       totalScore: _totalScore,
       perfectRun: isPerfect,
-    );
+    )
+        .then((reward) {
+      if (!mounted) return;
+      LevelUpOverlay.maybeShow(
+        context: context,
+        oldLevel: reward.oldLevel,
+        newLevel: reward.newLevel,
+        xpGained: reward.xpGained,
+        peyvGained: reward.peyvGained,
+      );
+    });
     setState(() => _phase = _Phase.result);
   }
 
@@ -225,6 +256,7 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen>
         stageScores: _stageScores,
         totalScore: _totalScore,
         onClose: () => Navigator.of(context).pop(),
+        onRetry: _retry,
       );
     }
 
@@ -933,12 +965,14 @@ class _ResultScreen extends StatefulWidget {
   final List<int?> stageScores;
   final int totalScore;
   final VoidCallback onClose;
+  final VoidCallback? onRetry;
 
   const _ResultScreen({
     required this.words,
     required this.stageScores,
     required this.totalScore,
     required this.onClose,
+    this.onRetry,
   });
 
   @override
@@ -971,6 +1005,93 @@ class _ResultScreenState extends State<_ResultScreen>
 
   int get _stagesCompleted => widget.stageScores.whereType<int>().length;
   bool get _isPerfect => _stagesCompleted == 3;
+
+  static const int _retryCost = 40;
+
+  Future<void> _onRetryTap() async {
+    HapticFeedback.lightImpact();
+    final uid = AuthService.instance.currentUser?.uid;
+    if (uid == null || !FirebaseService.isAvailable) {
+      _showRetryMsg(L.dailyRetrySignInTitle, L.dailyRetrySignInBody);
+      return;
+    }
+    final profile = await FirestoreService.instance.getProfile(uid);
+    if (!mounted) return;
+    final level = profile?.level ?? 1;
+    final peyv = profile?.peyv ?? 0;
+
+    if (!hasDailyRetryUnlock(level)) {
+      _showRetryMsg(
+        L.dailyRetryLockedTitle,
+        L.dailyRetryLockedBody(level),
+      );
+      return;
+    }
+    if (peyv < _retryCost) {
+      _showRetryMsg(
+          L.dailyRetryNoPeyvTitle, L.dailyRetryNoPeyvBody(_retryCost, peyv));
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.refresh_rounded, color: Color(0xFF42A5F5)),
+            const SizedBox(width: 8),
+            Text(L.dailyRetryTitle),
+          ],
+        ),
+        content: Text(L.dailyRetryConfirmBody(_retryCost, peyv)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(L.cancel),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF42A5F5),
+              foregroundColor: Colors.white,
+            ),
+            child: Text(L.spendPeyv(_retryCost)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
+    final ok = await FirestoreService.instance.spendPeyv(
+      uid: uid,
+      amount: _retryCost,
+      reason: 'daily_retry',
+    );
+    if (!mounted) return;
+    if (!ok) {
+      _showRetryMsg(L.purchaseFailed, L.retryAgain);
+      return;
+    }
+    widget.onRetry!();
+  }
+
+  void _showRetryMsg(String title, String body) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(title),
+        content: Text(body),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(L.done),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1027,6 +1148,13 @@ class _ResultScreenState extends State<_ResultScreen>
                     color: Color(0xFFFFD700),
                     fontSize: 28,
                     fontWeight: FontWeight.w900),
+              ),
+
+              // ── XP/Peyv kazancı ──────────────────────────────────
+              const SizedBox(height: 10),
+              _XpPeyvRow(
+                xp: _stagesCompleted * 30 + (_isPerfect ? 100 : 0),
+                peyv: _stagesCompleted * 5 + (_isPerfect ? 15 : 0),
               ),
 
               if (_isPerfect) ...[
@@ -1137,6 +1265,48 @@ class _ResultScreenState extends State<_ResultScreen>
 
               const Spacer(),
 
+              // ── Retry button (L7+, 40 Peyv) ──────────────────────
+              if (widget.onRetry != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(28, 0, 28, 10),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: _onRetryTap,
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        decoration: BoxDecoration(
+                          color:
+                              const Color(0xFF42A5F5).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                              color: const Color(0xFF42A5F5)
+                                  .withValues(alpha: 0.5),
+                              width: 1.2),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.refresh_rounded,
+                                color: Color(0xFF42A5F5), size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              L.dailyRetryButton(_retryCost),
+                              style: const TextStyle(
+                                color: Color(0xFF42A5F5),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+
               // ── Bottom button ─────────────────────────────────────
               Padding(
                 padding: EdgeInsets.fromLTRB(28, 0, 28, botPad + 28),
@@ -1179,6 +1349,68 @@ class _ResultScreenState extends State<_ResultScreen>
           ),
         ),
       ),
+    );
+  }
+}
+
+class _XpPeyvRow extends StatelessWidget {
+  final int xp;
+  final int peyv;
+  const _XpPeyvRow({required this.xp, required this.peyv});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFD700).withValues(alpha: 0.16),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+                color: const Color(0xFFFFD700).withValues(alpha: 0.45)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.bolt_rounded,
+                  color: Color(0xFFFFD700), size: 16),
+              const SizedBox(width: 4),
+              Text('+$xp XP',
+                  style: const TextStyle(
+                    color: Color(0xFFB8860B),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  )),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: const Color(0xFF00BFA5).withValues(alpha: 0.16),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+                color: const Color(0xFF00BFA5).withValues(alpha: 0.45)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.savings_rounded,
+                  color: Color(0xFF00BFA5), size: 16),
+              const SizedBox(width: 4),
+              Text('+$peyv Peyv',
+                  style: const TextStyle(
+                    color: Color(0xFF00786A),
+                    fontWeight: FontWeight.w800,
+                    fontSize: 13,
+                  )),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
