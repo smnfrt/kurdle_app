@@ -485,6 +485,7 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
 
     final ctrl = _controller!;
     final isPlayer = ctrl.phase == GamePhase.playerTurn;
+    final canInspectRack = ctrl.phase != GamePhase.gameOver;
     final mainContent = Column(
       children: [
         // Minimal top bar
@@ -634,13 +635,14 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
             child: _BottomPanel(
               tiles: ctrl.playerRack,
               isEnabled: isPlayer,
+              rackEnabled: canInspectRack,
               error: _error,
               phase: ctrl.phase,
               playerScore: ctrl.playerScore,
               aiScore: ctrl.aiScore,
               selectedTileId: _selectedTile?.id,
               onMenuTap: _showGameMenu,
-              onTileTap: isPlayer
+              onTileTap: canInspectRack
                   ? (tile) => setState(() {
                         _selectedTile =
                             _selectedTile?.id == tile.id ? null : tile;
@@ -1361,6 +1363,7 @@ class _ActiveDotState extends State<_ActiveDot>
 class _BottomPanel extends StatelessWidget {
   final List<GameTile> tiles;
   final bool isEnabled;
+  final bool rackEnabled;
   final String error;
   final GamePhase phase;
   final int playerScore;
@@ -1380,6 +1383,7 @@ class _BottomPanel extends StatelessWidget {
   const _BottomPanel({
     required this.tiles,
     required this.isEnabled,
+    this.rackEnabled = true,
     required this.error,
     required this.phase,
     required this.playerScore,
@@ -1518,7 +1522,7 @@ class _BottomPanel extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(10, 6, 10, 0),
             child: LetterRackWidget(
               tiles: tiles,
-              enabled: isEnabled,
+              enabled: rackEnabled,
               selectedTileId: selectedTileId,
               onTileTap: onTileTap,
             ),

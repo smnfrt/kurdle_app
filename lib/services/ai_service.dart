@@ -10,7 +10,8 @@ class AiMove {
   final List<({int row, int col, GameTile tile})> placements;
   final int score;
   final String word;
-  const AiMove({required this.placements, required this.score, required this.word});
+  const AiMove(
+      {required this.placements, required this.score, required this.word});
 }
 
 /// Scrabble AI rakip.
@@ -69,7 +70,12 @@ class AiService {
     final out = <String>{};
 
     // 1) Rack-only kelimeler
-    final rackOnly = _validator.findFormable(rackChars, minLength: 2);
+    final rackOnly = _validator.findFormable(
+      rackChars,
+      minLength: 2,
+      maxLength: rackChars.length,
+      limit: budget * 2,
+    );
     if (difficulty == AiDifficulty.easy) {
       // Easy: 2-4 harfli kelimeleri tercih, en uzun yapma
       out.addAll(rackOnly.where((w) => w.length >= 2 && w.length <= 4));
@@ -89,7 +95,13 @@ class AiService {
 
     // 1-anchor combo: rack + her tahta harfi
     for (final ch in boardChars) {
-      out.addAll(_validator.findFormable([...rackChars, ch], minLength: 2));
+      final available = [...rackChars, ch];
+      out.addAll(_validator.findFormable(
+        available,
+        minLength: 2,
+        maxLength: available.length,
+        limit: budget,
+      ));
       if (out.length >= budget * 3) break; // erken çıkış
     }
 
@@ -99,9 +111,13 @@ class AiService {
       outer:
       for (var a = 0; a < boardList.length; a++) {
         for (var b = a; b < boardList.length; b++) {
+          final available = [...rackChars, boardList[a], boardList[b]];
           out.addAll(_validator.findFormable(
-              [...rackChars, boardList[a], boardList[b]],
-              minLength: 3));
+            available,
+            minLength: 3,
+            maxLength: available.length,
+            limit: budget,
+          ));
           if (out.length >= budget * 4) break outer;
         }
       }
@@ -125,7 +141,8 @@ class AiService {
 
   // ── Easy: rastgele bir geçerli yerleşim ─────────────────────────
 
-  AiMove? _findEasyMove(WordBoard board, List<GameTile> rack, List<String> candidates) {
+  AiMove? _findEasyMove(
+      WordBoard board, List<GameTile> rack, List<String> candidates) {
     candidates.shuffle(_rng);
     for (final word in candidates) {
       final move = _tryPlaceAnyDirection(board, rack, word);
@@ -156,7 +173,8 @@ class AiService {
 
   // ── Yerleşim arama ──────────────────────────────────────────────
 
-  AiMove? _tryPlaceAnyDirection(WordBoard board, List<GameTile> rack, String word) {
+  AiMove? _tryPlaceAnyDirection(
+      WordBoard board, List<GameTile> rack, String word) {
     for (var row = 0; row < WordBoard.size; row++) {
       for (var col = 0; col <= WordBoard.size - word.length; col++) {
         final move = _tryHorizontal(board, rack, word, row, col);

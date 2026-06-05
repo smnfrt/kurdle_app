@@ -86,4 +86,21 @@ void main() {
     expect(validator.isValid('ev'), isTrue);
     expect(validator.isValid('av'), isTrue);
   });
+
+  test('findFormable maxLength ve limit ile aramayi sinirlar', () {
+    final validator = WordValidatorService(
+      ['AV', 'EV', 'EZ', 'AVA', 'AVAN', 'AVANAN'],
+    );
+
+    final limited = validator.findFormable(
+      ['A', 'V', 'A', 'N'],
+      minLength: 2,
+      maxLength: 4,
+      limit: 2,
+    );
+
+    expect(limited, hasLength(2));
+    expect(limited.every((w) => w.length <= 4), isTrue);
+    expect(limited, isNot(contains('AVANAN')));
+  });
 }

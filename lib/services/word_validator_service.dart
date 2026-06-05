@@ -67,15 +67,19 @@ class WordValidatorService {
 
   /// Verilen harflerle oluşturulabilecek tüm geçerli kelimeleri döndürür.
   List<String> findFormable(List<String> available,
-      {int minLength = 2, int? maxLength}) {
+      {int minLength = 2, int? maxLength, int? limit}) {
     final pool = available.map((l) => _normalize(l)).toList();
+    final effectiveMaxLength = maxLength ?? pool.length;
     final out = <String>[];
     for (final entry in _byLength.entries) {
       final len = entry.key;
       if (len < minLength) continue;
-      if (maxLength != null && len > maxLength) continue;
+      if (len > effectiveMaxLength) continue;
       for (final w in entry.value) {
-        if (_canForm(w, pool)) out.add(w);
+        if (_canForm(w, pool)) {
+          out.add(w);
+          if (limit != null && out.length >= limit) return out;
+        }
       }
     }
     return out;

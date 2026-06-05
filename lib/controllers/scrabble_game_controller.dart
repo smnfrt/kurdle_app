@@ -79,6 +79,7 @@ class ScrabbleGameController extends ChangeNotifier {
   void setMeaningPopupOpen(bool open) {
     _meaningPopupOpen = open;
   }
+
   bool turnForfeited = false;
   WordSuggestion? lastSuggestion;
 
@@ -126,6 +127,7 @@ class ScrabbleGameController extends ChangeNotifier {
     playerStealsLeft += 1;
     notifyListeners();
   }
+
   int get tilesLeft => _bag.remaining;
 
   List<({String word, int score, bool valid})> _cachedPendingWords = const [];
@@ -460,7 +462,8 @@ class ScrabbleGameController extends ChangeNotifier {
     // Player'ın hamlesini ayrıca sakla — AI _setLastMoveFromPlacedCells'i
     // tekrar çağırıp lastMoveWords'ü ezse bile bu kalır. Meaning popup
     // her zaman player'ın son kelimelerini de gösterebilir.
-    lastPlayerMoveWords = lastMoveWords.map((w) => w.word).toList(growable: false);
+    lastPlayerMoveWords =
+        lastMoveWords.map((w) => w.word).toList(growable: false);
     _recordWords(words,
         owner: 0, enhanceTarget: enhanceTarget, enhancerOwner: 0);
     _refillRack(playerRack);
@@ -493,7 +496,9 @@ class ScrabbleGameController extends ChangeNotifier {
     // popup açıkken devreye girer. Player'ın son hamlesi ayrıca saklanır
     // (lastPlayerMoveWords), popup AI hamlesinden sonra da erişilebilir.
     await Future.delayed(const Duration(milliseconds: 800));
-    if (_disposed) return; // controller dispose edildiyse devam etme (çökme koruması)
+    if (_disposed) {
+      return; // controller dispose edildiyse devam etme (çökme koruması)
+    }
     while (_meaningPopupOpen) {
       await Future.delayed(const Duration(milliseconds: 200));
       if (_disposed) return;
@@ -503,47 +508,49 @@ class ScrabbleGameController extends ChangeNotifier {
       _scheduleAiMove();
       return;
     }
+    await Future<void>.delayed(Duration.zero);
+    if (_disposed) return;
     _executeAiMove();
   }
 
   void _executeAiMove() {
-      if (_disposed) return; // dispose sonrası notifyListeners çökmesini önle
-      final move = _ai.findBestMove(board, aiRack, difficulty: aiDifficulty);
-      if (move != null) {
-        for (final p in move.placements) {
-          board = board.placePending(p.row, p.col, p.tile.letter, p.tile.id);
-          aiRack.removeWhere((t) => t.id == p.tile.id);
-        }
-        final aiWords = _scorer.calculateNewWords(board);
-        final placedCellKeys = board.pendingCells
-            .map((cell) => '${cell.row}:${cell.column}')
-            .toSet();
-        aiScore += move.score;
-        board = board.commitPending();
-        _setLastMoveFromPlacedCells(placedCellKeys, fallbackWords: aiWords);
-        _recordWords(aiWords, owner: 1, enhanceTarget: null, enhancerOwner: 1);
-        _refillRack(aiRack);
-      } else {
-        totalPassCount++;
+    if (_disposed) return; // dispose sonrası notifyListeners çökmesini önle
+    final move = _ai.findBestMove(board, aiRack, difficulty: aiDifficulty);
+    if (move != null) {
+      for (final p in move.placements) {
+        board = board.placePending(p.row, p.col, p.tile.letter, p.tile.id);
+        aiRack.removeWhere((t) => t.id == p.tile.id);
       }
+      final aiWords = _scorer.calculateNewWords(board);
+      final placedCellKeys = board.pendingCells
+          .map((cell) => '${cell.row}:${cell.column}')
+          .toSet();
+      aiScore += move.score;
+      board = board.commitPending();
+      _setLastMoveFromPlacedCells(placedCellKeys, fallbackWords: aiWords);
+      _recordWords(aiWords, owner: 1, enhanceTarget: null, enhancerOwner: 1);
+      _refillRack(aiRack);
+    } else {
+      totalPassCount++;
+    }
 
-      _turnNumber++;
-      _refreshPendingWords();
+    _turnNumber++;
+    _refreshPendingWords();
 
-      if (totalPassCount >= maxTotalPasses) {
-        phase = GamePhase.gameOver;
-        message = L.gameEndedByPasses;
-      } else {
-        phase = _bag.isEmpty && playerRack.isEmpty
-            ? GamePhase.gameOver
-            : GamePhase.playerTurn;
-      }
-      notifyListeners();
-      if (phase == GamePhase.gameOver) {
-        _onGameOver();
-      } else {
-        _startTurnTimer();
-      }
+    if (totalPassCount >= maxTotalPasses) {
+      phase = GamePhase.gameOver;
+      message = L.gameEndedByPasses;
+    } else {
+      phase = _bag.isEmpty && playerRack.isEmpty
+          ? GamePhase.gameOver
+          : GamePhase.playerTurn;
+    }
+    notifyListeners();
+    if (phase == GamePhase.gameOver) {
+      _onGameOver();
+    } else {
+      _startTurnTimer();
+    }
   }
 
   // ─── Geliştirme yardımcıları ──────────────────────────────────────
