@@ -510,12 +510,17 @@ class ScrabbleGameController extends ChangeNotifier {
     }
     await Future<void>.delayed(Duration.zero);
     if (_disposed) return;
-    _executeAiMove();
+    await _executeAiMove();
   }
 
-  void _executeAiMove() {
+  Future<void> _executeAiMove() async {
     if (_disposed) return; // dispose sonrası notifyListeners çökmesini önle
-    final move = _ai.findBestMove(board, aiRack, difficulty: aiDifficulty);
+    final move = await _ai.findBestMoveResponsive(
+      board,
+      aiRack,
+      difficulty: aiDifficulty,
+    );
+    if (_disposed || phase != GamePhase.aiTurn) return;
     if (move != null) {
       for (final p in move.placements) {
         board = board.placePending(p.row, p.col, p.tile.letter, p.tile.id);

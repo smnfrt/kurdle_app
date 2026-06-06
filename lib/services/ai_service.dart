@@ -59,6 +59,31 @@ class AiService {
     return _findBestScoredMove(board, rack, candidates, difficulty);
   }
 
+  /// UI dostu sürüm: ağır AI aramasını tek frame'de kilitlemek yerine küçük
+  /// parçalara böler. Özellikle hard modda geri tuşu / anlam popup'ı gibi
+  /// etkileşimlerin AI sırası boyunca yanıt vermeye devam etmesini sağlar.
+  Future<AiMove?> findBestMoveResponsive(
+    WordBoard board,
+    List<GameTile> rack, {
+    AiDifficulty difficulty = AiDifficulty.normal,
+  }) async {
+    final rackChars = rack.map((t) => t.letter).toList();
+
+    final candidates = await _gatherCandidatesResponsive(
+      board,
+      rackChars,
+      difficulty,
+    );
+    if (candidates.isEmpty) return null;
+
+    if (difficulty == AiDifficulty.easy) {
+      await _yieldToUi();
+      return _findEasyMove(board, rack, candidates);
+    }
+
+    return _findBestScoredMoveResponsive(board, rack, candidates);
+  }
+
   // ── Aday üretimi ───────────────────────────────────────────────
 
   List<String> _gatherCandidates(
@@ -126,6 +151,74 @@ class AiService {
     return _trim(out, budget);
   }
 
+  Future<List<String>> _gatherCandidatesResponsive(
+    WordBoard board,
+    List<String> rackChars,
+    AiDifficulty difficulty,
+  ) async {
+    final budget = _wordBudget[difficulty]!;
+    final out = <String>{};
+
+    final rackOnly = _validator.findFormable(
+      rackChars,
+      minLength: 2,
+      maxLength: rackChars.length,
+      limit: budget * 2,
+    );
+    await _yieldToUi();
+
+    if (difficulty == AiDifficulty.easy) {
+      out.addAll(rackOnly.where((w) => w.length >= 2 && w.length <= 4));
+      if (out.length < budget) {
+        out.addAll(rackOnly);
+      }
+      return _trim(out, budget, easy: true);
+    }
+    out.addAll(rackOnly);
+
+    final boardChars = <String>{};
+    for (final c in board.cells) {
+      final l = c.letter;
+      if (l.isNotEmpty) boardChars.add(l);
+    }
+
+    var scannedAnchors = 0;
+    for (final ch in boardChars) {
+      final available = [...rackChars, ch];
+      out.addAll(_validator.findFormable(
+        available,
+        minLength: 2,
+        maxLength: available.length,
+        limit: budget,
+      ));
+      scannedAnchors++;
+      if (scannedAnchors % 2 == 0) await _yieldToUi();
+      if (out.length >= budget * 3) break;
+    }
+
+    if (difficulty == AiDifficulty.hard) {
+      final boardList = boardChars.toList();
+      var scannedPairs = 0;
+      outer:
+      for (var a = 0; a < boardList.length; a++) {
+        for (var b = a; b < boardList.length; b++) {
+          final available = [...rackChars, boardList[a], boardList[b]];
+          out.addAll(_validator.findFormable(
+            available,
+            minLength: 3,
+            maxLength: available.length,
+            limit: budget,
+          ));
+          scannedPairs++;
+          if (scannedPairs % 2 == 0) await _yieldToUi();
+          if (out.length >= budget * 4) break outer;
+        }
+      }
+    }
+
+    return _trim(out, budget);
+  }
+
   /// Aday setini budget'a göre kısaltır.
   List<String> _trim(Set<String> set, int budget, {bool easy = false}) {
     final list = set.toList();
@@ -170,6 +263,24 @@ class AiService {
     }
     return best;
   }
+
+  Future<AiMove?> _findBestScoredMoveResponsive(
+    WordBoard board,
+    List<GameTile> rack,
+    List<String> candidates,
+  ) async {
+    AiMove? best;
+    for (var i = 0; i < candidates.length; i++) {
+      final move = _tryAllPositions(board, rack, candidates[i]);
+      if (move != null && (best == null || move.score > best.score)) {
+        best = move;
+      }
+      if (i % 4 == 3) await _yieldToUi();
+    }
+    return best;
+  }
+
+  Future<void> _yieldToUi() => Future<void>.delayed(Duration.zero);
 
   // ── Yerleşim arama ──────────────────────────────────────────────
 
