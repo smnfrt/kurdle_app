@@ -178,8 +178,8 @@ class FerhengService {
   Future<FerhengEntry?> getEntry(String word) async {
     await init();
     final id = _normalize(word);
-    return _byId[id] ??
-        _entryForSurfaceForm(word) ??
+    return _entryForSurfaceForm(word) ??
+        _byId[id] ??
         _entryForRelatedForm(id) ??
         _entryForInflectedForm(id);
   }
@@ -189,7 +189,7 @@ class FerhengService {
   Future<FerhengEntry?> getOrFallback(String word) async {
     await init();
     final id = _normalize(word);
-    final entry = _byId[id] ?? _entryForSurfaceForm(word);
+    final entry = _entryForSurfaceForm(word) ?? _byId[id];
     final relatedEntry = entry == null ? _entryForRelatedForm(id) : null;
     if (relatedEntry != null) return relatedEntry;
     final overrideTr = _trOverrides?[id] ?? _trOverrides?[entry?.normalized];
