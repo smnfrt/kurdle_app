@@ -145,6 +145,9 @@ class MatchChatService {
 
   Future<void> markRead(String matchId, String uid) async {
     final matchRef = _matches.doc(matchId);
+    final matchSnap = await matchRef.get();
+    if (!matchSnap.exists) return;
+
     final batch = _db.batch();
     batch.set(
         matchRef,
