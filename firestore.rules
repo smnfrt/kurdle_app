@@ -33,6 +33,9 @@ service cloud.firestore {
     function isOwner(uid) {
       return signedIn() && request.auth.uid == uid;
     }
+    function roomPath(roomCode) {
+      return /databases/$(database)/documents/rooms/$(roomCode);
+    }
 
     // rooms üyeliği (mevcut doküman üzerinden)
     function isRoomMember() {
@@ -79,6 +82,19 @@ service cloud.firestore {
         && get(invitePath(request.resource.data.inviteId)).data.fromUserId == request.resource.data.hostUid
         && get(invitePath(request.resource.data.inviteId)).data.toUserId == request.auth.uid
         && get(invitePath(request.resource.data.inviteId)).data.gameType == request.resource.data.gameType;
+    }
+    function canReadExistingRoom() {
+      return signedIn() && (
+        isRoomMember()
+        || isLegacyInvitee()
+        || resource.data.status == 'waiting_random'
+        || resource.data.status == 'waiting'
+      );
+    }
+    function canGetRoom(roomCode) {
+      return canReadExistingRoom() || (
+        signedIn() && !exists(roomPath(roomCode))
+      );
     }
 
     // ── users/{uid} + alt-koleksiyonlar ──────────────────────────
@@ -133,12 +149,8 @@ service cloud.firestore {
     // active odayı oluşturur. Update: mevcut üye veya odaya katılan guest.
     // Delete: host, bekleyen kendi odasını iptal edebilir (cancelRandomSearch).
     match /rooms/{roomCode} {
-      allow read: if signedIn() && (
-        isRoomMember()
-        || isLegacyInvitee()
-        || resource.data.status == 'waiting_random'
-        || resource.data.status == 'waiting'
-      );
+      allow get: if canGetRoom(roomCode);
+      allow list: if canReadExistingRoom();
       allow create: if signedIn() && (
         (
           request.resource.data.hostUid == request.auth.uid
