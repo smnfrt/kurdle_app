@@ -506,8 +506,16 @@ class MultiplayerService {
     required String gameType,
   }) async {
     final snaps = await Future.wait([
-      _gameInvites.where('fromUserId', isEqualTo: fromUserId).limit(50).get(),
-      _gameInvites.where('fromUserId', isEqualTo: toUserId).limit(50).get(),
+      _gameInvites
+          .where('fromUserId', isEqualTo: fromUserId)
+          .where('toUserId', isEqualTo: toUserId)
+          .limit(20)
+          .get(),
+      _gameInvites
+          .where('fromUserId', isEqualTo: toUserId)
+          .where('toUserId', isEqualTo: fromUserId)
+          .limit(20)
+          .get(),
     ]);
     for (final snap in snaps) {
       for (final doc in snap.docs) {

@@ -41,17 +41,13 @@ service cloud.firestore {
         || request.auth.uid == resource.data.guestUid
       );
     }
-    // rooms üyeliği (yazımdan SONRAKİ duruma göre — join senaryosu)
-    function isRoomMemberAfter() {
-      return signedIn() && (
-        request.auth.uid == request.resource.data.hostUid
-        || request.auth.uid == request.resource.data.guestUid
-      );
-    }
 
     // matches (chat) yardımcıları
     function matchPath(matchId) {
       return /databases/$(database)/documents/matches/$(matchId);
+    }
+    function invitePath(inviteId) {
+      return /databases/$(database)/documents/gameInvites/$(inviteId);
     }
     function isMatchPlayer(matchId) {
       return signedIn()
@@ -67,6 +63,22 @@ service cloud.firestore {
       return signedIn()
         && (request.auth.uid == resource.data.fromUserId
           || request.auth.uid == resource.data.toUserId);
+    }
+    function isLegacyInvitee() {
+      return signedIn()
+        && resource.data.status == 'waiting_invite'
+        && request.auth.uid == resource.data.inviteeUid;
+    }
+    function canCreateAcceptedInviteRoom() {
+      return signedIn()
+        && request.resource.data.status == 'active'
+        && request.resource.data.guestUid == request.auth.uid
+        && request.resource.data.inviteId is string
+        && exists(invitePath(request.resource.data.inviteId))
+        && get(invitePath(request.resource.data.inviteId)).data.status == 'pending'
+        && get(invitePath(request.resource.data.inviteId)).data.fromUserId == request.resource.data.hostUid
+        && get(invitePath(request.resource.data.inviteId)).data.toUserId == request.auth.uid
+        && get(invitePath(request.resource.data.inviteId)).data.gameType == request.resource.data.gameType;
     }
 
     // ── users/{uid} + alt-koleksiyonlar ──────────────────────────
@@ -115,18 +127,25 @@ service cloud.firestore {
     }
 
     // ── rooms/{roomCode} — çok-oyunculu oyun durumu ──────────────
-    // Okuma: oda üyeleri + matchmaking için bekleyen odalar (waiting_random query).
-    // Create: host kendini hostUid yapar. Update: mevcut üye veya odaya katılan guest.
+    // Okuma: oda üyeleri + oda kodu/rastgele eşleşme için bekleyen odalar.
+    // Legacy waiting_invite odaları sadece host veya davet edilen kullanıcı görür.
+    // Create: host kendi bekleme odasını açar veya kalıcı daveti kabul eden guest
+    // active odayı oluşturur. Update: mevcut üye veya odaya katılan guest.
     // Delete: host, bekleyen kendi odasını iptal edebilir (cancelRandomSearch).
     match /rooms/{roomCode} {
       allow read: if signedIn() && (
         isRoomMember()
+        || isLegacyInvitee()
         || resource.data.status == 'waiting_random'
         || resource.data.status == 'waiting'
-        || resource.data.status == 'waiting_invite'
       );
-      allow create: if signedIn()
-        && request.resource.data.hostUid == request.auth.uid;
+      allow create: if signedIn() && (
+        (
+          request.resource.data.hostUid == request.auth.uid
+          && request.resource.data.status in ['waiting', 'waiting_random', 'waiting_invite']
+        )
+        || canCreateAcceptedInviteRoom()
+      );
       allow update: if signedIn() && (
         // Mevcut oyuncu (hamle/pass/leave) — hostUid/guestUid değişmez
         (isRoomMember()
