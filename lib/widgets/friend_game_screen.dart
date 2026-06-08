@@ -51,6 +51,16 @@ Color _cardFor(BuildContext ctx) =>
     Theme.of(ctx).brightness == Brightness.dark ? _kCardDark : _kCardLight;
 const _kInitialBoardZoom = 2.05;
 
+double _bottomSafePadding(BuildContext context, {double minimum = 18}) {
+  final mq = MediaQuery.of(context);
+  final detected = [
+    mq.padding.bottom,
+    mq.viewPadding.bottom,
+    mq.systemGestureInsets.bottom,
+  ].fold<double>(0, (max, value) => value > max ? value : max);
+  return detected < minimum ? minimum : detected;
+}
+
 class FriendGameScreen extends StatefulWidget {
   final String roomCode;
   final String myUid;
@@ -949,6 +959,7 @@ class _FriendGameScreenState extends State<FriendGameScreen>
     final boardInteractive = room.status != 'finished';
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bottomSafe = _bottomSafePadding(context);
     return Scaffold(
       backgroundColor: _bgFor(context),
       body: Stack(
@@ -1148,7 +1159,8 @@ class _FriendGameScreenState extends State<FriendGameScreen>
                   if (myTurn)
                     RepaintBoundary(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(10, 2, 10, 10),
+                        padding:
+                            EdgeInsets.fromLTRB(10, 2, 10, bottomSafe + 10),
                         child: Column(
                           children: [
                             // Küçük eylem butonları
@@ -1202,7 +1214,8 @@ class _FriendGameScreenState extends State<FriendGameScreen>
                     // ama submit edilmesin. Recall her zaman aktif.
                     RepaintBoundary(
                       child: Padding(
-                        padding: const EdgeInsets.fromLTRB(10, 2, 10, 10),
+                        padding:
+                            EdgeInsets.fromLTRB(10, 2, 10, bottomSafe + 10),
                         child: Column(
                           children: [
                             if (_localBoard.pendingCells.isNotEmpty)

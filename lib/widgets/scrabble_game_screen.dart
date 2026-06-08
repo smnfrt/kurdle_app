@@ -34,6 +34,16 @@ const _kBottomBg = Color(0xFF252525);
 const _kErrorColor = Color(0xFFFF6B6B);
 const _kInitialBoardZoom = 2.05;
 
+double _bottomSafePadding(BuildContext context, {double minimum = 18}) {
+  final mq = MediaQuery.of(context);
+  final detected = [
+    mq.padding.bottom,
+    mq.viewPadding.bottom,
+    mq.systemGestureInsets.bottom,
+  ].fold<double>(0, (max, value) => value > max ? value : max);
+  return detected < minimum ? minimum : detected;
+}
+
 class ScrabbleGameScreen extends StatefulWidget {
   final ScrabbleGameController? existingController;
   final String? tournamentMatchId;
@@ -1405,7 +1415,7 @@ class _BottomPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).padding.bottom;
+    final bottom = _bottomSafePadding(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final panelBg = isDark ? _kBottomBg : const Color(0xFFE8E2D4);
     final handleColor = isDark
@@ -1567,7 +1577,7 @@ class _BottomPanel extends StatelessWidget {
 
           // Büyük "Bilîze" butonu
           Padding(
-            padding: EdgeInsets.fromLTRB(10, 6, 10, bottom + 8),
+            padding: EdgeInsets.fromLTRB(10, 6, 10, bottom + 10),
             child: SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
