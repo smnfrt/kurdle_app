@@ -1784,44 +1784,165 @@ class _WordPreviewBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final validWords = words.where((e) => e.valid).toList(growable: false);
     final hasInvalid = words.any((e) => !e.valid);
+    final hasWords = words.isNotEmpty;
     final totalScore =
         hasInvalid ? 0 : validWords.fold<int>(0, (sum, e) => sum + e.score);
-    final accent =
-        hasInvalid ? const Color(0xFFB71C1C) : const Color(0xFF2E7D32);
+    final accent = hasInvalid ? const Color(0xFFFF6B6B) : _kPrimary;
+    final surface = isDark
+        ? const Color(0xFF101A25).withValues(alpha: 0.88)
+        : Colors.white.withValues(alpha: 0.92);
+    final primaryText = isDark ? Colors.white : const Color(0xFF16251D);
+    final secondaryText =
+        isDark ? Colors.white.withValues(alpha: 0.68) : const Color(0xFF52645A);
+    final statusText = !hasWords
+        ? (L.current == AppLocale.tr ? 'Kelime bekleniyor' : 'Li bendê ye')
+        : hasInvalid
+            ? (L.current == AppLocale.tr
+                ? 'Geçersiz kelime'
+                : 'Peyv ne derbasdar e')
+            : (L.current == AppLocale.tr
+                ? 'Geçerli kelime'
+                : 'Peyv derbasdar e');
+    final wordText = hasWords
+        ? words.map((e) => e.word).join(' + ')
+        : (L.current == AppLocale.tr
+            ? 'Tahtaya kelime yerleştir'
+            : 'Peyvê li textê deyne');
 
-    return SizedBox(
-      height: 36,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
       width: double.infinity,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: accent.withValues(alpha: words.isEmpty ? 0.08 : 0.13),
-              borderRadius: BorderRadius.circular(999),
-              border:
-                  Border.all(color: accent.withValues(alpha: 0.45), width: 1),
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+      decoration: BoxDecoration(
+        color: surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: hasWords
+              ? accent.withValues(alpha: isDark ? 0.58 : 0.62)
+              : (isDark
+                  ? Colors.white.withValues(alpha: 0.14)
+                  : const Color(0xFFD5E0D8)),
+          width: 1.2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.34 : 0.13),
+            blurRadius: 18,
+            offset: const Offset(0, 7),
+          ),
+          if (hasWords)
+            BoxShadow(
+              color: accent.withValues(alpha: hasInvalid ? 0.16 : 0.20),
+              blurRadius: 18,
+              spreadRadius: 1,
             ),
-            child: Row(
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: accent.withValues(alpha: hasWords ? 0.16 : 0.08),
+              border: Border.all(
+                color: accent.withValues(alpha: hasWords ? 0.52 : 0.22),
+              ),
+            ),
+            child: Icon(
+              !hasWords
+                  ? Icons.edit_rounded
+                  : hasInvalid
+                      ? Icons.warning_amber_rounded
+                      : Icons.check_rounded,
+              color: hasWords ? accent : secondaryText,
+              size: 21,
+            ),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  statusText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: hasWords ? accent : secondaryText,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  wordText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: primaryText,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0,
+                    height: 1.05,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+            constraints: const BoxConstraints(minWidth: 72),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: hasWords && !hasInvalid
+                    ? const [Color(0xFFFFD86B), Color(0xFFE0A82B)]
+                    : [
+                        accent.withValues(alpha: hasWords ? 0.18 : 0.08),
+                        accent.withValues(alpha: hasWords ? 0.10 : 0.05),
+                      ],
+              ),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: hasWords && !hasInvalid
+                    ? const Color(0xFFFFE7A3)
+                    : accent.withValues(alpha: hasWords ? 0.34 : 0.16),
+              ),
+            ),
+            child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  hasInvalid ? Icons.warning_amber_rounded : Icons.bolt_rounded,
-                  size: 13,
-                  color: accent,
-                ),
-                const SizedBox(width: 6),
                 Text(
-                  '$totalScore ${L.points}',
+                  hasInvalid ? '0' : '$totalScore',
                   style: TextStyle(
-                    color: accent,
-                    fontSize: 12,
+                    color: hasWords && !hasInvalid
+                        ? const Color(0xFF3A2600)
+                        : (hasWords ? accent : secondaryText),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    height: 0.95,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  L.points,
+                  style: TextStyle(
+                    color: hasWords && !hasInvalid
+                        ? const Color(0xFF5D4307)
+                        : secondaryText,
+                    fontSize: 9,
                     fontWeight: FontWeight.w800,
                     height: 1,
                   ),
@@ -1829,34 +1950,6 @@ class _WordPreviewBar extends StatelessWidget {
               ],
             ),
           ),
-          for (final e in words) ...[
-            const SizedBox(width: 6),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-              decoration: BoxDecoration(
-                color: (e.valid
-                        ? const Color(0xFF4CAF50)
-                        : const Color(0xFFFF6B6B))
-                    .withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(
-                  color: e.valid
-                      ? const Color(0xFF4CAF50).withValues(alpha: 0.55)
-                      : const Color(0xFFFF6B6B).withValues(alpha: 0.55),
-                ),
-              ),
-              child: Text(
-                e.valid ? '${e.word} +${e.score}' : e.word,
-                style: TextStyle(
-                  color: e.valid
-                      ? const Color(0xFF2E7D32)
-                      : const Color(0xFFB71C1C),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
         ],
       ),
     );
