@@ -1985,21 +1985,30 @@ class _SmallBtnState extends State<_SmallBtn> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final baseText = isDark ? Colors.white : const Color(0xFF173321);
+    final disabledText = isDark ? Colors.white38 : const Color(0xFF718178);
     final Color bg = widget.active
         ? _kStealActive.withValues(alpha: 0.18)
         : widget.disabled
-            ? Colors.white.withValues(alpha: 0.03)
-            : Colors.white.withValues(alpha: 0.07);
+            ? (isDark
+                ? Colors.white.withValues(alpha: 0.04)
+                : Colors.black.withValues(alpha: 0.035))
+            : (isDark
+                ? Colors.white.withValues(alpha: 0.10)
+                : Colors.white.withValues(alpha: 0.82));
     final Color border = widget.active
         ? _kStealActive.withValues(alpha: 0.7)
         : widget.disabled
-            ? Colors.white12
-            : Colors.white.withValues(alpha: 0.15);
+            ? (isDark ? Colors.white24 : const Color(0xFFB8C6BE))
+            : (isDark
+                ? Colors.white.withValues(alpha: 0.20)
+                : const Color(0xFFC7D7CE));
     final Color fg = widget.active
-        ? _kStealActive
+        ? (isDark ? _kStealActive : const Color(0xFFD75F00))
         : widget.disabled
-            ? Colors.white24
-            : Colors.white60;
+            ? disabledText
+            : baseText.withValues(alpha: 0.92);
 
     return Expanded(
       child: GestureDetector(
@@ -2030,7 +2039,16 @@ class _SmallBtnState extends State<_SmallBtn> {
                         spreadRadius: 0.5,
                       ),
                     ]
-                  : null,
+                  : widget.disabled
+                      ? null
+                      : [
+                          BoxShadow(
+                            color: Colors.black
+                                .withValues(alpha: isDark ? 0.18 : 0.08),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -2190,6 +2208,16 @@ class _WordMeaningBubbleState extends State<_WordMeaningBubble>
     final selected = entries.isEmpty
         ? const _MeaningTabEntry(word: '', meaning: '')
         : entries[_selectedIndex.clamp(0, entries.length - 1)];
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final surface = isDark ? _topStartFor(context) : Colors.white;
+    final dividerColor =
+        isDark ? Colors.white.withValues(alpha: 0.10) : Colors.black12;
+    final wordColor =
+        isDark ? const Color(0xFF81C784) : const Color(0xFF1B7A3A);
+    final meaningColor =
+        isDark ? Colors.white.withValues(alpha: 0.88) : const Color(0xFF1C2A22);
+    final helperColor =
+        isDark ? Colors.white.withValues(alpha: 0.42) : const Color(0xFF65786D);
 
     return SizedBox.expand(
       child: GestureDetector(
@@ -2202,95 +2230,96 @@ class _WordMeaningBubbleState extends State<_WordMeaningBubble>
               scale: _scale,
               child: Material(
                 color: Colors.transparent,
-                child: Container(
-                  constraints: const BoxConstraints(maxWidth: 320),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: _topStartFor(context),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                        color: _kPrimary.withValues(alpha: 0.5), width: 1.5),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.45),
-                        blurRadius: 20,
-                        offset: const Offset(0, 6),
-                      ),
-                      BoxShadow(
-                        color: _kPrimary.withValues(alpha: 0.15),
-                        blurRadius: 16,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            for (var i = 0; i < entries.length; i++) ...[
-                              _MeaningWordTab(
-                                word: entries[i].word,
-                                selected: i == _selectedIndex,
-                                onTap: () {
-                                  HapticFeedback.selectionClick();
-                                  setState(() => _selectedIndex = i);
-                                },
-                              ),
-                              if (i != entries.length - 1)
-                                const SizedBox(width: 7),
-                            ],
-                          ],
+                child: GestureDetector(
+                  onTap: () {},
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 320),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: surface,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                          color: _kPrimary.withValues(alpha: 0.5), width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black
+                              .withValues(alpha: isDark ? 0.45 : 0.18),
+                          blurRadius: 20,
+                          offset: const Offset(0, 6),
                         ),
-                      ),
-                      const SizedBox(height: 10),
-                      Container(
-                          height: 1,
-                          color: Colors.white.withValues(alpha: 0.08)),
-                      const SizedBox(height: 10),
-                      Align(
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          selected.word,
-                          style: const TextStyle(
-                            color: Color(0xFF81C784),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.2,
+                        BoxShadow(
+                          color: _kPrimary.withValues(alpha: 0.15),
+                          blurRadius: 16,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              for (var i = 0; i < entries.length; i++) ...[
+                                _MeaningWordTab(
+                                  word: entries[i].word,
+                                  selected: i == _selectedIndex,
+                                  onTap: () {
+                                    HapticFeedback.selectionClick();
+                                    setState(() => _selectedIndex = i);
+                                  },
+                                ),
+                                if (i != entries.length - 1)
+                                  const SizedBox(width: 7),
+                              ],
+                            ],
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 6),
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 180),
-                        child: Align(
-                          key: ValueKey('${selected.word}-${selected.meaning}'),
+                        const SizedBox(height: 10),
+                        Container(height: 1, color: dividerColor),
+                        const SizedBox(height: 10),
+                        Align(
                           alignment: Alignment.centerLeft,
                           child: Text(
-                            selected.meaning,
-                            textAlign: TextAlign.start,
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 15,
-                              height: 1.4,
+                            selected.word,
+                            style: TextStyle(
+                              color: wordColor,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.2,
                             ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        L.current == AppLocale.tr
-                            ? 'Sekmeye dokun • dışarı dokunarak kapat'
-                            : 'Li peyvê bitikîne • derve bitikîne da bigire',
-                        style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.25),
-                            fontSize: 10),
-                      ),
-                    ],
+                        const SizedBox(height: 6),
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 180),
+                          child: Align(
+                            key: ValueKey(
+                                '${selected.word}-${selected.meaning}'),
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              selected.meaning,
+                              textAlign: TextAlign.start,
+                              style: TextStyle(
+                                color: meaningColor,
+                                fontSize: 15,
+                                height: 1.4,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          L.current == AppLocale.tr
+                              ? 'Sekmeye dokun • dışarı dokunarak kapat'
+                              : 'Li peyvê bitikîne • derve bitikîne da bigire',
+                          style: TextStyle(color: helperColor, fontSize: 10),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -2315,6 +2344,7 @@ class _MeaningWordTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
@@ -2324,19 +2354,27 @@ class _MeaningWordTab extends StatelessWidget {
         decoration: BoxDecoration(
           color: selected
               ? _kPrimary.withValues(alpha: 0.22)
-              : Colors.white.withValues(alpha: 0.06),
+              : (isDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : const Color(0xFFEAF3EC)),
           borderRadius: BorderRadius.circular(999),
           border: Border.all(
             color: selected
                 ? const Color(0xFF81C784)
-                : Colors.white.withValues(alpha: 0.12),
+                : (isDark
+                    ? Colors.white.withValues(alpha: 0.16)
+                    : const Color(0xFFC8D8CE)),
             width: 1,
           ),
         ),
         child: Text(
           word,
           style: TextStyle(
-            color: selected ? const Color(0xFFE8F5E9) : Colors.white60,
+            color: selected
+                ? (isDark ? const Color(0xFFE8F5E9) : const Color(0xFF175C2E))
+                : (isDark
+                    ? Colors.white.withValues(alpha: 0.82)
+                    : const Color(0xFF31463A)),
             fontSize: 13,
             fontWeight: selected ? FontWeight.w800 : FontWeight.w700,
             letterSpacing: 0.6,
