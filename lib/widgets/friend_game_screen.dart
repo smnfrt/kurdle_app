@@ -200,8 +200,8 @@ class _FriendGameScreenState extends State<FriendGameScreen>
     final pos = _doubleTapDetails?.localPosition ?? Offset.zero;
     const scale = 2.5;
     _zoomController.value = Matrix4.identity()
-      ..translate(-pos.dx * (scale - 1), -pos.dy * (scale - 1))
-      ..scale(scale, scale);
+      ..translateByDouble(-pos.dx * (scale - 1), -pos.dy * (scale - 1), 0, 1)
+      ..scaleByDouble(scale, scale, 1, 1);
   }
 
   void _scheduleInitialBoardZoom() {
