@@ -486,6 +486,11 @@ class ScrabbleGameController extends ChangeNotifier {
   // ─── AI turu ─────────────────────────────────────────────────────
 
   void _doAiTurn() {
+    // FIX (regresyon): oyuncu turu biterken geri-sayım timer'ını İPTAL et.
+    // Aksi halde süreli oyunda oyuncunun timer'ı AI turu sırasında patlayıp
+    // (_onTimeout, phase==aiTurn) aiScore=0 yapıp oyunu yanlışça bitiriyordu.
+    // Oyuncu turu yeniden başladığında _executeAiMove → _startTurnTimer yeniler.
+    _countdownTimer?.cancel();
     phase = GamePhase.aiTurn;
     notifyListeners();
     _scheduleAiMove();
@@ -1038,8 +1043,14 @@ class ScrabbleGameController extends ChangeNotifier {
       durationSeconds: DateTime.now().difference(_startedAt).inSeconds,
     )
         .then((result) {
+      if (_disposed) return; // dispose sonrası notifyListeners çökmesini önle
       lastReward = result;
       notifyListeners();
+    }).catchError((Object e) {
+      // FIX: ödül kaydı best-effort. catchError olmadan ağ/Firestore hatası
+      // unhandled async → Crashlytics FATAL oluyordu. Oyun zaten bitti, kayıt
+      // başarısızsa sessizce geç.
+      debugPrint('ScrabbleGameController: saveGameResult başarısız: $e');
     });
   }
 

@@ -1,10 +1,15 @@
 import 'package:flutter/semantics.dart';
+import 'package:flutter/widgets.dart';
 
 /// Ekran-okuyucu (TalkBack/VoiceOver) anonsu için tek giriş noktası.
 ///
-/// Çağrı yerleri (domain katmanı dahil) BuildContext taşımak zorunda kalmasın
-/// diye ekran okuyucu anonsunu tek noktada topluyoruz.
+/// Flutter 3.36+ `SemanticsService.announce` deprecated (çoklu-pencere uyumu için
+/// artık [FlutterView] istiyor). Peyvok tek-pencereli olduğundan implicit view'i
+/// kullanıp bu detayı tek yerde sarmalıyoruz — çağrı yerleri (domain katmanı
+/// dahil) BuildContext taşımak zorunda kalmaz.
 void announceA11y(String message, {TextDirection textDirection = TextDirection.ltr}) {
   if (message.isEmpty) return;
-  SemanticsService.announce(message, textDirection);
+  final view = WidgetsBinding.instance.platformDispatcher.implicitView;
+  if (view == null) return;
+  SemanticsService.sendAnnouncement(view, message, textDirection);
 }

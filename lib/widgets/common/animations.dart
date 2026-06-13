@@ -21,13 +21,15 @@ class _PressableScaleState extends State<PressableScale> {
 
   @override
   Widget build(BuildContext context) {
+    // a11y: reduce-motion (MediaQuery.disableAnimations) açıksa hareketi atla.
+    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     return Listener(
       onPointerDown: (_) => _setPressed(true),
       onPointerCancel: (_) => _setPressed(false),
       onPointerUp: (_) => _setPressed(false),
       child: AnimatedScale(
-        scale: _pressed ? 0.975 : 1,
-        duration: const Duration(milliseconds: 110),
+        scale: reduceMotion ? 1.0 : (_pressed ? 0.975 : 1),
+        duration: reduceMotion ? Duration.zero : const Duration(milliseconds: 110),
         curve: Curves.easeOutCubic,
         child: widget.child,
       ),
@@ -71,6 +73,24 @@ class _PulseGlowState extends State<PulseGlow>
 
   @override
   Widget build(BuildContext context) {
+    // a11y: reduce-motion açıksa nabız animasyonu yerine sabit (orta yoğunluk) glow.
+    final reduceMotion = MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (reduceMotion) {
+      return Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: widget.color.withValues(alpha: 0.22),
+              blurRadius: 23,
+              spreadRadius: 1.25,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: widget.child,
+      );
+    }
     return AnimatedBuilder(
       animation: _ctrl,
       builder: (_, __) {

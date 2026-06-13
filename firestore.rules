@@ -102,7 +102,13 @@ service cloud.firestore {
     match /users/{uid} {
       allow read: if signedIn();
       allow create: if isOwner(uid);
-      allow update: if isOwner(uid);
+      // v3: xp/level MONOTON (sıfırlama/geri-sarma engeli). Tam şişirme-önleme
+      // (üst sınır) tournament 5000 XP ödülünü kırmamak için Cloud Functions'a
+      // bırakıldı (yol haritası). email/fcmToken'ın gizli alt-koleksiyona taşınması
+      // da ayrı bir refactor (PR açıklamasına bakınız).
+      allow update: if isOwner(uid)
+        && (!('xp' in resource.data) || request.resource.data.xp >= resource.data.xp)
+        && (!('level' in resource.data) || request.resource.data.level >= resource.data.level);
       allow delete: if false;
 
       match /dailyWordPlays/{dateKey} {
@@ -159,9 +165,31 @@ service cloud.firestore {
         || canCreateAcceptedInviteRoom()
       );
       allow update: if signedIn() && (
-        // Mevcut oyuncu (hamle/pass/leave) — hostUid/guestUid değişmez
+        // Mevcut oyuncu (hamle/pass/leave). v3 SERTLEŞTİRME (P0):
+        //  • kimlik alanları (host/guest/createdAt) DEĞİŞEMEZ
+        //  • skorlar monoton (rakibin skoru düşürülemez)
+        //  • sıra yalnızca iki oyuncudan biri olabilir
+        //  • oyun bittiyse kazanan skorla TUTARLI olmalı (forfeit hariç)
+        // Not: aktif oyuncunun KENDİ skorunu şişirmesi rules ile tam
+        // engellenemez → sunucu-otoriter skorlama (Cloud Functions) yol haritasında.
         (isRoomMember()
-          && request.resource.data.hostUid == resource.data.hostUid)
+          && request.resource.data.hostUid == resource.data.hostUid
+          && request.resource.data.guestUid == resource.data.guestUid
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.hostScore >= resource.data.hostScore
+          && request.resource.data.guestScore >= resource.data.guestScore
+          && (request.resource.data.currentTurnUid == resource.data.hostUid
+            || request.resource.data.currentTurnUid == resource.data.guestUid)
+          && (
+            request.resource.data.status != 'finished'
+            || request.resource.data.finishReason == 'forfeit'
+            || request.resource.data.winner == 'draw'
+            || (request.resource.data.winner == 'host'
+              && request.resource.data.hostScore >= request.resource.data.guestScore)
+            || (request.resource.data.winner == 'guest'
+              && request.resource.data.guestScore >= request.resource.data.hostScore)
+          )
+        )
         // Odaya katılan yeni guest (waiting → active)
         || (resource.data.status in ['waiting', 'waiting_random', 'waiting_invite']
           && request.auth.uid == request.resource.data.guestUid

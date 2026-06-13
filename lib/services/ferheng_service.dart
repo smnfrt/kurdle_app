@@ -79,15 +79,23 @@ class FerhengService {
   // ── Bundle yükleme ──────────────────────────────────────────────
 
   Future<void> _loadEntriesBundle() async {
-    final data = await rootBundle.load(_entriesAsset);
-    final bytes = data.buffer.asUint8List();
-    final result = await compute(_parseEntriesBundle, bytes);
-    _byId = result.byId;
-    _bySurface = result.bySurface;
-    _byPrefix = result.byPrefix;
-    _byCategory = result.byCategory;
-    _relatedToId = result.relatedToId;
-    _sortedIds = result.sortedIds;
+    // FIX: kardeş bundle yüklemeleri gibi try/catch ile koru. Ana sözlük bundle'ı
+    // (bozuk asset / decompress OOM) yüklenemezse _init() patlayıp servisi kalıcı
+    // kullanılamaz bırakıyordu. Artık boş sözlükle zarif düşer (arama sonuç
+    // döndürmez ama uygulama kilitlenmez/crash etmez).
+    try {
+      final data = await rootBundle.load(_entriesAsset);
+      final bytes = data.buffer.asUint8List();
+      final result = await compute(_parseEntriesBundle, bytes);
+      _byId = result.byId;
+      _bySurface = result.bySurface;
+      _byPrefix = result.byPrefix;
+      _byCategory = result.byCategory;
+      _relatedToId = result.relatedToId;
+      _sortedIds = result.sortedIds;
+    } catch (e) {
+      debugPrint('FerhengService: entries bundle yüklenemedi (boş sözlükle devam): $e');
+    }
   }
 
   Future<void> _loadLegacyBundle() async {

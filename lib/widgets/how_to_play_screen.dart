@@ -1100,7 +1100,7 @@ class _BoardDemoCardState extends State<_BoardDemoCard>
           width: _tileSz,
           height: _tileH,
           margin: EdgeInsets.only(right: i < _word.length - 1 ? _tileGap : 0),
-          transform: Matrix4.identity()..translate(0.0, isActive ? -10.0 : 0.0),
+          transform: Matrix4.identity()..translateByDouble(0.0, isActive ? -10.0 : 0.0, 0, 1),
           decoration: BoxDecoration(
             gradient: isPlaced
                 ? LinearGradient(colors: [
