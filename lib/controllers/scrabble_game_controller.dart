@@ -486,6 +486,9 @@ class ScrabbleGameController extends ChangeNotifier {
   // ─── AI turu ─────────────────────────────────────────────────────
 
   void _doAiTurn() {
+    // Oyuncu turu timer'ı AI düşünürken çalışmaya devam ederse süreli oyunda
+    // oyun yanlışlıkla AI sırasında bitebilir. Yeni oyuncu turunda timer yeniden başlar.
+    _countdownTimer?.cancel();
     phase = GamePhase.aiTurn;
     notifyListeners();
     _scheduleAiMove();
@@ -1038,8 +1041,13 @@ class ScrabbleGameController extends ChangeNotifier {
       durationSeconds: DateTime.now().difference(_startedAt).inSeconds,
     )
         .then((result) {
+      if (_disposed) return;
       lastReward = result;
       notifyListeners();
+    }).catchError((Object e) {
+      // Oyun zaten bitti; sonuç/ödül kaydı ağ veya Firestore yüzünden patlarsa
+      // kullanıcıyı oyundan düşürmek yerine sessizce geç.
+      debugPrint('ScrabbleGameController: saveGameResult failed: $e');
     });
   }
 

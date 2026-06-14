@@ -80,16 +80,27 @@ class FerhengService {
   // ── Bundle yükleme ──────────────────────────────────────────────
 
   Future<void> _loadEntriesBundle() async {
-    final data = await rootBundle.load(_entriesAsset);
-    final bytes = data.buffer.asUint8List();
-    final result = await compute(_parseEntriesBundle, bytes);
-    _byId = result.byId;
-    _bySurface = result.bySurface;
-    _byPrefix = result.byPrefix;
-    _byCategory = result.byCategory;
-    _categoryCache.clear();
-    _relatedToId = result.relatedToId;
-    _sortedIds = result.sortedIds;
+    try {
+      final data = await rootBundle.load(_entriesAsset);
+      final bytes = data.buffer.asUint8List();
+      final result = await compute(_parseEntriesBundle, bytes);
+      _byId = result.byId;
+      _bySurface = result.bySurface;
+      _byPrefix = result.byPrefix;
+      _byCategory = result.byCategory;
+      _categoryCache.clear();
+      _relatedToId = result.relatedToId;
+      _sortedIds = result.sortedIds;
+    } catch (e) {
+      Log.warn('FerhengService', 'entries bundle load failed', e);
+      _byId = const {};
+      _bySurface = const {};
+      _byPrefix = const {};
+      _byCategory = const {};
+      _categoryCache.clear();
+      _relatedToId = const {};
+      _sortedIds = const [];
+    }
   }
 
   /// Kategori ekranlarını arka planda hazırlar.
