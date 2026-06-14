@@ -7,8 +7,7 @@ final ValueNotifier<int> homeOpenMyGamesTick = ValueNotifier<int>(0);
 
 const Duration _kAppRouteIn = Duration(milliseconds: 190);
 const Duration _kAppRouteOut = Duration(milliseconds: 160);
-const Duration _kAppSheetIn = Duration(milliseconds: 220);
-const Duration _kAppSheetOut = Duration(milliseconds: 160);
+bool _appModalBottomSheetOpen = false;
 
 /// Hafif page transition: subtle slide-up + fade.
 /// Menülerden oyuna geçişte kopukluk hissini azaltmak için kısa ve tutarlı.
@@ -49,25 +48,29 @@ Future<T?> showAppModalBottomSheet<T>({
   bool enableDrag = true,
   bool useSafeArea = true,
 }) {
-  final navigator = Navigator.of(context, rootNavigator: useRootNavigator);
-  final controller = BottomSheet.createAnimationController(navigator.overlay!);
-  controller.duration = _kAppSheetIn;
-  controller.reverseDuration = _kAppSheetOut;
+  if (_appModalBottomSheetOpen) {
+    return Future<T?>.value();
+  }
+  _appModalBottomSheetOpen = true;
 
-  return showModalBottomSheet<T>(
-    context: context,
-    builder: builder,
-    isScrollControlled: isScrollControlled,
-    backgroundColor: backgroundColor,
-    shape: shape,
-    useRootNavigator: useRootNavigator,
-    isDismissible: isDismissible,
-    enableDrag: enableDrag,
-    useSafeArea: useSafeArea,
-    transitionAnimationController: controller,
-  ).whenComplete(() {
-    controller.dispose();
-  });
+  try {
+    return showModalBottomSheet<T>(
+      context: context,
+      builder: builder,
+      isScrollControlled: isScrollControlled,
+      backgroundColor: backgroundColor,
+      shape: shape,
+      useRootNavigator: useRootNavigator,
+      isDismissible: isDismissible,
+      enableDrag: enableDrag,
+      useSafeArea: useSafeArea,
+    ).whenComplete(() {
+      _appModalBottomSheetOpen = false;
+    });
+  } catch (_) {
+    _appModalBottomSheetOpen = false;
+    rethrow;
+  }
 }
 
 class AppSheetDragHandle extends StatelessWidget {
