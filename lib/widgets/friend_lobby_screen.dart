@@ -6,6 +6,7 @@ import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/firestore_service.dart';
 import 'package:kurdle_app/services/multiplayer_service.dart';
+import 'package:kurdle_app/route_transitions.dart';
 import 'package:kurdle_app/widgets/friend_game_screen.dart';
 
 const _kBg = Color(0xFF0D1520);
@@ -74,10 +75,9 @@ class _FriendLobbyScreenState extends State<FriendLobbyScreen>
         if (room?.status == 'active' && mounted) {
           _waitSub?.cancel();
           Navigator.pushReplacement(
-              context,
-              _slide(
-                FriendGameScreen(roomCode: code, myUid: uid),
-              ));
+            context,
+            appRoute(FriendGameScreen(roomCode: code, myUid: uid)),
+          );
         }
       });
     } catch (e) {
@@ -134,10 +134,9 @@ class _FriendLobbyScreenState extends State<FriendLobbyScreen>
         return;
       }
       Navigator.pushReplacement(
-          context,
-          _slide(
-            FriendGameScreen(roomCode: code, myUid: uid),
-          ));
+        context,
+        appRoute(FriendGameScreen(roomCode: code, myUid: uid)),
+      );
     } catch (e) {
       if (mounted) {
         setState(() {
@@ -165,15 +164,6 @@ class _FriendLobbyScreenState extends State<FriendLobbyScreen>
       _ => cleaned,
     };
   }
-
-  Route _slide(Widget page) => PageRouteBuilder(
-        pageBuilder: (_, __, ___) => page,
-        transitionsBuilder: (_, anim, __, child) => SlideTransition(
-            position: Tween(begin: const Offset(1, 0), end: Offset.zero)
-                .animate(
-                    CurvedAnimation(parent: anim, curve: Curves.easeOutCubic)),
-            child: child),
-      );
 
   // ── Build ────────────────────────────────────────────────────────
 
@@ -262,7 +252,8 @@ class _CreateTab extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: _kPrimary.withValues(alpha: 0.15),
-                border: Border.all(color: _kPrimary.withValues(alpha: 0.4), width: 2),
+                border: Border.all(
+                    color: _kPrimary.withValues(alpha: 0.4), width: 2),
               ),
               child: const Icon(Icons.group_add_rounded,
                   color: _kPrimary, size: 36),
@@ -356,7 +347,8 @@ class _WaitingViewState extends State<_WaitingView>
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: _kBlue.withValues(alpha: 0.15),
-                  border: Border.all(color: _kBlue.withValues(alpha: 0.5), width: 2),
+                  border: Border.all(
+                      color: _kBlue.withValues(alpha: 0.5), width: 2),
                 ),
                 child: const Icon(Icons.hourglass_top_rounded,
                     color: _kBlue, size: 36),
@@ -508,7 +500,8 @@ class _JoinTab extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: _kBlue.withValues(alpha: 0.15),
-                border: Border.all(color: _kBlue.withValues(alpha: 0.4), width: 2),
+                border:
+                    Border.all(color: _kBlue.withValues(alpha: 0.4), width: 2),
               ),
               child: const Icon(Icons.login_rounded, color: _kBlue, size: 36),
             ),

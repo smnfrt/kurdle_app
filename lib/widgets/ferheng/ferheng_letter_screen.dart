@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kurdle_app/controllers/ferheng_controller.dart';
 import 'package:kurdle_app/models/ferheng_entry.dart';
+import 'package:kurdle_app/route_transitions.dart';
 import 'package:kurdle_app/services/ferheng_service.dart';
 import 'package:kurdle_app/widgets/ferheng/ferheng_design.dart';
 import 'package:kurdle_app/widgets/ferheng/ferheng_detail_screen.dart';
@@ -78,9 +79,8 @@ class _FerhengLetterScreenState extends State<FerhengLetterScreen> {
                       itemBuilder: (context, i) => FerhengEntryTile(
                         entry: _entries[i],
                         displayLanguage: widget.controller.definitionLanguage,
-                        onTap: () =>
-                            Navigator.of(context).push(MaterialPageRoute(
-                          builder: (_) => FerhengDetailScreen(
+                        onTap: () => Navigator.of(context).push(appRoute(
+                          FerhengDetailScreen(
                             word: _entries[i].normalized,
                             controller: widget.controller,
                           ),

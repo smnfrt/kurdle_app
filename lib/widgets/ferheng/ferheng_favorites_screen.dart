@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:kurdle_app/controllers/ferheng_controller.dart';
 import 'package:kurdle_app/models/ferheng_entry.dart';
+import 'package:kurdle_app/route_transitions.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/ferheng_service.dart';
 import 'package:kurdle_app/widgets/ferheng/ferheng_design.dart';
@@ -67,22 +68,21 @@ class _FerhengFavoritesScreenState extends State<FerhengFavoritesScreen> {
                   child: Padding(
                     padding: const EdgeInsets.all(24),
                     child: Text(_signedOutMessage!,
-                        style: FerhengDesign.bodyMd, textAlign: TextAlign.center),
+                        style: FerhengDesign.bodyMd,
+                        textAlign: TextAlign.center),
                   ),
                 )
               : _entries.isEmpty
                   ? Center(
-                      child: Text(L.ferhengEmpty,
-                          style: FerhengDesign.caption),
+                      child: Text(L.ferhengEmpty, style: FerhengDesign.caption),
                     )
                   : ListView.builder(
                       itemCount: _entries.length,
                       itemBuilder: (context, i) => FerhengEntryTile(
                         entry: _entries[i],
                         displayLanguage: widget.controller.definitionLanguage,
-                        onTap: () =>
-                            Navigator.of(context).push(MaterialPageRoute(
-                          builder: (_) => FerhengDetailScreen(
+                        onTap: () => Navigator.of(context).push(appRoute(
+                          FerhengDetailScreen(
                             word: _entries[i].normalized,
                             controller: widget.controller,
                           ),

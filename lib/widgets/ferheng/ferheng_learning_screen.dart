@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kurdle_app/controllers/ferheng_controller.dart';
+import 'package:kurdle_app/route_transitions.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/widgets/ferheng/ferheng_category_screen.dart';
 import 'package:kurdle_app/widgets/ferheng/ferheng_design.dart';
@@ -29,9 +30,8 @@ class FerhengLearningScreen extends StatelessWidget {
             subtitle: L.current == AppLocale.tr
                 ? '10 kart — kelime ve anlamını eşleştir'
                 : '10 kart — peyv û wateya wê li hev bîne',
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => const FerhengFlashcardScreen(),
-            )),
+            onTap: () => Navigator.of(context)
+                .push(appRoute(const FerhengFlashcardScreen())),
           ),
           const SizedBox(height: 12),
           _LearnCard(
@@ -40,10 +40,8 @@ class FerhengLearningScreen extends StatelessWidget {
             subtitle: L.current == AppLocale.tr
                 ? 'Konuya göre keşfet — hayvanlar, vücut, doğa...'
                 : 'Li gor mijaran kêş bike — heywan, beden, xweza...',
-            onTap: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) =>
-                  FerhengCategoryScreen(controller: controller),
-            )),
+            onTap: () => Navigator.of(context)
+                .push(appRoute(FerhengCategoryScreen(controller: controller))),
           ),
         ],
       ),
@@ -99,8 +97,7 @@ class _LearnCard extends StatelessWidget {
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right_rounded,
-                  color: FerhengDesign.textFaint),
+              Icon(Icons.chevron_right_rounded, color: FerhengDesign.textFaint),
             ],
           ),
         ),

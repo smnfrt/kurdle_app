@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kurdle_app/controllers/ferheng_controller.dart';
+import 'package:kurdle_app/route_transitions.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/widgets/ferheng/ferheng_design.dart';
 import 'package:kurdle_app/widgets/ferheng/ferheng_detail_screen.dart';
@@ -81,8 +82,7 @@ class _FerhengSearchScreenState extends State<FerhengSearchScreen> {
           }
           if (c.searchResults.isEmpty) {
             return Center(
-              child: Text(L.ferhengNoDefinition,
-                  style: FerhengDesign.bodyMd),
+              child: Text(L.ferhengNoDefinition, style: FerhengDesign.bodyMd),
             );
           }
           return ListView.builder(
@@ -92,12 +92,12 @@ class _FerhengSearchScreenState extends State<FerhengSearchScreen> {
               return FerhengEntryTile(
                 entry: entry,
                 displayLanguage: c.definitionLanguage,
-                onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                  builder: (_) => FerhengDetailScreen(
+                onTap: () => Navigator.of(context).push(
+                  appRoute(FerhengDetailScreen(
                     word: entry.normalized,
                     controller: widget.controller,
-                  ),
-                )),
+                  )),
+                ),
               );
             },
           );

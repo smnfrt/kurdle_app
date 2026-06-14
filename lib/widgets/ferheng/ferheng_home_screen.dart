@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kurdle_app/controllers/ferheng_controller.dart';
 import 'package:kurdle_app/models/ferheng_entry.dart';
+import 'package:kurdle_app/route_transitions.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/ferheng_service.dart';
 import 'package:kurdle_app/widgets/ferheng/ferheng_design.dart';
@@ -53,9 +54,9 @@ class _FerhengHomeScreenState extends State<FerhengHomeScreen> {
   }
 
   void _open(String word) {
-    Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => FerhengDetailScreen(word: word, controller: _controller),
-    ));
+    Navigator.of(context).push(
+      appRoute(FerhengDetailScreen(word: word, controller: _controller)),
+    );
   }
 
   @override
@@ -71,9 +72,9 @@ class _FerhengHomeScreenState extends State<FerhengHomeScreen> {
           IconButton(
             tooltip: L.ferhengFavorites,
             icon: const Icon(Icons.bookmark_rounded),
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => FerhengFavoritesScreen(controller: _controller),
-            )),
+            onPressed: () => Navigator.of(context).push(
+              appRoute(FerhengFavoritesScreen(controller: _controller)),
+            ),
           ),
         ],
       ),
@@ -97,12 +98,12 @@ class _FerhengHomeScreenState extends State<FerhengHomeScreen> {
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             sliver: _AlphabetSliverGrid(onLetterTap: (letter) {
-              Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => FerhengLetterScreen(
+              Navigator.of(context).push(
+                appRoute(FerhengLetterScreen(
                   letter: letter,
                   controller: _controller,
-                ),
-              ));
+                )),
+              );
             }),
           ),
           SliverPadding(
@@ -110,10 +111,9 @@ class _FerhengHomeScreenState extends State<FerhengHomeScreen> {
             sliver: SliverList.list(
               children: [
                 _LearnShortcut(onTap: () {
-                  Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) =>
-                        FerhengLearningScreen(controller: _controller),
-                  ));
+                  Navigator.of(context).push(
+                    appRoute(FerhengLearningScreen(controller: _controller)),
+                  );
                 }),
                 if (_recent.isNotEmpty) ...[
                   const SizedBox(height: 20),
@@ -126,8 +126,8 @@ class _FerhengHomeScreenState extends State<FerhengHomeScreen> {
                         .map((w) => ActionChip(
                               label: Text(w),
                               backgroundColor: FerhengDesign.surface,
-                              labelStyle: TextStyle(
-                                  color: FerhengDesign.textPrimary),
+                              labelStyle:
+                                  TextStyle(color: FerhengDesign.textPrimary),
                               side: BorderSide.none,
                               onPressed: () => _open(w),
                             ))
@@ -162,9 +162,9 @@ class _SearchBar extends StatelessWidget {
       borderRadius: FerhengDesign.radMd,
       child: InkWell(
         borderRadius: FerhengDesign.radMd,
-        onTap: () => Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => FerhengSearchScreen(controller: controller),
-        )),
+        onTap: () => Navigator.of(context).push(
+          appRoute(FerhengSearchScreen(controller: controller)),
+        ),
         child: Padding(
           padding: const EdgeInsets.all(14),
           child: Row(
@@ -346,8 +346,7 @@ class _LearnShortcut extends StatelessWidget {
               Expanded(
                 child: Text(L.ferhengLearn, style: FerhengDesign.titleMd),
               ),
-              Icon(Icons.chevron_right_rounded,
-                  color: FerhengDesign.textFaint),
+              Icon(Icons.chevron_right_rounded, color: FerhengDesign.textFaint),
             ],
           ),
         ),

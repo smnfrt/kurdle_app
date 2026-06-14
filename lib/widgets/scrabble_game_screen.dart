@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kurdle_app/domain.dart' show AiDifficulty;
+import 'package:kurdle_app/route_transitions.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/firebase_service.dart';
@@ -392,7 +393,7 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
 
   void _showSuggestionSheet(WordSuggestion suggestion) {
     final ctrl = _controller!;
-    showModalBottomSheet(
+    showAppModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (_) => _SuggestionSheet(
@@ -414,7 +415,7 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
     final ctrl = _controller!;
     final hasFirebase =
         AuthService.instance.currentUser != null && FirebaseService.isAvailable;
-    showModalBottomSheet(
+    showAppModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (_) => _GameMenuSheet(
@@ -475,10 +476,7 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
     setState(() => _hasUnread = false);
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const _FullScreenChat(),
-        fullscreenDialog: true,
-      ),
+      appRoute(const _FullScreenChat()),
     );
   }
 

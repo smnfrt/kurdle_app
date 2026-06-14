@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:kurdle_app/route_transitions.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/match_chat_service.dart';
 import 'package:kurdle_app/services/multiplayer_service.dart';
@@ -29,10 +30,13 @@ class GameChatPanel extends StatefulWidget {
     required String myUid,
     required String myName,
   }) {
-    return showModalBottomSheet<void>(
+    return showAppModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+      isDismissible: true,
+      enableDrag: true,
+      useSafeArea: true,
       builder: (_) => GameChatPanel(
         room: room,
         myUid: myUid,
@@ -73,157 +77,186 @@ class _GameChatPanelState extends State<GameChatPanel>
     final mutedColor =
         isDark ? Colors.white.withValues(alpha: 0.52) : const Color(0xFF52636E);
 
-    return AnimatedPadding(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOutCubic,
-      padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
-      child: Container(
-        height: mq.size.height * 0.86,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: bgGradient,
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
-          border: Border(
-            top: BorderSide(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.10)
-                  : Colors.white.withValues(alpha: 0.86),
+    return SafeArea(
+      top: false,
+      child: AnimatedPadding(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
+        child: Container(
+          height: mq.size.height * 0.86,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: bgGradient,
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
             ),
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: isDark ? 0.46 : 0.20),
-              blurRadius: 30,
-              offset: const Offset(0, -10),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: 44,
-              height: 4,
-              margin: const EdgeInsets.only(top: 12, bottom: 14),
-              decoration: BoxDecoration(
-                color: mutedColor.withValues(alpha: 0.48),
-                borderRadius: BorderRadius.circular(2),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+            border: Border(
+              top: BorderSide(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.10)
+                    : Colors.white.withValues(alpha: 0.86),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              child: Row(
-                children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: _kChatPrimary.withValues(alpha: 0.16),
-                      borderRadius: BorderRadius.circular(13),
-                      border: Border.all(
-                        color: _kChatPrimary.withValues(alpha: 0.38),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.46 : 0.20),
+                blurRadius: 30,
+                offset: const Offset(0, -10),
+              ),
+            ],
+          ),
+          child: Column(
+            children: [
+              _ChatSheetDragHandle(
+                width: 44,
+                color: mutedColor.withValues(alpha: 0.48),
+                margin: const EdgeInsets.only(top: 12, bottom: 14),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 42,
+                      height: 42,
+                      decoration: BoxDecoration(
+                        color: _kChatPrimary.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(13),
+                        border: Border.all(
+                          color: _kChatPrimary.withValues(alpha: 0.38),
+                        ),
+                      ),
+                      child: const Icon(Icons.forum_rounded,
+                          color: _kChatPrimary, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            L.chat,
+                            style: TextStyle(
+                              color: titleColor,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            widget.room.roomCode,
+                            style: TextStyle(
+                              color: mutedColor,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    child: const Icon(Icons.forum_rounded,
-                        color: _kChatPrimary, size: 22),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          L.chat,
-                          style: TextStyle(
-                            color: titleColor,
-                            fontSize: 20,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          widget.room.roomCode,
-                          style: TextStyle(
-                            color: mutedColor,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: Icon(Icons.close_rounded, color: mutedColor),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 14),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? Colors.white.withValues(alpha: 0.055)
-                      : Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: isDark
-                        ? Colors.white.withValues(alpha: 0.08)
-                        : const Color(0xFFD6E1E7),
-                  ),
-                ),
-                child: TabBar(
-                  controller: _tabs,
-                  indicator: BoxDecoration(
-                    color:
-                        _kChatPrimary.withValues(alpha: isDark ? 0.22 : 0.14),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                        color: _kChatPrimary.withValues(alpha: 0.42)),
-                  ),
-                  indicatorSize: TabBarIndicatorSize.tab,
-                  dividerColor: Colors.transparent,
-                  padding: const EdgeInsets.all(4),
-                  labelColor: isDark ? Colors.white : const Color(0xFF1F5E37),
-                  unselectedLabelColor: mutedColor,
-                  labelStyle: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                  ),
-                  tabs: [
-                    Tab(
-                      icon: const Icon(Icons.groups_rounded, size: 17),
-                      text: L.current == AppLocale.tr
-                          ? 'Oyuncu Sohbeti'
-                          : 'Sohbeta Lîstikvan',
-                    ),
-                    Tab(
-                      icon: const Icon(Icons.help_rounded, size: 17),
-                      text: L.current == AppLocale.tr ? 'Yardım' : 'Alîkarî',
+                    IconButton(
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      icon: Icon(Icons.close_rounded, color: mutedColor),
                     ),
                   ],
                 ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: TabBarView(
-                controller: _tabs,
-                children: [
-                  _PlayerChatTab(
-                    room: widget.room,
-                    myUid: widget.myUid,
-                    myName: widget.myName,
+              const SizedBox(height: 14),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 18),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: isDark
+                        ? Colors.white.withValues(alpha: 0.055)
+                        : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isDark
+                          ? Colors.white.withValues(alpha: 0.08)
+                          : const Color(0xFFD6E1E7),
+                    ),
                   ),
-                  const ChatScreen(embedded: true),
-                ],
+                  child: TabBar(
+                    controller: _tabs,
+                    indicator: BoxDecoration(
+                      color:
+                          _kChatPrimary.withValues(alpha: isDark ? 0.22 : 0.14),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                          color: _kChatPrimary.withValues(alpha: 0.42)),
+                    ),
+                    indicatorSize: TabBarIndicatorSize.tab,
+                    dividerColor: Colors.transparent,
+                    padding: const EdgeInsets.all(4),
+                    labelColor: isDark ? Colors.white : const Color(0xFF1F5E37),
+                    unselectedLabelColor: mutedColor,
+                    labelStyle: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                    tabs: [
+                      Tab(
+                        icon: const Icon(Icons.groups_rounded, size: 17),
+                        text: L.current == AppLocale.tr
+                            ? 'Oyuncu Sohbeti'
+                            : 'Sohbeta Lîstikvan',
+                      ),
+                      Tab(
+                        icon: const Icon(Icons.help_rounded, size: 17),
+                        text: L.current == AppLocale.tr ? 'Yardım' : 'Alîkarî',
+                      ),
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ],
+              const SizedBox(height: 8),
+              Expanded(
+                child: TabBarView(
+                  controller: _tabs,
+                  children: [
+                    _PlayerChatTab(
+                      room: widget.room,
+                      myUid: widget.myUid,
+                      myName: widget.myName,
+                    ),
+                    const ChatScreen(embedded: true),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ChatSheetDragHandle extends StatelessWidget {
+  final Color color;
+  final double width;
+  final EdgeInsetsGeometry margin;
+
+  const _ChatSheetDragHandle({
+    required this.color,
+    this.width = 42,
+    this.margin = EdgeInsets.zero,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width + 32,
+      height: 28,
+      alignment: Alignment.center,
+      margin: margin,
+      child: Container(
+        width: width,
+        height: 4,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(99),
         ),
       ),
     );

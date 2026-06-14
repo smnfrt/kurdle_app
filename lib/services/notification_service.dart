@@ -27,10 +27,12 @@ class NotificationService {
   static const _channelId = 'peyvok_daily';
   static const _channelName = 'Günlük Hatırlatıcı';
   static const _deviceIdKey = 'notification_device_id';
+  static const dailyPayload = 'daily';
+  static const streakPayload = 'streak';
 
   // Bildirime tıklandığında ya da app kapalıyken açıldığında set edilir.
-  String? pendingInviteRoomCode;
-  final List<void Function(String roomCode)> _onInviteTap = [];
+  String? pendingNotificationPayload;
+  final List<void Function(String payload)> _onInviteTap = [];
   String? _foregroundRoomCode;
 
   void markRoomForeground(String roomCode) {
@@ -45,9 +47,9 @@ class NotificationService {
 
   void onInviteTap(void Function(String roomCode) cb) {
     _onInviteTap.add(cb);
-    final pending = pendingInviteRoomCode;
+    final pending = pendingNotificationPayload;
     if (pending != null) {
-      pendingInviteRoomCode = null;
+      pendingNotificationPayload = null;
       cb(pending);
     }
   }
@@ -58,7 +60,7 @@ class NotificationService {
 
   void _dispatchInviteTap(String code) {
     if (_onInviteTap.isEmpty) {
-      pendingInviteRoomCode = code;
+      pendingNotificationPayload = code;
     } else {
       for (final cb in List.of(_onInviteTap)) {
         cb(code);
@@ -66,10 +68,30 @@ class NotificationService {
     }
   }
 
-  String? _roomCodeFromMessage(RemoteMessage message) {
+  String? _payloadFromMessage(RemoteMessage message) {
+    final action = message.data['action'] ?? message.data['type'];
+    final inviteId = message.data['inviteId'];
+    if (inviteId is String && inviteId.isNotEmpty) return 'invite:$inviteId';
     final code = message.data['roomCode'];
-    if (code is String && code.isNotEmpty) return code;
+    if (code is String && code.isNotEmpty) return 'room:$code';
+    if (action == dailyPayload) return dailyPayload;
+    if (action == streakPayload) return streakPayload;
     return null;
+  }
+
+  String? _roomCodeFromPayload(String? payload) {
+    if (payload == null || payload.isEmpty) return null;
+    if (payload.startsWith('room:')) {
+      final roomCode = payload.substring('room:'.length);
+      return roomCode.isEmpty ? null : roomCode;
+    }
+    if (payload == dailyPayload ||
+        payload == streakPayload ||
+        payload.startsWith('invite:')) {
+      return null;
+    }
+    // Eski sürümlerde ham roomCode payload olarak gönderiliyordu.
+    return payload;
   }
 
   /// Kullanıcı bildirim açmak istediğinde (Settings toggle, streak ayarı vs.)
@@ -108,16 +130,20 @@ class NotificationService {
     await _local.initialize(
       initSettings,
       onDidReceiveNotificationResponse: (resp) {
-        final code = resp.payload;
-        if (code != null && code.isNotEmpty) _dispatchInviteTap(code);
+        final payload = resp.payload;
+        if (payload != null && payload.isNotEmpty) {
+          _dispatchInviteTap(payload);
+        }
       },
     );
 
     // App kapalıyken bildirime basıp açıldıysa, payload'ı bekleyen koda kaydet.
     final launch = await _local.getNotificationAppLaunchDetails();
     if (launch?.didNotificationLaunchApp == true) {
-      final code = launch?.notificationResponse?.payload;
-      if (code != null && code.isNotEmpty) pendingInviteRoomCode = code;
+      final payload = launch?.notificationResponse?.payload;
+      if (payload != null && payload.isNotEmpty) {
+        pendingNotificationPayload = payload;
+      }
     }
 
     // FCM permission burada İSTENMEZ — kullanıcı değer görmeden prompt etmek
@@ -131,7 +157,8 @@ class NotificationService {
     FirebaseMessaging.onMessage.listen((message) {
       final notification = message.notification;
       if (notification == null) return;
-      final roomCode = _roomCodeFromMessage(message);
+      final payload = _payloadFromMessage(message);
+      final roomCode = _roomCodeFromPayload(payload);
       if (roomCode != null && roomCode == _foregroundRoomCode) return;
       _local.show(
         notification.hashCode,
@@ -145,19 +172,19 @@ class NotificationService {
             priority: Priority.high,
           ),
         ),
-        payload: roomCode,
+        payload: payload,
       );
     });
 
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
-      final roomCode = _roomCodeFromMessage(message);
-      if (roomCode != null) _dispatchInviteTap(roomCode);
+      final payload = _payloadFromMessage(message);
+      if (payload != null) _dispatchInviteTap(payload);
     });
 
     final initialMessage = await _fcm.getInitialMessage();
     if (initialMessage != null) {
-      final roomCode = _roomCodeFromMessage(initialMessage);
-      if (roomCode != null) pendingInviteRoomCode = roomCode;
+      final payload = _payloadFromMessage(initialMessage);
+      if (payload != null) pendingNotificationPayload = payload;
     }
 
     _fcm.onTokenRefresh.listen((_) {
@@ -208,6 +235,7 @@ class NotificationService {
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.time,
+        payload: dailyPayload,
       );
     } catch (e) {
       Log.warn('NotificationService',
@@ -223,6 +251,7 @@ class NotificationService {
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.time,
+        payload: dailyPayload,
       );
     }
   }
@@ -256,6 +285,7 @@ class NotificationService {
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.time,
+        payload: streakPayload,
       );
     } catch (e) {
       Log.warn('NotificationService',
@@ -270,6 +300,7 @@ class NotificationService {
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.time,
+        payload: streakPayload,
       );
     }
   }
@@ -380,7 +411,7 @@ class NotificationService {
             ticker: 'Davet',
           ),
         ),
-        payload: roomCode,
+        payload: roomCode.startsWith('invite:') ? roomCode : 'invite:$roomCode',
       );
     } catch (e) {
       if (kDebugMode) {
@@ -419,7 +450,7 @@ class NotificationService {
             ticker: 'Hamle',
           ),
         ),
-        payload: roomCode,
+        payload: 'room:$roomCode',
       );
     } catch (e) {
       if (kDebugMode) {

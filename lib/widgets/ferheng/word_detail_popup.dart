@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:kurdle_app/controllers/ferheng_controller.dart';
+import 'package:kurdle_app/route_transitions.dart';
 import 'package:kurdle_app/services/achievement_service.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/widgets/ferheng/ferheng_design.dart';
@@ -14,7 +15,7 @@ class WordDetailPopup extends StatefulWidget {
 
   /// Yardımcı: doğrudan showModalBottomSheet çağırır.
   static Future<void> show(BuildContext context, String word) {
-    return showModalBottomSheet(
+    return showAppModalBottomSheet(
       context: context,
       backgroundColor: FerhengDesign.bg,
       isScrollControlled: true,
@@ -47,80 +48,80 @@ class _WordDetailPopupState extends State<WordDetailPopup> {
 
   @override
   Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.6,
-      minChildSize: 0.3,
-      maxChildSize: 0.9,
-      expand: false,
-      builder: (context, scrollController) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            margin: const EdgeInsets.only(top: 8, bottom: 4),
-            width: 36,
-            height: 4,
-            decoration: BoxDecoration(
+    final height = MediaQuery.of(context).size.height * 0.72;
+    return SafeArea(
+      top: false,
+      child: SizedBox(
+        height: height,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AppSheetDragHandle(
               color: FerhengDesign.textFaint,
-              borderRadius: BorderRadius.circular(2),
+              width: 36,
+              margin: const EdgeInsets.only(top: 8, bottom: 4),
             ),
-          ),
-          Expanded(
-            child: ListenableBuilder(
-              listenable: _controller,
-              builder: (context, _) {
-                final c = _controller;
-                if (c.status == FerhengStatus.loading) {
-                  return const Center(
-                      child: CircularProgressIndicator(
-                          color: FerhengDesign.primary));
-                }
-                final entry = c.currentEntry;
-                if (entry == null) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(L.ferhengNoDefinition,
-                          style: FerhengDesign.bodyMd),
-                    ),
-                  );
-                }
-                return WordDetailBody(
-                  entry: entry,
-                  language: c.definitionLanguage,
-                  onLanguageChanged: c.setDefinitionLanguage,
-                );
-              },
-            ),
-          ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: SizedBox(
-                width: double.infinity,
-                child: TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    Navigator.of(context).push(MaterialPageRoute(
-                      builder: (_) => FerhengDetailScreen(
-                        word: widget.word,
-                        controller: FerhengController(),
+            Expanded(
+              child: ListenableBuilder(
+                listenable: _controller,
+                builder: (context, _) {
+                  final c = _controller;
+                  if (c.status == FerhengStatus.loading) {
+                    return const Center(
+                        child: CircularProgressIndicator(
+                            color: FerhengDesign.primary));
+                  }
+                  final entry = c.currentEntry;
+                  if (entry == null) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Text(L.ferhengNoDefinition,
+                            style: FerhengDesign.bodyMd),
                       ),
-                    ));
-                  },
-                  style: TextButton.styleFrom(
-                    backgroundColor: FerhengDesign.surfaceAlt,
-                    foregroundColor: FerhengDesign.textPrimary,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: const RoundedRectangleBorder(
-                        borderRadius: FerhengDesign.radMd),
+                    );
+                  }
+                  return WordDetailBody(
+                    entry: entry,
+                    language: c.definitionLanguage,
+                    onLanguageChanged: c.setDefinitionLanguage,
+                  );
+                },
+              ),
+            ),
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (!mounted) return;
+                        Navigator.of(context).push(
+                          appRoute(FerhengDetailScreen(
+                            word: widget.word,
+                            controller: FerhengController(),
+                          )),
+                        );
+                      });
+                    },
+                    style: TextButton.styleFrom(
+                      backgroundColor: FerhengDesign.surfaceAlt,
+                      foregroundColor: FerhengDesign.textPrimary,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: const RoundedRectangleBorder(
+                          borderRadius: FerhengDesign.radMd),
+                    ),
+                    child: Text(_openFullText(L.current)),
                   ),
-                  child: Text(_openFullText(L.current)),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

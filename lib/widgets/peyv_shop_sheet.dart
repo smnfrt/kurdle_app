@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:kurdle_app/route_transitions.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/firebase_service.dart';
@@ -112,7 +113,7 @@ class PeyvShopSheet extends StatefulWidget {
     bool showLocked = false,
     void Function(PeyvItem item)? onItemPurchased,
   }) {
-    return showModalBottomSheet(
+    return showAppModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
@@ -255,28 +256,22 @@ class _PeyvShopSheetState extends State<PeyvShopSheet> {
       return _isLevelGated(i.key);
     }).toList();
 
-    return DraggableScrollableSheet(
-      initialChildSize: 0.55,
-      minChildSize: 0.4,
-      maxChildSize: 0.92,
-      expand: false,
-      builder: (context, scrollCtrl) {
-        return Container(
+    final height = MediaQuery.of(context).size.height * 0.72;
+    return SafeArea(
+      top: false,
+      child: SizedBox(
+        height: height,
+        child: Container(
           decoration: BoxDecoration(
             color: bg,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: Column(
             children: [
-              // Drag handle
-              Container(
+              AppSheetDragHandle(
                 margin: const EdgeInsets.symmetric(vertical: 10),
                 width: 38,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: fg.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(2),
-                ),
+                color: fg.withValues(alpha: 0.18),
               ),
               // Header: balance + close
               Padding(
@@ -335,7 +330,6 @@ class _PeyvShopSheetState extends State<PeyvShopSheet> {
                         ),
                       )
                     : ListView.separated(
-                        controller: scrollCtrl,
                         padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                         itemCount: visible.length,
                         separatorBuilder: (_, __) => const SizedBox(height: 10),
@@ -361,8 +355,8 @@ class _PeyvShopSheetState extends State<PeyvShopSheet> {
               ),
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

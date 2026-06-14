@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/firebase_service.dart';
+import 'package:kurdle_app/services/ferheng_service.dart';
 import 'package:kurdle_app/services/firestore_service.dart';
 import 'package:kurdle_app/services/game_store.dart';
 import 'package:kurdle_app/services/haptic_service.dart';
@@ -39,6 +40,7 @@ const _kPrimary = Color(0xFF3FBE6F);
 const _kGold = Color(0xFFFFD27A);
 const _kGoldDim = Color(0xFFB8860B);
 const _kHomeWideCardHeight = 156.0;
+bool _myGamesSheetOpen = false;
 
 void _showAboutDialog(BuildContext ctx) {
   HapticFeedback.selectionClick();
@@ -186,6 +188,7 @@ class _HomeScreenState extends State<HomeScreen>
     NotificationService.instance.onInviteTap(_onNotificationInviteTap);
     _onOpenMyGames = _handleOpenMyGames;
     homeOpenMyGamesTick.addListener(_onOpenMyGames);
+    _warmUpFerhengCategories();
   }
 
   @override
@@ -202,6 +205,12 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _onLocaleChanged() {
     if (mounted) setState(() {});
+  }
+
+  void _warmUpFerhengCategories() {
+    unawaited(FerhengService.instance.warmUpCategories().catchError((e) {
+      debugPrint('Ferheng category warm-up failed: $e');
+    }));
   }
 
   Future<void> _setAppLocale(AppLocale locale) async {
@@ -226,28 +235,33 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _handleOpenMyGames() {
     if (!mounted) return;
+    if (_myGamesSheetOpen) return;
+    _myGamesSheetOpen = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      showModalBottomSheet(
+      if (!mounted) {
+        _myGamesSheetOpen = false;
+        return;
+      }
+      unawaited(showAppModalBottomSheet(
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
-        builder: (_) => _MyGamesSheet(
+        builder: (sheetCtx) => _MyGamesSheet(
           onResume: (ctrl) {
-            Navigator.pop(context);
+            Navigator.of(sheetCtx).pop();
             Navigator.push(
               context,
               appRoute(ScrabbleGameScreen(existingController: ctrl)),
             ).then((_) => setState(() {}));
           },
           onAcceptInvite: (inv) async {
-            Navigator.pop(context);
+            Navigator.of(sheetCtx).pop();
             await _acceptInviteAndOpen(inv);
           },
           onDeclineInvite: (inv) =>
               MultiplayerService.instance.declineInvite(inv.inviteId),
           onOpenRoom: (room) {
-            Navigator.pop(context);
+            Navigator.of(sheetCtx).pop();
             final uid = AuthService.instance.effectiveUid ?? '';
             Navigator.push(
                 context,
@@ -257,7 +271,9 @@ class _HomeScreenState extends State<HomeScreen>
           invites: _pendingInvites,
           activeRooms: _activeRooms,
         ),
-      );
+      ).whenComplete(() {
+        _myGamesSheetOpen = false;
+      }));
     });
   }
 
@@ -288,14 +304,54 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  Future<void> _handleNotificationInviteTap(String invitePayload) async {
+  Future<void> _handleNotificationInviteTap(String payload) async {
+    if (!mounted || payload.isEmpty) return;
+
+    if (payload == NotificationService.dailyPayload ||
+        payload == NotificationService.streakPayload) {
+      Navigator.of(context).push(appRoute(const DailyChallengeScreen()));
+      return;
+    }
+
+    if (payload.startsWith('room:')) {
+      await _openRoomFromNotification(payload.substring('room:'.length));
+      return;
+    }
+
+    if (payload.startsWith('invite:')) {
+      await _handleInviteNotification(payload.substring('invite:'.length));
+      return;
+    }
+
+    // Eski sürüm bildirimleri ham roomCode veya inviteId taşıyabiliyordu.
+    final openedRoom = await _openRoomFromNotification(payload);
+    if (!openedRoom) {
+      await _handleInviteNotification(payload);
+    }
+  }
+
+  Future<bool> _openRoomFromNotification(String roomCode) async {
+    if (!mounted || roomCode.isEmpty) return false;
+    final uid = await _uidForNotificationNavigation();
+    if (!mounted || uid == null) return false;
+
+    final room = await MultiplayerService.instance.getRoom(roomCode);
+    if (!mounted || room == null) return false;
+
+    final isParticipant = room.hostUid == uid || room.guestUid == uid;
+    if (!isParticipant) return false;
+
+    Navigator.of(context).push(
+      appRoute(FriendGameScreen(roomCode: room.roomCode, myUid: uid)),
+    );
+    return true;
+  }
+
+  Future<void> _handleInviteNotification(String inviteId) async {
     if (!mounted) return;
     final uid = await _uidForNotificationNavigation();
     if (!mounted || uid == null) return;
 
-    final inviteId = invitePayload.startsWith('invite:')
-        ? invitePayload.substring('invite:'.length)
-        : invitePayload;
     final invite = await MultiplayerService.instance.getInvite(inviteId);
     if (!mounted || invite == null) return;
 
@@ -443,26 +499,21 @@ class _HomeScreenState extends State<HomeScreen>
     final seen = await OnboardingService.instance.hasSeenOnboarding();
     if (!seen && mounted) {
       Navigator.of(context).push(
-        PageRouteBuilder(
-          pageBuilder: (_, __, ___) => OnboardingScreen(
-            onDone: () {
-              Navigator.of(context).pop();
-              // İlk başlayan kullanıcı için rehberli birinci oyun:
-              // Daily Wordle. Hızlı + tek kelime + başarı hissi verir.
-              // (kullanıcı "Atla" derse onDone bu yine çağrılır; OK.)
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (!mounted) return;
-                Navigator.push(
-                  context,
-                  appRoute(const DailyChallengeScreen()),
-                );
-              });
-            },
-          ),
-          transitionDuration: const Duration(milliseconds: 400),
-          transitionsBuilder: (_, anim, __, child) =>
-              FadeTransition(opacity: anim, child: child),
-        ),
+        appRoute(OnboardingScreen(
+          onDone: () {
+            Navigator.of(context).pop();
+            // İlk başlayan kullanıcı için rehberli birinci oyun:
+            // Daily Wordle. Hızlı + tek kelime + başarı hissi verir.
+            // (kullanıcı "Atla" derse onDone bu yine çağrılır; OK.)
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              Navigator.push(
+                context,
+                appRoute(const DailyChallengeScreen()),
+              );
+            });
+          },
+        )),
       );
     }
   }
@@ -655,30 +706,41 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _showSettingsSheet(BuildContext context) {
-    showModalBottomSheet(
+    showAppModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => _SettingsSheet(
+      isDismissible: true,
+      enableDrag: true,
+      useSafeArea: true,
+      builder: (sheetCtx) => _SettingsSheet(
         onLocaleChanged: _setAppLocale,
-        onHowToTap: () => _showHowTo(context),
+        onHowToTap: () {
+          Navigator.of(sheetCtx).pop();
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _showHowTo(context);
+          });
+        },
       ),
     );
   }
 
-  void _showQuickPlayDifficulty(BuildContext context) {
+  Future<void> _showQuickPlayDifficulty(BuildContext context) async {
     HapticFeedback.selectionClick();
-    showModalBottomSheet(
+    final difficulty = await showAppModalBottomSheet<AiDifficulty>(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
+      useSafeArea: true,
       builder: (sheetCtx) => _QuickPlayDifficultySheet(
-        onSelected: (difficulty) {
-          Navigator.pop(sheetCtx);
-          _startQuickPlay(difficulty);
-        },
+        onClose: () => Navigator.of(sheetCtx).pop(),
+        onSelected: (difficulty) => Navigator.of(sheetCtx).pop(difficulty),
       ),
     );
+    if (!mounted || difficulty == null) return;
+    _startQuickPlay(difficulty);
   }
 
   void _startQuickPlay(AiDifficulty difficulty) {
@@ -692,7 +754,7 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   void _showStatsSheet(BuildContext context) {
-    showModalBottomSheet(
+    showAppModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
@@ -760,9 +822,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
     if (!mounted || val == null) return;
     if (val == 'ferheng') {
-      Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => const FerhengHomeScreen(),
-      ));
+      Navigator.of(context).push(appRoute(const FerhengHomeScreen()));
     } else if (val == 'how_to_play') {
       _showHowTo(context);
     } else if (val == 'about') {
@@ -1187,14 +1247,7 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
     HapticFeedback.mediumImpact();
     Navigator.push(
       context,
-      PageRouteBuilder(
-        pageBuilder: (_, __, ___) => const DailyChallengeScreen(),
-        transitionsBuilder: (_, anim, __, child) => FadeTransition(
-          opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
-          child: child,
-        ),
-        transitionDuration: const Duration(milliseconds: 280),
-      ),
+      appRoute(const DailyChallengeScreen()),
     ).then((_) => _loadState());
   }
 
@@ -1896,9 +1949,13 @@ class _QuickPlayCardState extends State<_QuickPlayCard>
 }
 
 class _QuickPlayDifficultySheet extends StatelessWidget {
+  final VoidCallback onClose;
   final void Function(AiDifficulty difficulty) onSelected;
 
-  const _QuickPlayDifficultySheet({required this.onSelected});
+  const _QuickPlayDifficultySheet({
+    required this.onClose,
+    required this.onSelected,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1933,25 +1990,32 @@ class _QuickPlayDifficultySheet extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Center(
-              child: Container(
-                width: 42,
-                height: 4,
+              child: _SheetDragHandle(
+                color: isDark
+                    ? Colors.white24
+                    : const Color(0xFF71808A).withValues(alpha: 0.55),
                 margin: const EdgeInsets.only(bottom: 18),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? Colors.white24
-                      : const Color(0xFF71808A).withValues(alpha: 0.55),
-                  borderRadius: BorderRadius.circular(99),
-                ),
               ),
             ),
-            Text(
-              L.aiDifficulty,
-              style: TextStyle(
-                color: titleColor,
-                fontSize: 18,
-                fontWeight: FontWeight.w800,
-              ),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    L.aiDifficulty,
+                    style: TextStyle(
+                      color: titleColor,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: onClose,
+                  icon: Icon(Icons.close_rounded, color: mutedColor, size: 22),
+                  visualDensity: VisualDensity.compact,
+                  tooltip: L.current == AppLocale.tr ? 'Kapat' : 'Bigire',
+                ),
+              ],
             ),
             const SizedBox(height: 4),
             Text(
@@ -2076,6 +2140,36 @@ class _DifficultyOption extends StatelessWidget {
   }
 }
 
+class _SheetDragHandle extends StatelessWidget {
+  final Color color;
+  final double width;
+  final EdgeInsetsGeometry margin;
+
+  const _SheetDragHandle({
+    required this.color,
+    this.width = 42,
+    this.margin = EdgeInsets.zero,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width + 32,
+      height: 28,
+      alignment: Alignment.center,
+      margin: margin,
+      child: Container(
+        width: width,
+        height: 4,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(99),
+        ),
+      ),
+    );
+  }
+}
+
 // ── Yeni Oyun + Oyunlarım ikili panel ────────────────────────────
 
 class _GamePairPanel extends StatefulWidget {
@@ -2108,44 +2202,86 @@ class _GamePairPanel extends StatefulWidget {
 }
 
 class _GamePairPanelState extends State<_GamePairPanel> {
-  void _showMyGamesSheet(BuildContext context) {
+  Future<void> _showMyGamesSheet(BuildContext context) async {
+    if (_myGamesSheetOpen) return;
+    _myGamesSheetOpen = true;
     HapticFeedback.selectionClick();
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _MyGamesSheet(
-        onResume: (ctrl) {
-          Navigator.pop(context);
-          widget.onResume(ctrl);
-        },
-        onAcceptInvite: (inv) {
-          Navigator.pop(context);
-          widget.onAcceptInvite(inv);
-        },
-        onDeclineInvite: (inv) {
-          widget.onDeclineInvite(inv);
-        },
-        onOpenRoom: (room) {
-          Navigator.pop(context);
-          widget.onOpenRoom(room);
-        },
-        invites: widget.invites,
-        activeRooms: widget.activeRooms,
-      ),
-    );
+    final _MyGamesSheetResult? result;
+    try {
+      result = await showAppModalBottomSheet<_MyGamesSheetResult>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: Colors.transparent,
+        isDismissible: true,
+        enableDrag: true,
+        useSafeArea: true,
+        builder: (sheetCtx) => _MyGamesSheet(
+          onResume: (ctrl) =>
+              Navigator.of(sheetCtx).pop(_ResumeGameResult(ctrl)),
+          onAcceptInvite: (inv) =>
+              Navigator.of(sheetCtx).pop(_AcceptInviteResult(inv)),
+          onDeclineInvite: (inv) {
+            widget.onDeclineInvite(inv);
+          },
+          onOpenRoom: (room) =>
+              Navigator.of(sheetCtx).pop(_OpenRoomResult(room)),
+          invites: widget.invites,
+          activeRooms: widget.activeRooms,
+        ),
+      );
+    } finally {
+      _myGamesSheetOpen = false;
+    }
+    if (!mounted || result == null) return;
+    switch (result) {
+      case _ResumeGameResult(:final controller):
+        widget.onResume(controller);
+      case _AcceptInviteResult(:final invite):
+        widget.onAcceptInvite(invite);
+      case _OpenRoomResult(:final room):
+        widget.onOpenRoom(room);
+    }
   }
 
-  void _showNewGameSheet(BuildContext context) {
+  Future<void> _showNewGameSheet(BuildContext context) async {
     HapticFeedback.selectionClick();
-    showModalBottomSheet(
+    final action = await showAppModalBottomSheet<_NewGameAction>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _NewGameSheet(
-        onFriend: widget.onFriend,
-        onUsername: widget.onUsername,
-        onRandom: widget.onRandom,
+      isDismissible: true,
+      enableDrag: true,
+      useSafeArea: true,
+      builder: (sheetCtx) => _NewGameSheet(
+        onFriend: () => Navigator.of(sheetCtx).pop(_NewGameAction.friend),
+        onUsername: () => Navigator.of(sheetCtx).pop(_NewGameAction.username),
+        onRandom: () => Navigator.of(sheetCtx).pop(_NewGameAction.random),
+      ),
+    );
+    if (!mounted || action == null) return;
+    switch (action) {
+      case _NewGameAction.friend:
+        if (!context.mounted) return;
+        final seconds = await _showTimeControlSheet(context);
+        if (!mounted || seconds == null) return;
+        widget.onFriend(seconds);
+      case _NewGameAction.username:
+        widget.onUsername();
+      case _NewGameAction.random:
+        widget.onRandom();
+    }
+  }
+
+  Future<int?> _showTimeControlSheet(BuildContext context) {
+    return showAppModalBottomSheet<int?>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      isDismissible: true,
+      enableDrag: true,
+      useSafeArea: true,
+      builder: (sheetCtx) => _TimeControlSheet(
+        onSelected: (seconds) => Navigator.of(sheetCtx).pop(seconds),
       ),
     );
   }
@@ -2492,8 +2628,29 @@ class _GamePairPanelState extends State<_GamePairPanel> {
 
 // ── Yeni Oyun tam ekran seçenekler ──────────────────────────────
 
+enum _NewGameAction { friend, username, random }
+
+abstract class _MyGamesSheetResult {
+  const _MyGamesSheetResult();
+}
+
+class _ResumeGameResult extends _MyGamesSheetResult {
+  final dynamic controller;
+  const _ResumeGameResult(this.controller);
+}
+
+class _AcceptInviteResult extends _MyGamesSheetResult {
+  final GameInvite invite;
+  const _AcceptInviteResult(this.invite);
+}
+
+class _OpenRoomResult extends _MyGamesSheetResult {
+  final MultiplayerRoom room;
+  const _OpenRoomResult(this.room);
+}
+
 class _NewGameSheet extends StatelessWidget {
-  final void Function(int? seconds) onFriend;
+  final VoidCallback onFriend;
   final VoidCallback onUsername;
   final VoidCallback onRandom;
 
@@ -2502,25 +2659,6 @@ class _NewGameSheet extends StatelessWidget {
     required this.onUsername,
     required this.onRandom,
   });
-
-  void _pickDirect(BuildContext ctx, VoidCallback action) {
-    Navigator.pop(ctx);
-    action();
-  }
-
-  void _pickWithTime(BuildContext ctx, void Function(int? seconds) action) {
-    showModalBottomSheet(
-      context: ctx,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _TimeControlSheet(
-        onSelected: (seconds) {
-          Navigator.pop(ctx);
-          action(seconds);
-        },
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -2553,15 +2691,10 @@ class _NewGameSheet extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // pill
-          Container(
+          _SheetDragHandle(
             width: 40,
-            height: 4,
+            color: handleColor,
             margin: const EdgeInsets.only(bottom: 24),
-            decoration: BoxDecoration(
-              color: handleColor,
-              borderRadius: BorderRadius.circular(2),
-            ),
           ),
           // başlık
           Row(
@@ -2613,7 +2746,7 @@ class _NewGameSheet extends StatelessWidget {
             color: const Color(0xFF64B5F6),
             label: L.friendPlay,
             subtitle: L.friendPlaySub,
-            onTap: () => _pickWithTime(context, onFriend),
+            onTap: onFriend,
           ),
           const SizedBox(height: 12),
           _SheetOption(
@@ -2621,7 +2754,7 @@ class _NewGameSheet extends StatelessWidget {
             color: const Color(0xFFBA68C8),
             label: L.byUsername,
             subtitle: L.searchByUsername,
-            onTap: () => _pickDirect(context, onUsername),
+            onTap: onUsername,
           ),
           const SizedBox(height: 12),
           _SheetOption(
@@ -2629,7 +2762,7 @@ class _NewGameSheet extends StatelessWidget {
             color: const Color(0xFFFFB74D),
             label: L.findPlayer,
             subtitle: L.findPlayerSub,
-            onTap: () => _pickDirect(context, onRandom),
+            onTap: onRandom,
           ),
           const SizedBox(height: 8),
         ],
@@ -2816,6 +2949,8 @@ class _MyGamesSheetState extends State<_MyGamesSheet>
   late final TabController _tabs;
   late final AnimationController _entranceCtrl;
   Future<List<MultiplayerRoom>>? _finishedRoomsFuture;
+  static const _sheetInDuration = Duration(milliseconds: 220);
+  static const _tabDuration = Duration(milliseconds: 180);
 
   static String _timeAgo(DateTime t) {
     final d = DateTime.now().difference(t);
@@ -2840,10 +2975,14 @@ class _MyGamesSheetState extends State<_MyGamesSheet>
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 3, vsync: this);
+    _tabs = TabController(
+      length: 3,
+      vsync: this,
+      animationDuration: _tabDuration,
+    );
     _entranceCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 320),
+      duration: _sheetInDuration,
     )..forward();
     final uid = AuthService.instance.effectiveUid;
     if (uid != null && FirebaseService.isAvailable) {
@@ -2997,11 +3136,11 @@ class _MyGamesSheetState extends State<_MyGamesSheet>
     return AnimatedBuilder(
       animation: _entranceCtrl,
       builder: (context, child) {
-        final eased = Curves.easeOutCubic.transform(_entranceCtrl.value);
+        final eased = Curves.easeOutQuart.transform(_entranceCtrl.value);
         return Opacity(
           opacity: eased,
           child: Transform.translate(
-            offset: Offset(0, 28 * (1 - eased)),
+            offset: Offset(0, 14 * (1 - eased)),
             child: child,
           ),
         );
@@ -3038,12 +3177,10 @@ class _MyGamesSheetState extends State<_MyGamesSheet>
         ),
         child: Column(
           children: [
-            Container(
+            _SheetDragHandle(
               width: 46,
-              height: 4,
+              color: handleColor,
               margin: const EdgeInsets.only(top: 12, bottom: 14),
-              decoration: BoxDecoration(
-                  color: handleColor, borderRadius: BorderRadius.circular(2)),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -3265,10 +3402,10 @@ class _MyGamesSheetState extends State<_MyGamesSheet>
               ),
             ),
             const SizedBox(height: 4),
-            // TabBarView
             Expanded(
               child: TabBarView(
                 controller: _tabs,
+                physics: const ClampingScrollPhysics(),
                 children: [
                   _tabView([...activeItems, ...multiplayerItems],
                       'Aktif oyun yok', 'Lîstikek çalak tune'),
@@ -4678,14 +4815,10 @@ class _TimeControlSheet extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
+          _SheetDragHandle(
             width: 40,
-            height: 4,
+            color: handleColor,
             margin: const EdgeInsets.only(bottom: 20),
-            decoration: BoxDecoration(
-              color: handleColor,
-              borderRadius: BorderRadius.circular(2),
-            ),
           ),
           Row(
             children: [
@@ -5415,6 +5548,7 @@ class _SettingsSheetState extends State<_SettingsSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final mq = MediaQuery.of(context);
     final bottom = MediaQuery.of(context).padding.bottom;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final sheetBg = isDark ? const Color(0xFF141E2B) : const Color(0xFFE6EEF2);
@@ -5423,198 +5557,195 @@ class _SettingsSheetState extends State<_SettingsSheet> {
     final handleColor = isDark
         ? Colors.white24
         : const Color(0xFF73818B).withValues(alpha: 0.7);
-    return DraggableScrollableSheet(
-      initialChildSize: 0.82,
-      minChildSize: 0.5,
-      maxChildSize: 0.95,
-      expand: false,
-      builder: (_, scrollCtrl) => Container(
-        decoration: BoxDecoration(
-          color: sheetBg,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
-        ),
-        child: Column(
-          children: [
-            // Handle + başlık
-            Container(
-              padding: const EdgeInsets.fromLTRB(24, 14, 24, 16),
-              decoration: BoxDecoration(
-                color: sheetTop,
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(26)),
-                boxShadow: [
-                  BoxShadow(
-                      color:
-                          Colors.black.withValues(alpha: isDark ? 0.15 : 0.08),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2))
-                ],
-              ),
-              child: Column(
-                children: [
-                  Container(
-                    width: 36,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 14),
-                    decoration: BoxDecoration(
-                        color: handleColor,
-                        borderRadius: BorderRadius.circular(2)),
-                  ),
-                  Row(
-                    children: [
-                      Container(
-                        width: 34,
-                        height: 34,
-                        decoration: BoxDecoration(
-                          color: _kPrimary.withValues(alpha: 0.15),
-                          borderRadius: BorderRadius.circular(10),
+    return SafeArea(
+      top: false,
+      child: SizedBox(
+        height: mq.size.height * 0.82,
+        child: Container(
+          decoration: BoxDecoration(
+            color: sheetBg,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(26)),
+          ),
+          child: Column(
+            children: [
+              // Handle + başlık
+              Container(
+                padding: const EdgeInsets.fromLTRB(24, 14, 24, 16),
+                decoration: BoxDecoration(
+                  color: sheetTop,
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(26)),
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black
+                            .withValues(alpha: isDark ? 0.15 : 0.08),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2))
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    _SheetDragHandle(
+                      width: 36,
+                      color: handleColor,
+                      margin: const EdgeInsets.only(bottom: 14),
+                    ),
+                    Row(
+                      children: [
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: _kPrimary.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(Icons.settings_rounded,
+                              color: _kPrimary, size: 18),
                         ),
-                        child: const Icon(Icons.settings_rounded,
-                            color: _kPrimary, size: 18),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(L.settings,
-                          style: TextStyle(
-                              color: titleColor,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                ],
+                        const SizedBox(width: 12),
+                        Text(L.settings,
+                            style: TextStyle(
+                                color: titleColor,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
 
-            // İçerik
-            Expanded(
-              child: ListView(
-                controller: scrollCtrl,
-                padding: EdgeInsets.fromLTRB(20, 20, 20, bottom + 24),
-                children: [
-                  // ── Hesap / Profil ──────────────────────────────
-                  _SectionLabel(L.accountProfile),
-                  const SizedBox(height: 10),
-                  _ProfileCard(
-                    onSignInTap: () {
-                      Navigator.pop(context);
-                      _showAuthScreen(context);
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  _SettingsTile(
-                    icon: Icons.edit_rounded,
-                    iconColor: const Color(0xFF64B5F6),
-                    label: L.editProfile,
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(context, appRoute(const ProfileScreen()));
-                    },
-                  ),
-                  if (AuthService.instance.isAnonymous)
-                    _SettingsTile(
-                      icon: Icons.link_rounded,
-                      iconColor: _kPrimary,
-                      label: L.linkWithGoogle,
-                      onTap: () {
+              // İçerik
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.fromLTRB(20, 20, 20, bottom + 24),
+                  children: [
+                    // ── Hesap / Profil ──────────────────────────────
+                    _SectionLabel(L.accountProfile),
+                    const SizedBox(height: 10),
+                    _ProfileCard(
+                      onSignInTap: () {
                         Navigator.pop(context);
                         _showAuthScreen(context);
                       },
-                    )
-                  else
+                    ),
+                    const SizedBox(height: 8),
                     _SettingsTile(
-                      icon: Icons.logout_rounded,
-                      iconColor: const Color(0xFFEF5350),
-                      label: L.signOut,
-                      onTap: () async {
-                        await AuthService.instance.signOut();
-                        if (context.mounted) {
+                      icon: Icons.edit_rounded,
+                      iconColor: const Color(0xFF64B5F6),
+                      label: L.editProfile,
+                      onTap: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                            context, appRoute(const ProfileScreen()));
+                      },
+                    ),
+                    if (AuthService.instance.isAnonymous)
+                      _SettingsTile(
+                        icon: Icons.link_rounded,
+                        iconColor: _kPrimary,
+                        label: L.linkWithGoogle,
+                        onTap: () {
                           Navigator.pop(context);
+                          _showAuthScreen(context);
+                        },
+                      )
+                    else
+                      _SettingsTile(
+                        icon: Icons.logout_rounded,
+                        iconColor: const Color(0xFFEF5350),
+                        label: L.signOut,
+                        onTap: () async {
+                          await AuthService.instance.signOut();
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            setState(() {});
+                          }
+                        },
+                      ),
+
+                    const SizedBox(height: 24),
+
+                    // ── Oyun Ayarları ───────────────────────────────
+                    _SectionLabel(L.gameSettings),
+                    const SizedBox(height: 10),
+                    _SettingsToggle(
+                      icon: Icons.volume_up_rounded,
+                      iconColor: const Color(0xFFFFB74D),
+                      label: L.sound,
+                      value: _sound,
+                      onChanged: _setSound,
+                    ),
+                    _SettingsToggle(
+                      icon: Icons.vibration_rounded,
+                      iconColor: const Color(0xFF81C784),
+                      label: L.haptic,
+                      value: _haptic,
+                      onChanged: _setHaptic,
+                    ),
+                    _SettingsToggle(
+                      icon: Icons.notifications_rounded,
+                      iconColor: const Color(0xFFBA68C8),
+                      label: L.notifications,
+                      value: _notifs,
+                      onChanged: _setNotifs,
+                    ),
+                    _SettingsToggle(
+                      icon: Icons.dark_mode_rounded,
+                      iconColor: const Color(0xFF4FC3F7),
+                      label: _darkMode ? L.darkMode : L.darkModeOff,
+                      value: _darkMode,
+                      onChanged: _setDarkMode,
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // ── Genel ───────────────────────────────────────
+                    _SectionLabel(L.general),
+                    const SizedBox(height: 10),
+                    _SettingsTileTrailing(
+                      icon: Icons.language_rounded,
+                      iconColor: const Color(0xFF4CAF50),
+                      label: L.language,
+                      trailing: _LangSwitcher(
+                        onChanged: (locale) {
+                          widget.onLocaleChanged(locale);
                           setState(() {});
-                        }
-                      },
+                        },
+                      ),
                     ),
-
-                  const SizedBox(height: 24),
-
-                  // ── Oyun Ayarları ───────────────────────────────
-                  _SectionLabel(L.gameSettings),
-                  const SizedBox(height: 10),
-                  _SettingsToggle(
-                    icon: Icons.volume_up_rounded,
-                    iconColor: const Color(0xFFFFB74D),
-                    label: L.sound,
-                    value: _sound,
-                    onChanged: _setSound,
-                  ),
-                  _SettingsToggle(
-                    icon: Icons.vibration_rounded,
-                    iconColor: const Color(0xFF81C784),
-                    label: L.haptic,
-                    value: _haptic,
-                    onChanged: _setHaptic,
-                  ),
-                  _SettingsToggle(
-                    icon: Icons.notifications_rounded,
-                    iconColor: const Color(0xFFBA68C8),
-                    label: L.notifications,
-                    value: _notifs,
-                    onChanged: _setNotifs,
-                  ),
-                  _SettingsToggle(
-                    icon: Icons.dark_mode_rounded,
-                    iconColor: const Color(0xFF4FC3F7),
-                    label: _darkMode ? L.darkMode : L.darkModeOff,
-                    value: _darkMode,
-                    onChanged: _setDarkMode,
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // ── Genel ───────────────────────────────────────
-                  _SectionLabel(L.general),
-                  const SizedBox(height: 10),
-                  _SettingsTileTrailing(
-                    icon: Icons.language_rounded,
-                    iconColor: const Color(0xFF4CAF50),
-                    label: L.language,
-                    trailing: _LangSwitcher(
-                      onChanged: (locale) {
-                        widget.onLocaleChanged(locale);
-                        setState(() {});
-                      },
+                    _SettingsTile(
+                      icon: Icons.help_outline_rounded,
+                      iconColor: const Color(0xFFFFD54F),
+                      label: L.howToPlayShort,
+                      onTap: widget.onHowToTap,
                     ),
-                  ),
-                  _SettingsTile(
-                    icon: Icons.help_outline_rounded,
-                    iconColor: const Color(0xFFFFD54F),
-                    label: L.howToPlayShort,
-                    onTap: widget.onHowToTap,
-                  ),
-                  _SettingsTile(
-                    icon: Icons.privacy_tip_outlined,
-                    iconColor: const Color(0xFF7E57C2),
-                    label: L.privacyPolicy,
-                    onTap: () => Navigator.push(
-                      context,
-                      appRoute(const PrivacyPolicyScreen()),
+                    _SettingsTile(
+                      icon: Icons.privacy_tip_outlined,
+                      iconColor: const Color(0xFF7E57C2),
+                      label: L.privacyPolicy,
+                      onTap: () => Navigator.push(
+                        context,
+                        appRoute(const PrivacyPolicyScreen()),
+                      ),
                     ),
-                  ),
-                  _SettingsTile(
-                    icon: Icons.info_outline_rounded,
-                    iconColor:
-                        isDark ? Colors.white38 : const Color(0xFF5A6872),
-                    label: L.about,
-                    trailing: Text('v${VersionService.currentVersion}',
-                        style: TextStyle(
-                            color: isDark
-                                ? Colors.white.withValues(alpha: 0.28)
-                                : const Color(0xFF53616A),
-                            fontSize: 12)),
-                    onTap: () => _showAbout(context),
-                  ),
-                ],
+                    _SettingsTile(
+                      icon: Icons.info_outline_rounded,
+                      iconColor:
+                          isDark ? Colors.white38 : const Color(0xFF5A6872),
+                      label: L.about,
+                      trailing: Text('v${VersionService.currentVersion}',
+                          style: TextStyle(
+                              color: isDark
+                                  ? Colors.white.withValues(alpha: 0.28)
+                                  : const Color(0xFF53616A),
+                              fontSize: 12)),
+                      onTap: () => _showAbout(context),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

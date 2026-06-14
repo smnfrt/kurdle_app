@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:kurdle_app/route_transitions.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/firebase_service.dart';
@@ -9,8 +10,8 @@ import 'package:kurdle_app/services/firestore_service.dart';
 import 'package:kurdle_app/services/notification_service.dart';
 import 'package:kurdle_app/widgets/scrabble_game_screen.dart';
 
-const _kBg      = Color(0xFF0D0A00);
-const _kGold    = Color(0xFFFFD700);
+const _kBg = Color(0xFF0D0A00);
+const _kGold = Color(0xFFFFD700);
 const _kPrimary = Color(0xFF4CAF50);
 
 class TournamentScreen extends StatefulWidget {
@@ -65,7 +66,10 @@ class _TournamentScreenState extends State<TournamentScreen>
     final startAt = (_data['startAt'] as Timestamp?)?.toDate();
     if (startAt == null) return;
     final remaining = startAt.difference(DateTime.now());
-    if (mounted) setState(() => _remaining = remaining.isNegative ? Duration.zero : remaining);
+    if (mounted) {
+      setState(
+          () => _remaining = remaining.isNegative ? Duration.zero : remaining);
+    }
   }
 
   Future<void> _loadTournament() async {
@@ -74,9 +78,8 @@ class _TournamentScreenState extends State<TournamentScreen>
       return;
     }
     await FirestoreService.instance.ensureWeeklyTournament();
-    _tournamentSub = FirestoreService.instance
-        .activeTournamentsStream()
-        .listen((snap) {
+    _tournamentSub =
+        FirestoreService.instance.activeTournamentsStream().listen((snap) {
       if (mounted) {
         setState(() {
           _tournament = snap.docs.isNotEmpty ? snap.docs.first : null;
@@ -96,7 +99,7 @@ class _TournamentScreenState extends State<TournamentScreen>
 
     final isFull = _players.length >= _maxPlayers;
     final startAt = (_data['startAt'] as Timestamp?)?.toDate();
-    final timeUp  = startAt != null && DateTime.now().isAfter(startAt);
+    final timeUp = startAt != null && DateTime.now().isAfter(startAt);
 
     if ((isFull || timeUp) && _players.length >= 2) {
       FirestoreService.instance.startTournament(_tournament!.id);
@@ -116,16 +119,15 @@ class _TournamentScreenState extends State<TournamentScreen>
 
     if (match == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Şu an aktif maçın yok, sıradaki tur bekleniyor.')),
+        const SnackBar(
+            content: Text('Şu an aktif maçın yok, sıradaki tur bekleniyor.')),
       );
       return;
     }
 
     final result = await Navigator.push<int>(
       context,
-      MaterialPageRoute(
-        builder: (_) => ScrabbleGameScreen(tournamentMatchId: match['id'] as String),
-      ),
+      appRoute(ScrabbleGameScreen(tournamentMatchId: match['id'] as String)),
     );
 
     // Oyun bitince skoru gönder
@@ -141,9 +143,10 @@ class _TournamentScreenState extends State<TournamentScreen>
 
   Future<void> _joinTournament() async {
     final uid = AuthService.instance.currentUser?.uid;
-    final displayName = AuthService.instance.currentUser?.displayName?.trim().isNotEmpty == true
-        ? AuthService.instance.currentUser!.displayName!
-        : AuthService.instance.effectiveDisplayName;
+    final displayName =
+        AuthService.instance.currentUser?.displayName?.trim().isNotEmpty == true
+            ? AuthService.instance.currentUser!.displayName!
+            : AuthService.instance.effectiveDisplayName;
     if (uid == null || _tournament == null) return;
 
     setState(() => _joining = true);
@@ -165,7 +168,8 @@ class _TournamentScreenState extends State<TournamentScreen>
           SnackBar(
             content: Row(children: [
               const Text('🏆 '),
-              Text(_TL.joinedTournament, style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(_TL.joinedTournament,
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
             ]),
             backgroundColor: const Color(0xFF2A1A00),
             behavior: SnackBarBehavior.floating,
@@ -179,7 +183,8 @@ class _TournamentScreenState extends State<TournamentScreen>
         );
       } else if (err.contains('full')) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Turnuva dolu!'), backgroundColor: Colors.red),
+          const SnackBar(
+              content: Text('Turnuva dolu!'), backgroundColor: Colors.red),
         );
       }
     }
@@ -246,12 +251,14 @@ class _TournamentScreenState extends State<TournamentScreen>
           const SizedBox(height: 16),
           Text(
             'Şu an aktif turnuva yok',
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 16),
+            style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.6), fontSize: 16),
           ),
           const SizedBox(height: 8),
           Text(
             'Yakında yeni turnuva başlayacak',
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 12),
+            style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.3), fontSize: 12),
           ),
         ],
       ),
@@ -284,7 +291,8 @@ class _TournamentScreenState extends State<TournamentScreen>
               GestureDetector(
                 onTap: () => Navigator.pop(context),
                 child: Container(
-                  width: 38, height: 38,
+                  width: 38,
+                  height: 38,
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.07),
                     borderRadius: BorderRadius.circular(10),
@@ -301,8 +309,7 @@ class _TournamentScreenState extends State<TournamentScreen>
                   children: [
                     Row(
                       children: [
-                        const Text('🏆 ',
-                            style: TextStyle(fontSize: 18)),
+                        const Text('🏆 ', style: TextStyle(fontSize: 18)),
                         Text(
                           _TL.tournamentTitle,
                           style: const TextStyle(
@@ -327,7 +334,8 @@ class _TournamentScreenState extends State<TournamentScreen>
               ),
               // Geri sayım
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                 decoration: BoxDecoration(
                   color: Colors.black38,
                   borderRadius: BorderRadius.circular(12),
@@ -411,7 +419,8 @@ class _TournamentScreenState extends State<TournamentScreen>
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.people_alt_rounded, color: _kGold.withValues(alpha: 0.7), size: 14),
+                Icon(Icons.people_alt_rounded,
+                    color: _kGold.withValues(alpha: 0.7), size: 14),
                 const SizedBox(width: 6),
                 RichText(
                   text: TextSpan(
@@ -439,7 +448,8 @@ class _TournamentScreenState extends State<TournamentScreen>
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(4),
                     child: LinearProgressIndicator(
-                      value: _maxPlayers > 0 ? _players.length / _maxPlayers : 0,
+                      value:
+                          _maxPlayers > 0 ? _players.length / _maxPlayers : 0,
                       backgroundColor: Colors.white12,
                       color: _kGold,
                       minHeight: 6,
@@ -488,7 +498,10 @@ class _TournamentScreenState extends State<TournamentScreen>
                 ),
                 child: Text(
                   _TL.waitingToStart,
-                  style: const TextStyle(color: _kPrimary, fontSize: 10, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                      color: _kPrimary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600),
                 ),
               ),
             ],
@@ -537,14 +550,16 @@ class _TournamentScreenState extends State<TournamentScreen>
                 colors: _joined
                     ? [const Color(0xFF1B5E20), const Color(0xFF2E7D32)]
                     : [
-                        Color.lerp(const Color(0xFF7A5000), const Color(0xFFB87000),
-                            0.4 + 0.3 * _glow.value)!,
+                        Color.lerp(const Color(0xFF7A5000),
+                            const Color(0xFFB87000), 0.4 + 0.3 * _glow.value)!,
                         const Color(0xFF7A5000),
                       ],
               ),
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: _joined ? _kPrimary.withValues(alpha: 0.6) : _kGold.withValues(alpha: 0.6 + 0.3 * _glow.value),
+                color: _joined
+                    ? _kPrimary.withValues(alpha: 0.6)
+                    : _kGold.withValues(alpha: 0.6 + 0.3 * _glow.value),
                 width: 1.5,
               ),
               boxShadow: [
@@ -560,7 +575,9 @@ class _TournamentScreenState extends State<TournamentScreen>
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
-                  _joined ? Icons.sports_esports_rounded : Icons.emoji_events_rounded,
+                  _joined
+                      ? Icons.sports_esports_rounded
+                      : Icons.emoji_events_rounded,
                   color: Colors.white,
                   size: 20,
                 ),
@@ -584,9 +601,17 @@ class _TournamentScreenState extends State<TournamentScreen>
 
   Widget _buildRulesCard() {
     final rules = [
-      (icon: Icons.timer_rounded,         color: const Color(0xFF64B5F6), text: _TL.tournRule1),
-      (icon: Icons.emoji_events_rounded,  color: _kGold,                  text: _TL.tournRule2),
-      (icon: Icons.block_rounded,         color: const Color(0xFFFF6B6B), text: _TL.tournRule3),
+      (
+        icon: Icons.timer_rounded,
+        color: const Color(0xFF64B5F6),
+        text: _TL.tournRule1
+      ),
+      (icon: Icons.emoji_events_rounded, color: _kGold, text: _TL.tournRule2),
+      (
+        icon: Icons.block_rounded,
+        color: const Color(0xFFFF6B6B),
+        text: _TL.tournRule3
+      ),
     ];
 
     return Container(
@@ -601,14 +626,18 @@ class _TournamentScreenState extends State<TournamentScreen>
         children: [
           Text(_TL.tournamentRules,
               style: const TextStyle(
-                  color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                  color: Colors.white70,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5)),
           const SizedBox(height: 12),
           ...rules.map((r) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: Row(
                   children: [
                     Container(
-                      width: 32, height: 32,
+                      width: 32,
+                      height: 32,
                       decoration: BoxDecoration(
                         color: r.color.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(8),
@@ -619,7 +648,8 @@ class _TournamentScreenState extends State<TournamentScreen>
                     Expanded(
                       child: Text(r.text,
                           style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.55), fontSize: 12)),
+                              color: Colors.white.withValues(alpha: 0.55),
+                              fontSize: 12)),
                     ),
                   ],
                 ),
@@ -637,7 +667,8 @@ class _PrizeTile extends StatelessWidget {
   final String label;
   final String value;
 
-  const _PrizeTile({required this.rank, required this.label, required this.value});
+  const _PrizeTile(
+      {required this.rank, required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
@@ -797,7 +828,7 @@ class _PlayerSlot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isEmpty = player.status == 'empty';
-    final isMe    = player.isMe;
+    final isMe = player.isMe;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
@@ -820,7 +851,8 @@ class _PlayerSlot extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 6, height: 6,
+            width: 6,
+            height: 6,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: isEmpty
@@ -871,7 +903,8 @@ class _EmptySlot extends StatelessWidget {
       child: Row(
         children: [
           Container(
-            width: 6, height: 6,
+            width: 6,
+            height: 6,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: isWinner ? _kGold.withValues(alpha: 0.5) : Colors.white24,
@@ -912,8 +945,10 @@ class _BracketLinesPainter extends CustomPainter {
 
       canvas.drawLine(Offset(0, y1), Offset(size.width / 2, y1), paint);
       canvas.drawLine(Offset(0, y2), Offset(size.width / 2, y2), paint);
-      canvas.drawLine(Offset(size.width / 2, y1), Offset(size.width / 2, y2), paint);
-      canvas.drawLine(Offset(size.width / 2, yMid), Offset(size.width, yMid), paint);
+      canvas.drawLine(
+          Offset(size.width / 2, y1), Offset(size.width / 2, y2), paint);
+      canvas.drawLine(
+          Offset(size.width / 2, yMid), Offset(size.width, yMid), paint);
     }
   }
 
@@ -925,24 +960,36 @@ class _BracketLinesPainter extends CustomPainter {
 
 class _TL {
   static bool get _tr => L.current == AppLocale.tr;
-  static String get tournamentTitle    => _tr ? 'Haftalık Turnuva'             : 'Turnuvaya Hefteyî';
-  static String get tournamentSubtitle => _tr ? '8 oyunculu tek eleme'         : '8 lîstikvan · jêbirina yekane';
-  static String get tournamentStartsIn => _tr ? 'BAŞLAMASINA'                  : 'DEST PÊ DIKE';
-  static String get prizePool          => _tr ? 'ÖDÜL HAVUZU'                  : 'XELAT';
-  static String get prize1st           => _tr ? '1. Sıra'                      : 'Yekem';
-  static String get prize2nd           => _tr ? '2. Sıra'                      : 'Duyem';
-  static String get prize3rd           => _tr ? '3. Sıra'                      : 'Sêyem';
-  static String get playersJoined      => _tr ? 'oyuncu katıldı'               : 'lîstikvan ketin';
-  static String get bracket            => _tr ? 'Turnuva Tablosu'              : 'Tabela Turnuvayê';
-  static String get waitingToStart     => _tr ? 'Başlamayı Bekliyor'           : 'Destpêkê Dixwaze';
-  static String get quarterFinal       => _tr ? 'ÇEY. FİNAL'                  : 'ÇEYREK';
-  static String get semiFinal          => _tr ? 'YARI FİNAL'                   : 'NÎVFÎNAL';
-  static String get final_             => _tr ? 'FİNAL'                        : 'FİNAL';
-  static String get joinTournament     => _tr ? 'Turnuvaya Katıl'              : 'Tevlî Turnuvayê Bibe';
-  static String get playTournament     => _tr ? 'Turnuva Oyununu Oyna'         : 'Lîstika Turnuvayê Bilîze';
-  static String get joinedTournament   => _tr ? 'Turnuvaya katıldın!'          : 'Tu beşdarî turnuvayê bûyî!';
-  static String get tournamentRules    => _tr ? 'KURALLAR'                     : 'RÊZIK';
-  static String get tournRule1         => _tr ? 'Her tur 5 dakika, en yüksek skoru yapan turu kazanır.'  : 'Her ger 5 deqîqe ye, yê herî xalên bilind hebe dê bi ser bikeve.';
-  static String get tournRule2         => _tr ? 'Tüm turları kazanan şampiyon olur ve XP ödülü alır.'    : 'Yê ku hemû geran bi dest bixe şampiyon dibe û XP werdigire.';
-  static String get tournRule3         => _tr ? 'Geçersiz kelime yerleştirmek tur puanını sıfırlar.'     : 'Danîna peyva nederbasdar xalên gerê sifir dike.';
+  static String get tournamentTitle =>
+      _tr ? 'Haftalık Turnuva' : 'Turnuvaya Hefteyî';
+  static String get tournamentSubtitle =>
+      _tr ? '8 oyunculu tek eleme' : '8 lîstikvan · jêbirina yekane';
+  static String get tournamentStartsIn => _tr ? 'BAŞLAMASINA' : 'DEST PÊ DIKE';
+  static String get prizePool => _tr ? 'ÖDÜL HAVUZU' : 'XELAT';
+  static String get prize1st => _tr ? '1. Sıra' : 'Yekem';
+  static String get prize2nd => _tr ? '2. Sıra' : 'Duyem';
+  static String get prize3rd => _tr ? '3. Sıra' : 'Sêyem';
+  static String get playersJoined => _tr ? 'oyuncu katıldı' : 'lîstikvan ketin';
+  static String get bracket => _tr ? 'Turnuva Tablosu' : 'Tabela Turnuvayê';
+  static String get waitingToStart =>
+      _tr ? 'Başlamayı Bekliyor' : 'Destpêkê Dixwaze';
+  static String get quarterFinal => _tr ? 'ÇEY. FİNAL' : 'ÇEYREK';
+  static String get semiFinal => _tr ? 'YARI FİNAL' : 'NÎVFÎNAL';
+  static String get final_ => _tr ? 'FİNAL' : 'FİNAL';
+  static String get joinTournament =>
+      _tr ? 'Turnuvaya Katıl' : 'Tevlî Turnuvayê Bibe';
+  static String get playTournament =>
+      _tr ? 'Turnuva Oyununu Oyna' : 'Lîstika Turnuvayê Bilîze';
+  static String get joinedTournament =>
+      _tr ? 'Turnuvaya katıldın!' : 'Tu beşdarî turnuvayê bûyî!';
+  static String get tournamentRules => _tr ? 'KURALLAR' : 'RÊZIK';
+  static String get tournRule1 => _tr
+      ? 'Her tur 5 dakika, en yüksek skoru yapan turu kazanır.'
+      : 'Her ger 5 deqîqe ye, yê herî xalên bilind hebe dê bi ser bikeve.';
+  static String get tournRule2 => _tr
+      ? 'Tüm turları kazanan şampiyon olur ve XP ödülü alır.'
+      : 'Yê ku hemû geran bi dest bixe şampiyon dibe û XP werdigire.';
+  static String get tournRule3 => _tr
+      ? 'Geçersiz kelime yerleştirmek tur puanını sıfırlar.'
+      : 'Danîna peyva nederbasdar xalên gerê sifir dike.';
 }

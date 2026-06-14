@@ -11,6 +11,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:kurdle_app/models/word_suggestion.dart';
+import 'package:kurdle_app/route_transitions.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 
 // ─── Servis ──────────────────────────────────────────────────────────────────
@@ -54,16 +55,26 @@ class WordSuggestionService {
   static String normalize(String word) {
     return word.toUpperCase().characters.map((ch) {
       switch (ch) {
-        case 'Ê': return 'E';
-        case 'Î': return 'I';  // büyük î (Kürmancî'de farklı ses)
-        case 'Û': return 'U';
-        case 'Ş': return 'S';
-        case 'Ç': return 'C';
-        case 'Ğ': return 'G';
-        case 'Ö': return 'O';
-        case 'Ü': return 'U';
-        case 'İ': return 'I';  // noktalı büyük I (Türkçe)
-        default:  return ch;
+        case 'Ê':
+          return 'E';
+        case 'Î':
+          return 'I'; // büyük î (Kürmancî'de farklı ses)
+        case 'Û':
+          return 'U';
+        case 'Ş':
+          return 'S';
+        case 'Ç':
+          return 'C';
+        case 'Ğ':
+          return 'G';
+        case 'Ö':
+          return 'O';
+        case 'Ü':
+          return 'U';
+        case 'İ':
+          return 'I'; // noktalı büyük I (Türkçe)
+        default:
+          return ch;
       }
     }).join();
   }
@@ -100,18 +111,21 @@ class WordSuggestionService {
         } else {
           curr[j] = 1 +
               _min3(
-                prev[j],      // silme
-                curr[j - 1],  // ekleme
-                prev[j - 1],  // değiştirme
+                prev[j], // silme
+                curr[j - 1], // ekleme
+                prev[j - 1], // değiştirme
               );
         }
       }
-      final tmp = prev; prev = curr; curr = tmp;
+      final tmp = prev;
+      prev = curr;
+      curr = tmp;
     }
     return prev[n];
   }
 
-  static int _min3(int a, int b, int c) => a < b ? (a < c ? a : c) : (b < c ? b : c);
+  static int _min3(int a, int b, int c) =>
+      a < b ? (a < c ? a : c) : (b < c ? b : c);
 
   /// Sözlükte bulunmayan bir kelime için en yakın öneriyi döndürür.
   /// Zaten geçerliyse null döner. Threshold aşılırsa null döner.
@@ -124,12 +138,12 @@ class WordSuggestionService {
     final upper = word.trim().toUpperCase();
     if (isValidWord(upper)) return null; // zaten geçerli
 
-    final norm    = normalize(upper);
+    final norm = normalize(upper);
     final normLen = norm.characters.length;
-    final thresh  = getThreshold(normLen);
+    final thresh = getThreshold(normLen);
 
     // Filtre 1: normalize edilmiş ilk harf
-    final firstChar  = norm.characters.first;
+    final firstChar = norm.characters.first;
     final candidates = _index[firstChar];
     if (candidates == null || candidates.isEmpty) return null;
 
@@ -138,7 +152,7 @@ class WordSuggestionService {
 
     for (final candidate in candidates) {
       final normCand = normalize(candidate);
-      final candLen  = normCand.characters.length;
+      final candLen = normCand.characters.length;
 
       // Filtre 2: uzunluk farkı
       if ((candLen - normLen).abs() > thresh) continue;
@@ -147,8 +161,8 @@ class WordSuggestionService {
       final d = levenshtein(norm, normCand);
       if (d < bestDist) {
         bestDist = d;
-        best     = candidate; // orijinal aksanlı kelimeyi sakla
-        if (d == 0) break;    // normalize mesafe 0 → mükemmel eşleşme
+        best = candidate; // orijinal aksanlı kelimeyi sakla
+        if (d == 0) break; // normalize mesafe 0 → mükemmel eşleşme
       }
     }
 
@@ -183,7 +197,7 @@ class WordSuggestionDialog {
     BuildContext context, {
     required WordSuggestion suggestion,
   }) {
-    return showModalBottomSheet<bool>(
+    return showAppModalBottomSheet<bool>(
       context: context,
       backgroundColor: Colors.transparent,
       builder: (_) => _SuggestionSheet(suggestion: suggestion),
@@ -210,7 +224,8 @@ class _SuggestionSheet extends StatelessWidget {
         children: [
           // Çekme çubuğu
           Container(
-            width: 40, height: 4,
+            width: 40,
+            height: 4,
             decoration: BoxDecoration(
               color: Colors.white12,
               borderRadius: BorderRadius.circular(2),
