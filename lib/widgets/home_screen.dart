@@ -4,6 +4,7 @@ import 'package:firebase_messaging/firebase_messaging.dart'
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kurdle_app/services/app_locale.dart';
+import 'package:kurdle_app/services/app_warmup_service.dart';
 import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/firebase_service.dart';
 import 'package:kurdle_app/services/ferheng_service.dart';
@@ -178,8 +179,9 @@ class _HomeScreenState extends State<HomeScreen>
     L.notifier.addListener(_onLocaleChanged);
     _entranceCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 700),
+      duration: const Duration(milliseconds: 420),
     )..forward();
+    AppWarmupService.instance.startHomeWarmups();
     _checkOnboarding();
     _loadStreak();
     _listenAuthChanges();
@@ -189,6 +191,7 @@ class _HomeScreenState extends State<HomeScreen>
     _onOpenMyGames = _handleOpenMyGames;
     homeOpenMyGamesTick.addListener(_onOpenMyGames);
     _warmUpFerhengCategories();
+    _scheduleNotificationPermissionWarmup();
   }
 
   @override
@@ -211,6 +214,18 @@ class _HomeScreenState extends State<HomeScreen>
     unawaited(FerhengService.instance.warmUpCategories().catchError((e) {
       debugPrint('Ferheng category warm-up failed: $e');
     }));
+  }
+
+  void _scheduleNotificationPermissionWarmup() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(
+          Future<void>.delayed(const Duration(milliseconds: 900)).then((_) {
+        if (!mounted) return Future<void>.value();
+        return AppWarmupService.instance
+            .requestNotificationPermissionIfNeeded();
+      }));
+    });
   }
 
   Future<void> _setAppLocale(AppLocale locale) async {
@@ -466,8 +481,8 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _stagger(int index, Widget child) {
-    final start = (index * 0.10).clamp(0.0, 0.8);
-    final end = (start + 0.55).clamp(0.0, 1.0);
+    final start = (index * 0.06).clamp(0.0, 0.42);
+    final end = (start + 0.42).clamp(0.0, 1.0);
     final anim = CurvedAnimation(
       parent: _entranceCtrl,
       curve: Interval(start, end, curve: Curves.easeOutCubic),
@@ -477,7 +492,7 @@ class _HomeScreenState extends State<HomeScreen>
       builder: (_, __) => Opacity(
         opacity: anim.value,
         child: Transform.translate(
-          offset: Offset(0, 22 * (1 - anim.value)),
+          offset: Offset(0, 14 * (1 - anim.value)),
           child: child,
         ),
       ),

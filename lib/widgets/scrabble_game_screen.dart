@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:kurdle_app/domain.dart' show AiDifficulty;
 import 'package:kurdle_app/route_transitions.dart';
+import 'package:kurdle_app/services/app_warmup_service.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/firebase_service.dart';
@@ -43,6 +44,141 @@ double _bottomSafePadding(BuildContext context, {double minimum = 18}) {
     mq.systemGestureInsets.bottom,
   ].fold<double>(0, (max, value) => value > max ? value : max);
   return detected < minimum ? minimum : detected;
+}
+
+class _GameLoadingShell extends StatelessWidget {
+  const _GameLoadingShell();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final muted =
+        isDark ? Colors.white.withValues(alpha: 0.54) : const Color(0xFF40515B);
+    final panel = isDark ? const Color(0xFF101824) : const Color(0xFFE8F0E5);
+    final grid = isDark
+        ? Colors.white.withValues(alpha: 0.055)
+        : const Color(0xFF25313A).withValues(alpha: 0.08);
+
+    return SafeArea(
+      child: Column(
+        children: [
+          Container(
+            height: 58,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            alignment: Alignment.centerLeft,
+            child: Row(
+              children: [
+                Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: _kPrimary.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.grid_view_rounded,
+                      color: _kPrimary, size: 19),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Peyvok',
+                  style: TextStyle(
+                    color: isDark ? Colors.white : const Color(0xFF18242C),
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const Spacer(),
+                SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: _kPrimary.withValues(alpha: 0.8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: isDark
+                      ? const [Color(0xFF101824), Color(0xFF0C1420)]
+                      : const [Color(0xFF87969E), Color(0xFFE9F2E2)],
+                  stops: const [0.0, 0.42],
+                ),
+              ),
+              child: Center(
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: GridView.builder(
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: 225,
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 15,
+                        crossAxisSpacing: 2,
+                        mainAxisSpacing: 2,
+                      ),
+                      itemBuilder: (_, i) {
+                        final isCenter = i == 112;
+                        return DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: isCenter
+                                ? _kPrimary.withValues(alpha: 0.30)
+                                : grid,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Container(
+            color: panel,
+            padding: EdgeInsets.fromLTRB(
+              18,
+              14,
+              18,
+              _bottomSafePadding(context, minimum: 16),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    L.current == AppLocale.tr
+                        ? 'Oyun hazırlanıyor'
+                        : 'Lîstik tê amade kirin',
+                    style: TextStyle(
+                      color: muted,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                Container(
+                  width: 72,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: _kPrimary.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class ScrabbleGameScreen extends StatefulWidget {
@@ -246,19 +382,16 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
 
   Future<void> _loadGame() async {
     final config = LanguageConfig.current;
-    final allWords = await WordlistLoader.loadAssets(config.wordAssets);
-    // Difficulty: caller override > kullanıcı ayarı > default normal
-    final settings = await SettingsService().load();
+    unawaited(AppWarmupService.instance.preloadWordGame());
+    final wordsFuture = WordlistLoader.loadAssets(config.wordAssets);
+    final settingsFuture = SettingsService().load();
+    final playerLevelFuture = _resolvePlayerLevel();
+
+    final allWords = await wordsFuture;
+    final settings = await settingsFuture;
     final resolvedDifficulty = widget.aiDifficulty ?? settings.aiDifficulty;
-    // Oyuncu seviyesi (seviye ödülleri için): signed-in user profilinden oku.
-    int playerLevel = 1;
-    final uid = AuthService.instance.currentUser?.uid;
-    if (uid != null && FirebaseService.isAvailable) {
-      try {
-        final profile = await FirestoreService.instance.getProfile(uid);
-        if (profile != null) playerLevel = profile.level;
-      } catch (_) {}
-    }
+    final playerLevel = await playerLevelFuture;
+
     GameStore.instance.createRecord();
     if (_controller != null && _controllerListener != null) {
       _controller!.removeListener(_controllerListener!);
@@ -278,6 +411,19 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
     });
     _attachListener(newCtrl);
     GameStore.instance.activeController = _controller;
+  }
+
+  Future<int> _resolvePlayerLevel() async {
+    final uid = AuthService.instance.currentUser?.uid;
+    if (uid == null || !FirebaseService.isAvailable) return 1;
+    try {
+      final profile = await FirestoreService.instance
+          .getProfile(uid)
+          .timeout(const Duration(milliseconds: 280));
+      return profile?.level ?? 1;
+    } catch (_) {
+      return 1;
+    }
   }
 
   bool _levelUpShown = false;
@@ -487,7 +633,7 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
     if (_controller == null) {
       return Scaffold(
         backgroundColor: bg,
-        body: const Center(child: CircularProgressIndicator(color: _kPrimary)),
+        body: const _GameLoadingShell(),
       );
     }
 

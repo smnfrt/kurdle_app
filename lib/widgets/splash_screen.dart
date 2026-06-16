@@ -1,13 +1,8 @@
-import 'package:firebase_messaging/firebase_messaging.dart' show AuthorizationStatus;
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:kurdle_app/services/firebase_service.dart';
-import 'package:kurdle_app/services/haptic_service.dart';
-import 'package:kurdle_app/services/language_config.dart';
-import 'package:kurdle_app/services/notification_service.dart';
-import 'package:kurdle_app/services/settings_service.dart';
-import 'package:kurdle_app/services/sound_service.dart';
-import 'package:kurdle_app/services/word_validator_service.dart';
-import 'package:kurdle_app/services/wordlist_loader.dart';
+import 'package:kurdle_app/route_transitions.dart';
+import 'package:kurdle_app/services/app_warmup_service.dart';
 import 'package:kurdle_app/widgets/home_screen.dart';
 
 const _kBg = Color(0xFF0F1923);
@@ -34,9 +29,9 @@ class _SplashScreenState extends State<SplashScreen>
     super.initState();
 
     _logoCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 800));
+        vsync: this, duration: const Duration(milliseconds: 460));
     _textCtrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 600));
+        vsync: this, duration: const Duration(milliseconds: 300));
 
     _logoScale = TweenSequence([
       TweenSequenceItem(tween: Tween(begin: 0.3, end: 1.08), weight: 70),
@@ -54,78 +49,20 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _runSequence() async {
-    // Logo animasyonu
-    await _logoCtrl.forward();
+    final warmup = AppWarmupService.instance;
+    warmup.startHomeWarmups();
+
+    unawaited(_logoCtrl.forward());
+    await Future<void>.delayed(const Duration(milliseconds: 180));
     if (!mounted) return;
+    unawaited(_textCtrl.forward());
 
-    // Metin animasyonu
-    _textCtrl.forward();
-
-    // Wordlist'i fire-and-forget olarak ön-yükle — splash beklemez,
-    // arkaplan'da gziplenmiş 1.5M kelime decompress edilir. Ayrıca
-    // WordValidatorService'i de warm-up et (Set + length-index inşası
-    // ~500-1000ms blok). User oyuna girene kadar genelde hazır olur.
-    WordlistLoader.loadAssets(LanguageConfig.kurdish.wordAssets).then((list) {
-      // Factory cache'i sıcaklandır
-      WordValidatorService(list);
-    }).catchError((e) {
-      debugPrint('Wordlist preload failed: $e');
-    });
-
-    // Init işlemleri paralel çalışsın — herhangi bir init hatası splash'i kilitlemesin
-    await Future.wait([
-      SoundService.instance.init().catchError((e) {
-        debugPrint('SoundService init failed: $e');
-      }),
-      HapticService.instance.init().catchError((e) {
-        debugPrint('HapticService init failed: $e');
-      }),
-      FirebaseService.init().then((_) async {
-        if (FirebaseService.isAvailable) {
-          try {
-            await NotificationService.instance.init();
-            // İlk kurulumda settings notifsEnabled default true geliyor;
-            // izin durumunu kontrol et, henüz prompt edilmediyse iste.
-            // Splash'te kullanıcı ne yapacağını gördükten sonra prompt
-            // gelmesi davranışsal olarak doğru zaman.
-            final s = await SettingsService().load();
-            if (s.notifsEnabled) {
-              final current = await NotificationService.instance
-                  .currentPermissionStatus();
-              if (current != AuthorizationStatus.authorized &&
-                  current != AuthorizationStatus.denied) {
-                // notDetermined / provisional: prompt at için
-                await NotificationService.instance
-                    .requestNotificationPermission();
-              }
-              // Cloud Function (notifyOpponentOnMove / notifyInviteOnCreate)
-              // bu token'a push gönderecek. Auth + Firestore ready olunca.
-              await NotificationService.instance.syncFcmTokenToFirestore();
-            }
-          } catch (e) {
-            debugPrint('NotificationService init failed: $e');
-          }
-        }
-      }).catchError((e) {
-        debugPrint('FirebaseService init failed: $e');
-      }),
-      Future.delayed(const Duration(milliseconds: 1800)),
-    ]);
+    await Future<void>.delayed(const Duration(milliseconds: 360));
 
     if (!mounted) return;
 
-    // HomeScreen'e geç
     Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        pageBuilder: (_, __, ___) => const HomeScreen(),
-        transitionDuration: const Duration(milliseconds: 500),
-        transitionsBuilder: (_, anim, __, child) {
-          return FadeTransition(
-            opacity: CurvedAnimation(parent: anim, curve: Curves.easeOut),
-            child: child,
-          );
-        },
-      ),
+      appRoute(const HomeScreen()),
     );
   }
 

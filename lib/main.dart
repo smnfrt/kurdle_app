@@ -1,6 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:kurdle_app/app_theme.dart';
-import 'package:kurdle_app/services/connectivity_service.dart';
+import 'package:kurdle_app/services/app_warmup_service.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/settings_service.dart';
 import 'package:kurdle_app/services/version_service.dart';
@@ -13,7 +15,7 @@ void main() async {
   themeNotifier.value = settings.isDarkMode ? ThemeMode.dark : ThemeMode.light;
   L.set(settings.appLocale);
   await VersionService.instance.loadVersion();
-  await ConnectivityService.instance.init();
+  unawaited(AppWarmupService.instance.initConnectivity());
   runApp(const MyApp());
 }
 

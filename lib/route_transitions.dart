@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 /// HomeScreen bu listener'a bağlıdır.
 final ValueNotifier<int> homeOpenMyGamesTick = ValueNotifier<int>(0);
 
-const Duration _kAppRouteIn = Duration(milliseconds: 190);
-const Duration _kAppRouteOut = Duration(milliseconds: 160);
+const Duration _kAppRouteIn = Duration(milliseconds: 160);
+const Duration _kAppRouteOut = Duration(milliseconds: 130);
 bool _appModalBottomSheetOpen = false;
 
 /// Hafif page transition: subtle slide-up + fade.
@@ -27,7 +27,7 @@ Route<T> appRoute<T>(Widget page) {
         opacity: Tween<double>(begin: 0.0, end: 1.0).animate(inCurve),
         child: SlideTransition(
           position: Tween<Offset>(
-            begin: const Offset(0.0, 0.025),
+            begin: const Offset(0.0, 0.018),
             end: Offset.zero,
           ).animate(inCurve),
           child: child,

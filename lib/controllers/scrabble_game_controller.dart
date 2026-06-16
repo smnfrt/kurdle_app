@@ -495,10 +495,14 @@ class ScrabbleGameController extends ChangeNotifier {
   }
 
   Future<void> _scheduleAiMove() async {
-    // Normal thinking delay — kullanıcı yavaşlamayı istemiyor. Pause yalnız
-    // popup açıkken devreye girer. Player'ın son hamlesi ayrıca saklanır
-    // (lastPlayerMoveWords), popup AI hamlesinden sonra da erişilebilir.
-    await Future.delayed(const Duration(milliseconds: 800));
+    // Kısa düşünme aralığı oyunsu ritmi korur; hesaplama zaten responsive
+    // parçalara bölündüğü için uzun yapay bekleme UI'ı ağır hissettirmesin.
+    final thinkingDelay = switch (aiDifficulty) {
+      AiDifficulty.easy => const Duration(milliseconds: 180),
+      AiDifficulty.normal => const Duration(milliseconds: 260),
+      AiDifficulty.hard => const Duration(milliseconds: 360),
+    };
+    await Future.delayed(thinkingDelay);
     if (_disposed) {
       return; // controller dispose edildiyse devam etme (çökme koruması)
     }

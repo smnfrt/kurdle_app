@@ -12,6 +12,7 @@
 # Firebase service account keys — ASLA commit etme!
 *-firebase-adminsdk-*.json
 service-account*.json
+fastlane/play-store-service-account.json
 
 # Ferheng pipeline — geçici çıktılar (artifact'lar assets/ferheng/'de)
 tools/ferheng_pipeline/.venv/

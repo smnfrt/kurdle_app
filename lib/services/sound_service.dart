@@ -76,7 +76,7 @@ class SoundService {
       final player = _players[sfx];
       if (player == null) return;
       await player.stop();
-      await player.setSource(AssetSource(_files[sfx]!));
+      await player.seek(Duration.zero);
       await player.resume();
     } catch (e) {
       debugPrint('SoundService play failed for $sfx: $e');
