@@ -37,6 +37,10 @@ class GameChatPanel extends StatefulWidget {
       isDismissible: true,
       enableDrag: true,
       useSafeArea: true,
+      sheetAnimationStyle: AnimationStyle(
+        duration: Duration(milliseconds: 150),
+        reverseDuration: Duration(milliseconds: 110),
+      ),
       builder: (_) => GameChatPanel(
         room: room,
         myUid: myUid,
@@ -281,19 +285,43 @@ class _PlayerChatTab extends StatefulWidget {
 class _PlayerChatTabState extends State<_PlayerChatTab> {
   final _controller = TextEditingController();
   final _scroll = ScrollController();
-  bool _sending = false;
+  late final Stream<List<MatchChatMessage>> _messagesStream;
+  late final ValueNotifier<bool> _sending;
+  DateTime? _lastMarkReadAt;
+
+  @override
+  void initState() {
+    super.initState();
+    _messagesStream =
+        MatchChatService.instance.messagesStream(widget.room.roomCode);
+    _sending = ValueNotifier<bool>(false);
+    _markReadThrottled(force: true);
+  }
 
   @override
   void dispose() {
+    _sending.dispose();
     _controller.dispose();
     _scroll.dispose();
     super.dispose();
   }
 
+  void _markReadThrottled({bool force = false}) {
+    final now = DateTime.now();
+    if (!force &&
+        _lastMarkReadAt != null &&
+        now.difference(_lastMarkReadAt!) < const Duration(seconds: 6)) {
+      return;
+    }
+    _lastMarkReadAt = now;
+    MatchChatService.instance.markRead(widget.room.roomCode, widget.myUid);
+  }
+
   Future<void> _send() async {
     final text = _controller.text.trim();
-    if (text.isEmpty || _sending) return;
-    setState(() => _sending = true);
+    if (text.isEmpty || _sending.value) return;
+    _sending.value = true;
+    _controller.clear();
     try {
       await MatchChatService.instance.sendMessage(
         room: widget.room,
@@ -301,17 +329,18 @@ class _PlayerChatTabState extends State<_PlayerChatTab> {
         senderName: widget.myName,
         text: text,
       );
-      _controller.clear();
       HapticFeedback.selectionClick();
       _scrollToBottom();
     } on MatchChatException catch (e) {
+      if (_controller.text.isEmpty) _controller.text = text;
       _showError(_localizedError(e.code));
     } catch (_) {
+      if (_controller.text.isEmpty) _controller.text = text;
       _showError(L.current == AppLocale.tr
           ? 'Mesaj gönderilemedi.'
           : 'Peyam nehat şandin.');
     } finally {
-      if (mounted) setState(() => _sending = false);
+      if (mounted) _sending.value = false;
     }
   }
 
@@ -346,12 +375,39 @@ class _PlayerChatTabState extends State<_PlayerChatTab> {
     );
   }
 
+  Future<void> _reportMessage(MatchChatMessage message) async {
+    if (message.senderId == widget.myUid) return;
+    HapticFeedback.selectionClick();
+    try {
+      await MatchChatService.instance.reportMessage(
+        matchId: widget.room.roomCode,
+        messageId: message.id,
+        reporterId: widget.myUid,
+        reportedSenderId: message.senderId,
+        text: message.text,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(L.current == AppLocale.tr
+              ? 'Mesaj raporlandı.'
+              : 'Peyam hat raporkirin.'),
+          backgroundColor: _kChatPrimary,
+        ),
+      );
+    } catch (_) {
+      _showError(L.current == AppLocale.tr
+          ? 'Mesaj raporlanamadı.'
+          : 'Peyam nehat raporkirin.');
+    }
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scroll.hasClients) return;
       _scroll.animateTo(
-        _scroll.position.maxScrollExtent,
-        duration: const Duration(milliseconds: 260),
+        0,
+        duration: const Duration(milliseconds: 180),
         curve: Curves.easeOutCubic,
       );
     });
@@ -368,8 +424,7 @@ class _PlayerChatTabState extends State<_PlayerChatTab> {
       children: [
         Expanded(
           child: StreamBuilder<List<MatchChatMessage>>(
-            stream:
-                MatchChatService.instance.messagesStream(widget.room.roomCode),
+            stream: _messagesStream,
             builder: (context, snap) {
               final messages = snap.data ?? const <MatchChatMessage>[];
               if (messages.isEmpty && !snap.hasError) {
@@ -397,18 +452,25 @@ class _PlayerChatTabState extends State<_PlayerChatTab> {
                   ),
                 );
               }
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                MatchChatService.instance
-                    .markRead(widget.room.roomCode, widget.myUid);
-              });
+              WidgetsBinding.instance
+                  .addPostFrameCallback((_) => _markReadThrottled());
               return ListView.builder(
                 controller: _scroll,
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                reverse: true,
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
                 itemCount: messages.length,
-                itemBuilder: (_, i) => _PlayerBubble(
-                  message: messages[i],
-                  isMe: messages[i].senderId == widget.myUid,
-                ),
+                itemBuilder: (_, i) {
+                  final message = messages[messages.length - 1 - i];
+                  return _PlayerBubble(
+                    message: message,
+                    isMe: message.senderId == widget.myUid,
+                    onReport: message.senderId == widget.myUid
+                        ? null
+                        : () => _reportMessage(message),
+                  );
+                },
               );
             },
           ),
@@ -471,19 +533,35 @@ class _PlayerChatTabState extends State<_PlayerChatTab> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Material(
-                  color: _sending
-                      ? _kChatPrimary.withValues(alpha: 0.45)
-                      : _kChatPrimary,
-                  shape: const CircleBorder(),
-                  child: InkWell(
-                    customBorder: const CircleBorder(),
-                    onTap: _sending ? null : _send,
-                    child: const SizedBox(
-                      width: 46,
-                      height: 46,
-                      child: Icon(Icons.send_rounded,
-                          color: Colors.white, size: 20),
+                ValueListenableBuilder<bool>(
+                  valueListenable: _sending,
+                  builder: (_, sending, __) => AnimatedScale(
+                    scale: sending ? 0.94 : 1,
+                    duration: const Duration(milliseconds: 120),
+                    curve: Curves.easeOutCubic,
+                    child: Material(
+                      color: sending
+                          ? _kChatPrimary.withValues(alpha: 0.45)
+                          : _kChatPrimary,
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: sending ? null : _send,
+                        child: SizedBox(
+                          width: 46,
+                          height: 46,
+                          child: sending
+                              ? const Padding(
+                                  padding: EdgeInsets.all(13),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.send_rounded,
+                                  color: Colors.white, size: 20),
+                        ),
+                      ),
                     ),
                   ),
                 ),
@@ -499,8 +577,13 @@ class _PlayerChatTabState extends State<_PlayerChatTab> {
 class _PlayerBubble extends StatelessWidget {
   final MatchChatMessage message;
   final bool isMe;
+  final VoidCallback? onReport;
 
-  const _PlayerBubble({required this.message, required this.isMe});
+  const _PlayerBubble({
+    required this.message,
+    required this.isMe,
+    this.onReport,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -537,35 +620,58 @@ class _PlayerBubble extends StatelessWidget {
                       ),
                     ),
                   ),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: isMe
-                        ? _kChatPrimary.withValues(alpha: isDark ? 0.28 : 0.18)
-                        : (isDark
-                            ? Colors.white.withValues(alpha: 0.075)
-                            : Colors.white),
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(17),
-                      topRight: const Radius.circular(17),
-                      bottomLeft: Radius.circular(isMe ? 17 : 5),
-                      bottomRight: Radius.circular(isMe ? 5 : 17),
-                    ),
-                    border: Border.all(
+                GestureDetector(
+                  onLongPress: onReport,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      gradient: isMe
+                          ? LinearGradient(
+                              colors: [
+                                _kChatPrimary.withValues(
+                                    alpha: isDark ? 0.34 : 0.22),
+                                _kChatBlue.withValues(
+                                    alpha: isDark ? 0.20 : 0.13),
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            )
+                          : null,
                       color: isMe
-                          ? _kChatPrimary.withValues(alpha: 0.35)
+                          ? null
                           : (isDark
-                              ? Colors.white.withValues(alpha: 0.07)
-                              : const Color(0xFFD6E1E7)),
+                              ? Colors.white.withValues(alpha: 0.075)
+                              : Colors.white),
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(17),
+                        topRight: const Radius.circular(17),
+                        bottomLeft: Radius.circular(isMe ? 17 : 5),
+                        bottomRight: Radius.circular(isMe ? 5 : 17),
+                      ),
+                      border: Border.all(
+                        color: isMe
+                            ? _kChatPrimary.withValues(alpha: 0.35)
+                            : (isDark
+                                ? Colors.white.withValues(alpha: 0.07)
+                                : const Color(0xFFD6E1E7)),
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black
+                              .withValues(alpha: isDark ? 0.16 : 0.07),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
                     ),
-                  ),
-                  child: Text(
-                    message.text,
-                    style: TextStyle(
-                      color: isDark ? Colors.white : const Color(0xFF18242C),
-                      fontSize: 14,
-                      height: 1.35,
+                    child: Text(
+                      message.text,
+                      style: TextStyle(
+                        color: isDark ? Colors.white : const Color(0xFF18242C),
+                        fontSize: 14,
+                        height: 1.35,
+                      ),
                     ),
                   ),
                 ),

@@ -30,7 +30,7 @@ class WordDetailBody extends StatelessWidget {
     final usingFallback = defs.isEmpty && fallback.isNotEmpty;
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       children: [
         _Header(
           entry: entry,
@@ -52,14 +52,16 @@ class WordDetailBody extends StatelessWidget {
         ] else
           const SizedBox(height: 4),
         if (visibleDefs.isEmpty)
-          Text(entry.displayMeaning(language), style: FerhengDesign.bodyMd)
+          _InfoPanel(
+              child: Text(entry.displayMeaning(language),
+                  style: FerhengDesign.bodyMd))
         else
           ..._buildDefinitions(visibleDefs, usingFallback, language),
         if (entry.etymology.isNotEmpty) ...[
           const SizedBox(height: 20),
           _SectionTitle(L.ferhengEtymology),
           const SizedBox(height: 6),
-          Text(entry.etymology, style: FerhengDesign.bodyMd),
+          _InfoPanel(child: Text(entry.etymology, style: FerhengDesign.bodyMd)),
         ],
         if (entry.related.isNotEmpty) ...[
           const SizedBox(height: 20),
@@ -72,9 +74,8 @@ class WordDetailBody extends StatelessWidget {
                 .map((w) => Chip(
                       label: Text(w),
                       backgroundColor: FerhengDesign.surfaceAlt,
-                      labelStyle:
-                          TextStyle(color: FerhengDesign.textPrimary),
-                      side: BorderSide.none,
+                      labelStyle: TextStyle(color: FerhengDesign.textPrimary),
+                      side: BorderSide(color: FerhengDesign.border),
                     ))
                 .toList(),
           ),
@@ -90,9 +91,8 @@ class WordDetailBody extends StatelessWidget {
                 .map((c) => Chip(
                       label: Text(c),
                       backgroundColor: FerhengDesign.surface,
-                      labelStyle:
-                          TextStyle(color: FerhengDesign.textMuted),
-                      side: BorderSide.none,
+                      labelStyle: TextStyle(color: FerhengDesign.textMuted),
+                      side: BorderSide(color: FerhengDesign.border),
                     ))
                 .toList(),
           ),
@@ -143,54 +143,105 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(entry.headword, style: FerhengDesign.titleLg),
-              const SizedBox(height: 4),
-              Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: [
-                  if (entry.ipa.isNotEmpty)
-                    Text('/${entry.ipa}/',
-                        style: FerhengDesign.caption.copyWith(
-                          fontStyle: FontStyle.italic,
-                          color: FerhengDesign.textMuted,
-                        )),
-                  ...entry.pos.map((p) => Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: FerhengDesign.surfaceAlt,
-                          borderRadius: FerhengDesign.radSm,
-                        ),
-                        child: Text(p,
-                            style: FerhengDesign.caption.copyWith(
-                              color: FerhengDesign.textMuted,
-                            )),
-                      )),
-                ],
-              ),
-            ],
-          ),
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: FerhengDesign.isDark
+              ? const [Color(0xFF1A2A40), Color(0xFF111D2C)]
+              : const [Color(0xFFFFFFFF), Color(0xFFF4EFE5)],
         ),
-        if (onFavoriteToggle != null)
-          IconButton(
-            tooltip: isFavorite ? L.ferhengRemovedFav : L.ferhengAddedFav,
-            onPressed: onFavoriteToggle,
-            icon: Icon(
-              isFavorite
-                  ? Icons.bookmark_rounded
-                  : Icons.bookmark_border_rounded,
-              color: FerhengDesign.primary,
+        borderRadius: FerhengDesign.radLg,
+        border: Border.all(color: FerhengDesign.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(
+              alpha: FerhengDesign.isDark ? 0.18 : 0.05,
+            ),
+            blurRadius: 16,
+            offset: const Offset(0, 9),
+          ),
+        ],
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [FerhengDesign.primary, FerhengDesign.primaryGlow],
+              ),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              entry.headword.isNotEmpty
+                  ? entry.headword.characters.first.toUpperCase()
+                  : '?',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ),
-      ],
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(entry.headword, style: FerhengDesign.titleLg),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    if (entry.ipa.isNotEmpty)
+                      Text('/${entry.ipa}/',
+                          style: FerhengDesign.caption.copyWith(
+                            fontStyle: FontStyle.italic,
+                            color: FerhengDesign.textMuted,
+                          )),
+                    ...entry.pos.map((p) => Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: FerhengDesign.accentGold
+                                .withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: FerhengDesign.accentGold
+                                  .withValues(alpha: 0.22),
+                            ),
+                          ),
+                          child: Text(p,
+                              style: FerhengDesign.caption.copyWith(
+                                color: FerhengDesign.accentGold,
+                                fontWeight: FontWeight.w800,
+                              )),
+                        )),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          if (onFavoriteToggle != null)
+            IconButton.filledTonal(
+              tooltip: isFavorite ? L.ferhengRemovedFav : L.ferhengAddedFav,
+              onPressed: onFavoriteToggle,
+              icon: Icon(
+                isFavorite
+                    ? Icons.bookmark_rounded
+                    : Icons.bookmark_border_rounded,
+              ),
+              color: FerhengDesign.primary,
+            ),
+        ],
+      ),
     );
   }
 }
@@ -273,54 +324,81 @@ class _DefinitionItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        RichText(
-          text: TextSpan(
-            style: FerhengDesign.bodyMd,
-            children: [
-              TextSpan(
-                text: '$index. ',
-                style: TextStyle(
-                  color: FerhengDesign.textFaint,
-                  fontWeight: FontWeight.w600,
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: FerhengDesign.surface,
+        borderRadius: FerhengDesign.radLg,
+        border: Border.all(color: FerhengDesign.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          RichText(
+            text: TextSpan(
+              style: FerhengDesign.bodyMd,
+              children: [
+                TextSpan(
+                  text: '$index. ',
+                  style: TextStyle(
+                    color: FerhengDesign.textFaint,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
-              TextSpan(text: def.gloss),
-            ],
-          ),
-        ),
-        if (def.examples.isNotEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 8, left: 18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: def.examples
-                  .map((e) => Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '"${e.text}"',
-                              style: FerhengDesign.bodyMd.copyWith(
-                                fontStyle: FontStyle.italic,
-                                color: FerhengDesign.textMuted,
-                              ),
-                            ),
-                            if (e.translation.isNotEmpty)
-                              Text(
-                                e.translation,
-                                style: FerhengDesign.caption,
-                              ),
-                          ],
-                        ),
-                      ))
-                  .toList(),
+                TextSpan(text: def.gloss),
+              ],
             ),
           ),
-      ],
+          if (def.examples.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8, left: 18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: def.examples
+                    .map((e) => Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '"${e.text}"',
+                                style: FerhengDesign.bodyMd.copyWith(
+                                  fontStyle: FontStyle.italic,
+                                  color: FerhengDesign.textMuted,
+                                ),
+                              ),
+                              if (e.translation.isNotEmpty)
+                                Text(
+                                  e.translation,
+                                  style: FerhengDesign.caption,
+                                ),
+                            ],
+                          ),
+                        ))
+                    .toList(),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoPanel extends StatelessWidget {
+  final Widget child;
+
+  const _InfoPanel({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: FerhengDesign.surface,
+        borderRadius: FerhengDesign.radLg,
+        border: Border.all(color: FerhengDesign.border),
+      ),
+      child: child,
     );
   }
 }
@@ -350,7 +428,8 @@ class _AttributionFooter extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: FerhengDesign.surface,
-        borderRadius: FerhengDesign.radMd,
+        borderRadius: FerhengDesign.radLg,
+        border: Border.all(color: FerhengDesign.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

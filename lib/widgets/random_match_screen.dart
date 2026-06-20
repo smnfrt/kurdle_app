@@ -8,8 +8,8 @@ import 'package:kurdle_app/services/multiplayer_service.dart';
 import 'package:kurdle_app/widgets/friend_game_screen.dart';
 
 const _kBg = Color(0xFF080E18);
-const _kPrimary = Color(0xFF4CAF50);
-const _kBlue = Color(0xFF64B5F6);
+const _kPrimary = Color(0xFF3FBE6F);
+const _kBlue = Color(0xFF6CC0F5);
 
 class RandomMatchScreen extends StatefulWidget {
   const RandomMatchScreen({super.key});
@@ -126,10 +126,10 @@ class _RandomMatchScreenState extends State<RandomMatchScreen>
     final top = MediaQuery.of(context).padding.top;
     final bottom = MediaQuery.of(context).padding.bottom;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? _kBg : const Color(0xFFE6EEF2);
+    final bg = isDark ? _kBg : const Color(0xFFF5F1E8);
     final gradient = isDark
-        ? const [Color(0xFF0D1B2E), Color(0xFF060A10)]
-        : const [Color(0xFFE6EEF2), Color(0xFFDDE8ED)];
+        ? const [Color(0xFF111D2C), Color(0xFF071018)]
+        : const [Color(0xFFFFFFFF), Color(0xFFF5F1E8)];
     final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
     final mutedColor = isDark ? Colors.white54 : const Color(0xFF52636E);
 
@@ -156,14 +156,15 @@ class _RandomMatchScreenState extends State<RandomMatchScreen>
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: isDark
-                        ? const [Color(0xFF1A2535), Color(0xFF0F1923)]
+                        ? const [Color(0xFF142133), Color(0xFF071018)]
                         : const [Color(0xFFF4F8FA), Color(0xFFEAF1F4)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: isDark ? 0.38 : 0.10),
+                      color:
+                          Colors.black.withValues(alpha: isDark ? 0.38 : 0.10),
                       blurRadius: 12,
                       offset: const Offset(0, 3),
                     )
@@ -194,11 +195,24 @@ class _RandomMatchScreenState extends State<RandomMatchScreen>
                       ),
                     ),
                     const SizedBox(width: 14),
+                    Container(
+                      width: 34,
+                      height: 34,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [_kBlue, Color(0xFF1565C0)],
+                        ),
+                        borderRadius: BorderRadius.circular(11),
+                      ),
+                      child: const Icon(Icons.radar_rounded,
+                          color: Colors.white, size: 19),
+                    ),
+                    const SizedBox(width: 10),
                     Text(L.findPlayer,
                         style: TextStyle(
                             color: titleColor,
                             fontSize: 18,
-                            fontWeight: FontWeight.bold)),
+                            fontWeight: FontWeight.w900)),
                   ],
                 ),
               ),
@@ -236,37 +250,57 @@ class _RandomMatchScreenState extends State<RandomMatchScreen>
         mainAxisSize: MainAxisSize.min,
         children: [
           // Sonar halkaları
-          SizedBox(
-            width: 200,
-            height: 200,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                _SonarRing(ctrl: _sonarCtrl, delay: 0.0, color: _kBlue),
-                _SonarRing(ctrl: _sonarCtrl, delay: 0.33, color: _kBlue),
-                _SonarRing(ctrl: _sonarCtrl, delay: 0.66, color: _kBlue),
-                // Merkez ikon
-                Container(
-                  width: 72,
-                  height: 72,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF1E3A5F), Color(0xFF0D2240)],
-                    ),
-                    shape: BoxShape.circle,
-                    border:
-                        Border.all(color: _kBlue.withValues(alpha: 0.5), width: 2),
-                    boxShadow: [
-                      BoxShadow(
-                          color: _kBlue.withValues(alpha: 0.25),
-                          blurRadius: 18,
-                          spreadRadius: 2),
-                    ],
-                  ),
-                  child: const Icon(Icons.person_search_rounded,
-                      color: _kBlue, size: 34),
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: (isDark ? const Color(0xFF121E2D) : Colors.white)
+                  .withValues(alpha: isDark ? 0.92 : 1),
+              borderRadius: BorderRadius.circular(34),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : Colors.black.withValues(alpha: 0.06),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: _kBlue.withValues(alpha: isDark ? 0.12 : 0.08),
+                  blurRadius: 24,
+                  offset: const Offset(0, 14),
                 ),
               ],
+            ),
+            child: SizedBox(
+              width: 200,
+              height: 200,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  _SonarRing(ctrl: _sonarCtrl, delay: 0.0, color: _kBlue),
+                  _SonarRing(ctrl: _sonarCtrl, delay: 0.33, color: _kBlue),
+                  _SonarRing(ctrl: _sonarCtrl, delay: 0.66, color: _kBlue),
+                  // Merkez ikon
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF1E3A5F), Color(0xFF0D2240)],
+                      ),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                          color: _kBlue.withValues(alpha: 0.5), width: 2),
+                      boxShadow: [
+                        BoxShadow(
+                            color: _kBlue.withValues(alpha: 0.25),
+                            blurRadius: 18,
+                            spreadRadius: 2),
+                      ],
+                    ),
+                    child: const Icon(Icons.person_search_rounded,
+                        color: _kBlue, size: 34),
+                  ),
+                ],
+              ),
             ),
           ),
 
@@ -418,7 +452,8 @@ class _SonarRing extends StatelessWidget {
           height: size,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            border: Border.all(color: color.withValues(alpha: opacity), width: 1.5),
+            border:
+                Border.all(color: color.withValues(alpha: opacity), width: 1.5),
           ),
         );
       },
@@ -463,8 +498,9 @@ class _SearchTimerState extends State<_SearchTimer> {
     return Text(
       label,
       style: TextStyle(
-          color:
-              isDark ? Colors.white.withValues(alpha: 0.25) : const Color(0xFF667681),
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.25)
+              : const Color(0xFF667681),
           fontSize: 14,
           fontFamily: 'monospace'),
     );
@@ -485,8 +521,9 @@ class _CancelBtn extends StatelessWidget {
       child: TextButton(
         onPressed: onTap,
         style: TextButton.styleFrom(
-          backgroundColor:
-              isDark ? Colors.white.withValues(alpha: 0.06) : const Color(0xFFF4F8FA),
+          backgroundColor: isDark
+              ? Colors.white.withValues(alpha: 0.06)
+              : const Color(0xFFF4F8FA),
           foregroundColor: isDark ? Colors.white54 : const Color(0xFF52636E),
           shape:
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),

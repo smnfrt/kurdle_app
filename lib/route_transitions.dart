@@ -47,6 +47,7 @@ Future<T?> showAppModalBottomSheet<T>({
   bool isDismissible = true,
   bool enableDrag = true,
   bool useSafeArea = true,
+  AnimationStyle? sheetAnimationStyle,
 }) {
   if (_appModalBottomSheetOpen) {
     return Future<T?>.value();
@@ -64,6 +65,7 @@ Future<T?> showAppModalBottomSheet<T>({
       isDismissible: isDismissible,
       enableDrag: enableDrag,
       useSafeArea: useSafeArea,
+      sheetAnimationStyle: sheetAnimationStyle,
     ).whenComplete(() {
       _appModalBottomSheetOpen = false;
     });

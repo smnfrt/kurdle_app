@@ -69,6 +69,7 @@ Toplanan veriler:
 - Uygulama içi kullanıcı adı
 - Oyun istatistikleri
 - Çok oyunculu oyun verileri
+- Oyuncular arası chat mesajları ve mesaj raporları
 - Çökme raporları
 - Uygulama performansı ve kullanım verileri
 - Bildirim token'ı, sadece kullanıcı bildirim izni verirse
@@ -96,7 +97,7 @@ Konum, kamera, mikrofon, kişiler toplanıyor mu?
 - Kötü dil: Yok
 - Kumar: Yok
 - Kullanıcı etkileşimi: Var, multiplayer ve kullanıcı adı
-- Çevrimiçi içerik paylaşımı: Sınırlı, oyun odaları ve profil adı
+- Çevrimiçi içerik paylaşımı: Var, oyun odaları, profil adı ve oyuncular arası chat
 - Hedef yaş: Genel kitle
 
 ## Görseller

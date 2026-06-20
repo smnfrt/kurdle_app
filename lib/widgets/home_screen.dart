@@ -375,37 +375,45 @@ class _HomeScreenState extends State<HomeScreen>
     final accepted = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1A2535),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: const [
-            Icon(Icons.mail_rounded, color: Color(0xFF64B5F6)),
-            SizedBox(width: 10),
-            Text('Oyun Daveti',
-                style: TextStyle(color: Colors.white, fontSize: 18)),
-          ],
-        ),
-        content: Text(
-          '${invite.fromDisplayName} seni oyuna davet etti.',
-          style: const TextStyle(color: Colors.white70, fontSize: 14),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text(L.decline,
-                style: const TextStyle(color: Color(0xFFEF5350))),
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        final dialogBg =
+            isDark ? const Color(0xFF1A2535) : const Color(0xFFF4F8FA);
+        final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
+        final bodyColor = isDark ? Colors.white70 : const Color(0xFF52636E);
+        return AlertDialog(
+          backgroundColor: dialogBg,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Icons.mail_rounded, color: Color(0xFF64B5F6)),
+              const SizedBox(width: 10),
+              Text('Oyun Daveti',
+                  style: TextStyle(color: titleColor, fontSize: 18)),
+            ],
           ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF4CAF50),
-              foregroundColor: Colors.white,
+          content: Text(
+            '${invite.fromDisplayName} seni oyuna davet etti.',
+            style: TextStyle(color: bodyColor, fontSize: 14),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(L.decline,
+                  style: const TextStyle(color: Color(0xFFEF5350))),
             ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(L.accept),
-          ),
-        ],
-      ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4CAF50),
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(L.accept),
+            ),
+          ],
+        );
+      },
     );
     if (!mounted || accepted == null) return;
     if (accepted == false) {
@@ -473,6 +481,14 @@ class _HomeScreenState extends State<HomeScreen>
 
     _activeRoomsSub =
         MultiplayerService.instance.myActiveRoomsStream(uid).listen((rooms) {
+      final now = DateTime.now();
+      for (final room in rooms) {
+        final deadline = room.turnDeadlineAt;
+        if (deadline != null && !deadline.isAfter(now)) {
+          unawaited(
+              MultiplayerService.instance.resolveTimedOutTurn(room.roomCode));
+        }
+      }
       if (mounted) setState(() => _activeRooms = rooms);
     }, onError: (Object e, StackTrace st) {
       debugPrint('[HomeScreen] active rooms listener failed for $uid: $e');
@@ -979,7 +995,7 @@ class _SiralamalarCardState extends State<_SiralamalarCard> {
         children: [
           // Başlık + tab
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
             child: Row(
               children: [
                 const Icon(Icons.leaderboard_rounded, color: _kGold, size: 18),
@@ -1009,18 +1025,18 @@ class _SiralamalarCardState extends State<_SiralamalarCard> {
             ),
           ),
 
-          const SizedBox(height: 9),
+          const SizedBox(height: 7),
           Container(height: 1, color: dividerColor),
 
           // İki sütun: global top3 | benim sıram
-          IntrinsicHeight(
+          Expanded(
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Sol: global top 3
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 10, 8, 12),
+                    padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -1030,7 +1046,7 @@ class _SiralamalarCardState extends State<_SiralamalarCard> {
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,
                                 letterSpacing: 0.5)),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 4),
                         ...top3.asMap().entries.map((e) {
                           final rank = e.key + 1;
                           final entry = e.value;
@@ -1040,7 +1056,7 @@ class _SiralamalarCardState extends State<_SiralamalarCard> {
                                   ? '🥈'
                                   : '🥉';
                           return Padding(
-                            padding: const EdgeInsets.only(bottom: 7),
+                            padding: const EdgeInsets.only(bottom: 5),
                             child: Row(
                               children: [
                                 Text(medal,
@@ -1077,7 +1093,7 @@ class _SiralamalarCardState extends State<_SiralamalarCard> {
                 // Sağ: benim sıram
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 10, 12, 12),
+                    padding: const EdgeInsets.fromLTRB(10, 6, 12, 6),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -1087,61 +1103,66 @@ class _SiralamalarCardState extends State<_SiralamalarCard> {
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,
                                 letterSpacing: 0.5)),
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 3),
                         if (myRank == null)
                           Text(
                             L.noScoreYet,
                             style: TextStyle(color: mutedColor, fontSize: 12),
                           )
-                        else ...[
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: [
-                              Text('#$myRank',
-                                  style: TextStyle(
-                                    color: myRank <= 3 ? _kGold : titleColor,
-                                    fontSize: 32,
-                                    fontWeight: FontWeight.bold,
-                                    height: 1,
-                                  )),
-                              const SizedBox(width: 6),
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 4),
-                                child: Text('/ ${board.length}',
-                                    style: TextStyle(
-                                        color:
-                                            mutedColor.withValues(alpha: 0.75),
-                                        fontSize: 12)),
+                        else
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.centerLeft,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text('#$myRank',
+                                          style: TextStyle(
+                                            color: myRank <= 3
+                                                ? _kGold
+                                                : titleColor,
+                                            fontSize: 26,
+                                            fontWeight: FontWeight.bold,
+                                            height: 1,
+                                          )),
+                                      const SizedBox(width: 6),
+                                      Padding(
+                                        padding:
+                                            const EdgeInsets.only(bottom: 3),
+                                        child: Text('/ ${board.length}',
+                                            style: TextStyle(
+                                                color: mutedColor.withValues(
+                                                    alpha: 0.75),
+                                                fontSize: 12)),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: _kPrimary.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                          color: _kPrimary.withValues(
+                                              alpha: 0.3)),
+                                    ),
+                                    child: Text(
+                                        '${_fmtScore(myScore!)} ${L.points}',
+                                        style: const TextStyle(
+                                            color: _kPrimary,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600)),
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: _kPrimary.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                  color: _kPrimary.withValues(alpha: 0.3)),
                             ),
-                            child: Text('${_fmtScore(myScore!)} ${L.points}',
-                                style: const TextStyle(
-                                    color: _kPrimary,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w600)),
                           ),
-                          const SizedBox(height: 8),
-                          Text(
-                            myRank <= 3
-                                ? L.rankingGreat
-                                : L.rankingBehind(
-                                    myRank - 1,
-                                    _fmtScore(
-                                        board[myRank - 2].score - myScore)),
-                            style: TextStyle(color: mutedColor, fontSize: 10),
-                          ),
-                        ],
                       ],
                     ),
                   ),
@@ -1888,6 +1909,24 @@ class _QuickPlayCardState extends State<_QuickPlayCard>
                                     height: 1.3,
                                   ),
                                 ),
+                                const SizedBox(height: 10),
+                                Row(
+                                  children: [
+                                    _QuickStatChip(
+                                      icon: Icons.auto_awesome_rounded,
+                                      label: L.current == AppLocale.tr
+                                          ? 'AI Rakip'
+                                          : 'Dijberê AI',
+                                    ),
+                                    const SizedBox(width: 7),
+                                    _QuickStatChip(
+                                      icon: Icons.bolt_rounded,
+                                      label: L.current == AppLocale.tr
+                                          ? 'Hızlı Başla'
+                                          : 'Zû Dest Pê Bike',
+                                    ),
+                                  ],
+                                ),
                               ],
                             ),
                           ),
@@ -1959,6 +1998,50 @@ class _QuickPlayCardState extends State<_QuickPlayCard>
           ),
         );
       },
+    );
+  }
+}
+
+class _QuickStatChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _QuickStatChip({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.075)
+            : Colors.white.withValues(alpha: 0.22),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.12)
+              : const Color(0xFF6F8A76).withValues(alpha: 0.28),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: const Color(0xFFFFD27A)),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.82)
+                  : const Color(0xFF24342A),
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -4285,6 +4368,12 @@ class _FinishedMultiplayerCard extends StatelessWidget {
             ? '4 pas atıldı — oyun otomatik bitti'
             : '4 pas hatin avêtin — lîstik bi xwe qediya';
         break;
+      case 'timeout':
+        final byMe = room.finishedBy == myUid;
+        reasonText = byMe
+            ? (isTr ? 'Süren doldu' : 'Dema te qediya')
+            : (isTr ? 'Rakibin süresi doldu' : 'Dema hember qediya');
+        break;
       case 'natural_end':
         reasonText = isTr ? 'Tüm harfler bitti' : 'Hemû tîp qediyan';
         break;
@@ -4466,6 +4555,9 @@ class _FinishedMultiplayerCard extends StatelessWidget {
         break;
       case 'pass_limit':
         reasonTag = isTr ? 'Pas limiti' : 'Sînorê Pas';
+        break;
+      case 'timeout':
+        reasonTag = isTr ? 'Süre doldu' : 'Dem qediya';
         break;
       case 'natural_end':
         reasonTag = isTr ? 'Doğal son' : 'Dawiya Asayî';
@@ -4782,14 +4874,14 @@ class _TimeControlSheet extends StatelessWidget {
 
   static const _options = [
     (
-      seconds: 48 * 3600,
-      icon: Icons.calendar_today_rounded,
-      color: Color(0xFF64B5F6)
-    ),
-    (
       seconds: 24 * 3600,
       icon: Icons.wb_sunny_rounded,
       color: Color(0xFFFFB74D)
+    ),
+    (
+      seconds: 48 * 3600,
+      icon: Icons.calendar_today_rounded,
+      color: Color(0xFF64B5F6)
     ),
     (
       seconds: 12 * 3600,

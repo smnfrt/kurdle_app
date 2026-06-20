@@ -1945,6 +1945,8 @@ class _WordPreviewBar extends StatelessWidget {
     final totalScore =
         hasInvalid ? 0 : validWords.fold<int>(0, (sum, e) => sum + e.score);
     final accent = hasInvalid ? const Color(0xFFFF6B6B) : _kPrimary;
+    final invalidWordColor = const Color(0xFFFF6B6B);
+    final validWordColor = isDark ? const Color(0xFF8FE3B0) : _kPrimary;
     final surface = isDark
         ? const Color(0xFF101A25).withValues(alpha: 0.88)
         : Colors.white.withValues(alpha: 0.92);
@@ -1965,6 +1967,13 @@ class _WordPreviewBar extends StatelessWidget {
         : (L.current == AppLocale.tr
             ? 'Tahtaya kelime yerleştir'
             : 'Peyvê li textê deyne');
+    final wordTextStyle = TextStyle(
+      color: primaryText,
+      fontSize: 15,
+      fontWeight: FontWeight.w900,
+      letterSpacing: 0,
+      height: 1.05,
+    );
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 220),
@@ -2037,18 +2046,39 @@ class _WordPreviewBar extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 3),
-                Text(
-                  wordText,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: primaryText,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0,
-                    height: 1.05,
-                  ),
-                ),
+                hasWords
+                    ? Text.rich(
+                        TextSpan(
+                          children: [
+                            for (var i = 0; i < words.length; i++) ...[
+                              if (i > 0)
+                                TextSpan(
+                                  text: ' + ',
+                                  style: wordTextStyle.copyWith(
+                                    color: secondaryText,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              TextSpan(
+                                text: words[i].word,
+                                style: wordTextStyle.copyWith(
+                                  color: words[i].valid
+                                      ? validWordColor
+                                      : invalidWordColor,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      )
+                    : Text(
+                        wordText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: wordTextStyle,
+                      ),
               ],
             ),
           ),
@@ -2490,35 +2520,43 @@ class _GameMenuSheetState extends State<_GameMenuSheet> {
             final sheetCtx = context;
             showDialog(
               context: sheetCtx,
-              builder: (dialogCtx) => AlertDialog(
-                backgroundColor: const Color(0xFF1E2A3A),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16)),
-                title:
-                    Text(L.resign, style: const TextStyle(color: Colors.white)),
-                content: Text(L.resignConfirm,
-                    style: const TextStyle(color: Colors.white60)),
-                actions: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(dialogCtx),
-                    child: Text(L.cancel,
-                        style: const TextStyle(color: Colors.white38)),
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(dialogCtx);
-                      Navigator.pop(sheetCtx);
-                      widget.onResign();
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFF6B6B),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10)),
+              builder: (dialogCtx) {
+                final theme = Theme.of(dialogCtx);
+                final isDark = theme.brightness == Brightness.dark;
+                final titleColor =
+                    isDark ? Colors.white : const Color(0xFF172033);
+                final mutedColor = isDark
+                    ? Colors.white.withValues(alpha: 0.62)
+                    : const Color(0xFF5D6A7A);
+                return AlertDialog(
+                  backgroundColor: theme.dialogTheme.backgroundColor,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16)),
+                  title: Text(L.resign, style: TextStyle(color: titleColor)),
+                  content: Text(L.resignConfirm,
+                      style: TextStyle(color: mutedColor)),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(dialogCtx),
+                      child:
+                          Text(L.cancel, style: TextStyle(color: mutedColor)),
                     ),
-                    child: Text(L.resign),
-                  ),
-                ],
-              ),
+                    ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(dialogCtx);
+                        Navigator.pop(sheetCtx);
+                        widget.onResign();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFF6B6B),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10)),
+                      ),
+                      child: Text(L.resign),
+                    ),
+                  ],
+                );
+              },
             );
           },
         ),

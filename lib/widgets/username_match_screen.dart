@@ -11,9 +11,10 @@ import 'package:kurdle_app/services/multiplayer_service.dart';
 import 'package:kurdle_app/widgets/friend_game_screen.dart';
 
 const _kBg = Color(0xFF080E18);
-const _kCard = Color(0xFF1A2535);
-const _kPrimary = Color(0xFF4CAF50);
-const _kBlue = Color(0xFF64B5F6);
+const _kCard = Color(0xFF121E2D);
+const _kCard2 = Color(0xFF17263A);
+const _kPrimary = Color(0xFF3FBE6F);
+const _kBlue = Color(0xFF6CC0F5);
 
 class UsernameMatchScreen extends StatefulWidget {
   const UsernameMatchScreen({super.key});
@@ -210,10 +211,10 @@ class _UsernameMatchScreenState extends State<UsernameMatchScreen> {
     final top = MediaQuery.of(context).padding.top;
     final bottom = MediaQuery.of(context).padding.bottom;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? _kBg : const Color(0xFFE6EEF2);
+    final bg = isDark ? _kBg : const Color(0xFFF5F1E8);
     final gradient = isDark
-        ? const [Color(0xFF0D1B2E), Color(0xFF060A10)]
-        : const [Color(0xFFE6EEF2), Color(0xFFDDE8ED)];
+        ? const [Color(0xFF111D2C), Color(0xFF071018)]
+        : const [Color(0xFFFFFFFF), Color(0xFFF5F1E8)];
 
     return PopScope(
       canPop: !_waitingAccept,
@@ -257,7 +258,7 @@ class _UsernameMatchScreenState extends State<UsernameMatchScreen> {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: isDark
-              ? const [Color(0xFF1A2535), Color(0xFF0F1923)]
+              ? const [Color(0xFF142133), Color(0xFF071018)]
               : const [Color(0xFFF4F8FA), Color(0xFFEAF1F4)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
@@ -294,11 +295,23 @@ class _UsernameMatchScreenState extends State<UsernameMatchScreen> {
             ),
           ),
           const SizedBox(width: 14),
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              gradient:
+                  const LinearGradient(colors: [_kBlue, Color(0xFF1565C0)]),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: const Icon(Icons.person_search_rounded,
+                color: Colors.white, size: 19),
+          ),
+          const SizedBox(width: 10),
           Text(L.byUsername,
               style: TextStyle(
                   color: titleColor,
                   fontSize: 18,
-                  fontWeight: FontWeight.bold)),
+                  fontWeight: FontWeight.w900)),
         ],
       ),
     );
@@ -307,7 +320,6 @@ class _UsernameMatchScreenState extends State<UsernameMatchScreen> {
   // Arama ekranı
   Widget _buildSearch(double bottom) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardBg = isDark ? _kCard : const Color(0xFFF4F8FA);
     final borderColor =
         isDark ? Colors.white.withValues(alpha: 0.10) : const Color(0xFFD6E1E7);
     final textColor = isDark ? Colors.white : const Color(0xFF18242C);
@@ -320,9 +332,22 @@ class _UsernameMatchScreenState extends State<UsernameMatchScreen> {
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
           child: Container(
             decoration: BoxDecoration(
-              color: cardBg,
-              borderRadius: BorderRadius.circular(14),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: isDark
+                    ? const [_kCard2, _kCard]
+                    : const [Color(0xFFFFFFFF), Color(0xFFF4F8FA)],
+              ),
+              borderRadius: BorderRadius.circular(18),
               border: Border.all(color: borderColor),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.16 : 0.05),
+                  blurRadius: 14,
+                  offset: const Offset(0, 8),
+                ),
+              ],
             ),
             child: TextField(
               controller: _ctrl,
@@ -350,7 +375,7 @@ class _UsernameMatchScreenState extends State<UsernameMatchScreen> {
                     : null,
                 border: InputBorder.none,
                 contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               ),
             ),
           ),
@@ -388,11 +413,27 @@ class _UsernameMatchScreenState extends State<UsernameMatchScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.person_off_rounded,
-              color: mutedColor.withValues(alpha: 0.45), size: 52),
-          const SizedBox(height: 14),
-          Text(L.noUsersFound,
-              style: TextStyle(color: mutedColor, fontSize: 14)),
+          Container(
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              color: isDark ? _kCard : Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : Colors.black.withValues(alpha: 0.06),
+              ),
+            ),
+            child: Column(
+              children: [
+                Icon(Icons.person_off_rounded,
+                    color: mutedColor.withValues(alpha: 0.45), size: 52),
+                const SizedBox(height: 14),
+                Text(L.noUsersFound,
+                    style: TextStyle(color: mutedColor, fontSize: 14)),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -515,7 +556,6 @@ class _UserTile extends StatelessWidget {
     final initial =
         user.displayName.isNotEmpty ? user.displayName[0].toUpperCase() : '?';
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardBg = isDark ? _kCard : const Color(0xFFF4F8FA);
     final borderColor =
         isDark ? Colors.white.withValues(alpha: 0.07) : const Color(0xFFD6E1E7);
     final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
@@ -524,9 +564,22 @@ class _UserTile extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(14),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? const [_kCard2, _kCard]
+              : const [Color(0xFFFFFFFF), Color(0xFFF4F8FA)],
+        ),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.14 : 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: Row(
         children: [

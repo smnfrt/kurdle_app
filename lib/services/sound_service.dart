@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 import 'package:kurdle_app/services/settings_service.dart';
@@ -75,12 +77,37 @@ class SoundService {
       }
       final player = _players[sfx];
       if (player == null) return;
-      await player.stop();
-      await player.seek(Duration.zero);
-      await player.resume();
+      await player.stop().timeout(const Duration(milliseconds: 180));
+      await player.seek(Duration.zero).timeout(const Duration(milliseconds: 180));
+      await player.resume().timeout(const Duration(milliseconds: 220));
     } catch (e) {
+      if (e is TimeoutException) {
+        _recoverPlayer(sfx);
+        return;
+      }
       debugPrint('SoundService play failed for $sfx: $e');
     }
+  }
+
+  void _recoverPlayer(SFX sfx) {
+    final oldPlayer = _players.remove(sfx);
+    oldPlayer?.dispose();
+    final file = _files[sfx];
+    if (file == null) return;
+
+    final player = AudioPlayer();
+    _players[sfx] = player;
+    player.setPlayerMode(PlayerMode.lowLatency).then((_) {
+      return player.setReleaseMode(ReleaseMode.stop);
+    }).then((_) {
+      return player.setVolume(1.0);
+    }).then((_) {
+      return player.setSource(AssetSource(file));
+    }).catchError((e) {
+      debugPrint('SoundService recover failed for $sfx: $e');
+      _players.remove(sfx);
+      player.dispose();
+    });
   }
 
   Future<void> dispose() async {

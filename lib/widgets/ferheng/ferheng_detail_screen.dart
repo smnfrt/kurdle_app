@@ -68,46 +68,57 @@ class _FerhengDetailScreenState extends State<FerhengDetailScreen> {
     return Scaffold(
       backgroundColor: FerhengDesign.bg,
       appBar: AppBar(
-        backgroundColor: FerhengDesign.bg,
+        backgroundColor: Colors.transparent,
         foregroundColor: FerhengDesign.textPrimary,
         title: Text(widget.word),
         elevation: 0,
+        scrolledUnderElevation: 0,
       ),
-      body: ListenableBuilder(
-        listenable: widget.controller,
-        builder: (context, _) {
-          final c = widget.controller;
-          if (c.status == FerhengStatus.loading) {
-            return const Center(
-                child: CircularProgressIndicator(color: FerhengDesign.primary));
-          }
-          final entry = c.currentEntry;
-          if (entry == null) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.search_off_rounded,
-                        size: 56, color: FerhengDesign.textFaint),
-                    const SizedBox(height: 12),
-                    Text(L.ferhengNoDefinition,
-                        style: FerhengDesign.bodyMd,
-                        textAlign: TextAlign.center),
-                  ],
+      body: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: FerhengDesign.pageGradient,
+          ),
+        ),
+        child: ListenableBuilder(
+          listenable: widget.controller,
+          builder: (context, _) {
+            final c = widget.controller;
+            if (c.status == FerhengStatus.loading) {
+              return const Center(
+                  child:
+                      CircularProgressIndicator(color: FerhengDesign.primary));
+            }
+            final entry = c.currentEntry;
+            if (entry == null) {
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.search_off_rounded,
+                          size: 56, color: FerhengDesign.textFaint),
+                      const SizedBox(height: 12),
+                      Text(L.ferhengNoDefinition,
+                          style: FerhengDesign.bodyMd,
+                          textAlign: TextAlign.center),
+                    ],
+                  ),
                 ),
-              ),
+              );
+            }
+            return WordDetailBody(
+              entry: entry,
+              language: c.definitionLanguage,
+              onLanguageChanged: c.setDefinitionLanguage,
+              isFavorite: _isFavorite,
+              onFavoriteToggle: _favBusy ? null : _toggleFavorite,
             );
-          }
-          return WordDetailBody(
-            entry: entry,
-            language: c.definitionLanguage,
-            onLanguageChanged: c.setDefinitionLanguage,
-            isFavorite: _isFavorite,
-            onFavoriteToggle: _favBusy ? null : _toggleFavorite,
-          );
-        },
+          },
+        ),
       ),
     );
   }

@@ -3,7 +3,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:kurdle_app/services/logging_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
@@ -29,6 +28,7 @@ class NotificationService {
   static const _deviceIdKey = 'notification_device_id';
   static const dailyPayload = 'daily';
   static const streakPayload = 'streak';
+  static const _turnReminderSlots = 4;
 
   // Bildirime tıklandığında ya da app kapalıyken açıldığında set edilir.
   String? pendingNotificationPayload;
@@ -42,6 +42,18 @@ class NotificationService {
   void clearRoomForeground(String roomCode) {
     if (_foregroundRoomCode == roomCode) {
       _foregroundRoomCode = null;
+    }
+  }
+
+  int _turnReminderId(String roomCode, int slot) =>
+      'turn-reminder-$roomCode-$slot'.hashCode;
+
+  void _debugExactAlarmFallback(String reminderName, Object error) {
+    if (kDebugMode) {
+      debugPrint(
+        '[INFO][NotificationService] exact $reminderName reminder unavailable; '
+        'using inexact fallback ($error)',
+      );
     }
   }
 
@@ -207,7 +219,7 @@ class NotificationService {
   // Her gün saat 09:00'da "Günün kelimesi hazır!" bildirimi
   // Android 14'te tam zamanlı alarm izni verilmemişse yaklaşık zamanlı'ya düşer.
   Future<void> scheduleDailyReminder() async {
-    await _local.cancelAll();
+    await _local.cancel(0);
 
     final now = tz.TZDateTime.now(tz.local);
     var scheduled = tz.TZDateTime(tz.local, now.year, now.month, now.day, 9, 0);
@@ -238,8 +250,7 @@ class NotificationService {
         payload: dailyPayload,
       );
     } catch (e) {
-      Log.warn('NotificationService',
-          'exact daily reminder schedule failed, falling back to inexact', e);
+      _debugExactAlarmFallback('daily', e);
       // Tam zamanlı alarm izni yok — yaklaşık zamanlı ile devam et
       await _local.zonedSchedule(
         0,
@@ -288,8 +299,7 @@ class NotificationService {
         payload: streakPayload,
       );
     } catch (e) {
-      Log.warn('NotificationService',
-          'exact streak reminder schedule failed, falling back to inexact', e);
+      _debugExactAlarmFallback('streak', e);
       await _local.zonedSchedule(
         1,
         'Peyvok 🔥',
@@ -309,6 +319,96 @@ class NotificationService {
   /// oynadıysa hatırlatma rahatsız etmesin).
   Future<void> cancelTodayStreakReminder() async {
     await _local.cancel(1);
+  }
+
+  Future<void> cancelTurnReminders(String roomCode) async {
+    for (var i = 0; i < _turnReminderSlots; i++) {
+      await _local.cancel(_turnReminderId(roomCode, i));
+    }
+  }
+
+  Future<void> scheduleTurnReminders({
+    required String roomCode,
+    required DateTime deadline,
+    required int timeLimitSeconds,
+  }) async {
+    await cancelTurnReminders(roomCode);
+
+    final now = DateTime.now();
+    final total = Duration(seconds: timeLimitSeconds);
+    final candidates = <Duration>[
+      if (total > const Duration(hours: 2)) const Duration(hours: 1),
+      if (total > const Duration(minutes: 30)) const Duration(minutes: 15),
+      if (total > const Duration(minutes: 5)) const Duration(minutes: 5),
+      if (total > const Duration(minutes: 1)) const Duration(minutes: 1),
+      if (total <= const Duration(minutes: 5))
+        Duration(seconds: (timeLimitSeconds / 2).floor().clamp(30, 180)),
+    ];
+
+    final reminderTimes = <DateTime>[];
+    for (final beforeDeadline in candidates) {
+      final at = deadline.subtract(beforeDeadline);
+      if (at.isAfter(now.add(const Duration(seconds: 10))) &&
+          at.isBefore(deadline)) {
+        reminderTimes.add(at);
+      }
+    }
+    reminderTimes.sort();
+
+    final details = NotificationDetails(
+      android: AndroidNotificationDetails(
+        _channelId,
+        _channelName,
+        importance: Importance.high,
+        priority: Priority.high,
+        ticker: 'Hamle zamanı',
+      ),
+    );
+
+    final uniqueTimes = <DateTime>[];
+    for (final at in reminderTimes) {
+      if (uniqueTimes.isEmpty ||
+          at.difference(uniqueTimes.last).inSeconds.abs() > 30) {
+        uniqueTimes.add(at);
+      }
+    }
+
+    for (var i = 0; i < uniqueTimes.length && i < _turnReminderSlots; i++) {
+      final at = uniqueTimes[i];
+      final left = deadline.difference(at);
+      final body = left.inHours >= 1
+          ? 'Hamle yapman gerekiyor. Yaklaşık ${left.inHours} saat kaldı.'
+          : left.inMinutes >= 1
+              ? 'Hamle yapman gerekiyor. ${left.inMinutes} dakika kaldı.'
+              : 'Hamle süren dolmak üzere.';
+      final tzTime = tz.TZDateTime.from(at, tz.local);
+      try {
+        await _local.zonedSchedule(
+          _turnReminderId(roomCode, i),
+          'Sıra sende',
+          body,
+          tzTime,
+          details,
+          androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
+          uiLocalNotificationDateInterpretation:
+              UILocalNotificationDateInterpretation.absoluteTime,
+          payload: 'room:$roomCode',
+        );
+      } catch (e) {
+        _debugExactAlarmFallback('turn', e);
+        await _local.zonedSchedule(
+          _turnReminderId(roomCode, i),
+          'Sıra sende',
+          body,
+          tzTime,
+          details,
+          androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+          uiLocalNotificationDateInterpretation:
+              UILocalNotificationDateInterpretation.absoluteTime,
+          payload: 'room:$roomCode',
+        );
+      }
+    }
   }
 
   // Turnuva başlamadan 30 dakika önce bildirim gönder
@@ -338,10 +438,7 @@ class NotificationService {
             UILocalNotificationDateInterpretation.absoluteTime,
       );
     } catch (e) {
-      Log.warn(
-          'NotificationService',
-          'exact tournament reminder schedule failed, falling back to inexact',
-          e);
+      _debugExactAlarmFallback('tournament', e);
       await _local.zonedSchedule(
         1,
         '🏆 Turnuva Başlıyor!',

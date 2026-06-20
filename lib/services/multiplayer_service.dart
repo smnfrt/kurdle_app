@@ -34,9 +34,12 @@ class MultiplayerRoom {
   final List<Map<String, dynamic>> lastMoveWords;
   final List<String> lastMoveCells;
   final DateTime? lastMoveAt;
+  final int? turnTimeLimitSeconds;
+  final DateTime? turnStartedAt;
+  final DateTime? turnDeadlineAt;
   // Game over metadata (status=finished olduğunda doluyor)
-  final String? finishReason; // natural_end | pass_limit | forfeit
-  final String? finishedBy; // forfeit yapan uid (varsa)
+  final String? finishReason; // natural_end | pass_limit | forfeit | timeout
+  final String? finishedBy; // forfeit yapan veya süresi dolan uid (varsa)
   final DateTime? finishedAt;
 
   const MultiplayerRoom({
@@ -64,6 +67,9 @@ class MultiplayerRoom {
     this.lastMoveWords = const [],
     this.lastMoveCells = const [],
     this.lastMoveAt,
+    this.turnTimeLimitSeconds,
+    this.turnStartedAt,
+    this.turnDeadlineAt,
     this.finishReason,
     this.finishedBy,
     this.finishedAt,
@@ -96,6 +102,9 @@ class MultiplayerRoom {
       lastMoveWords: List<Map<String, dynamic>>.from(d['lastMoveWords'] ?? []),
       lastMoveCells: List<String>.from(d['lastMoveCells'] ?? []),
       lastMoveAt: (d['lastMoveAt'] as Timestamp?)?.toDate(),
+      turnTimeLimitSeconds: (d['turnTimeLimitSeconds'] as num?)?.toInt(),
+      turnStartedAt: (d['turnStartedAt'] as Timestamp?)?.toDate(),
+      turnDeadlineAt: (d['turnDeadlineAt'] as Timestamp?)?.toDate(),
       finishReason: d['finishReason'] as String?,
       finishedBy: d['finishedBy'] as String?,
       finishedAt: (d['finishedAt'] as Timestamp?)?.toDate(),
@@ -148,6 +157,7 @@ class GameInvite {
   final DateTime? cancelledAt;
   final String? gameId;
   final String gameType;
+  final int? turnTimeLimitSeconds;
 
   const GameInvite({
     required this.inviteId,
@@ -163,6 +173,7 @@ class GameInvite {
     this.cancelledAt,
     this.gameId,
     this.gameType = 'scrabble',
+    this.turnTimeLimitSeconds,
   });
 
   bool get isPending => status == 'pending';
@@ -186,6 +197,7 @@ class GameInvite {
       cancelledAt: (d['cancelledAt'] as Timestamp?)?.toDate(),
       gameId: d['gameId'] as String?,
       gameType: d['gameType'] as String? ?? 'scrabble',
+      turnTimeLimitSeconds: (d['turnTimeLimitSeconds'] as num?)?.toInt(),
     );
   }
 }
@@ -200,6 +212,7 @@ class MultiplayerService {
 
   static const _chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   static const inviteValidity = Duration(hours: 48);
+  static const defaultTurnTimeLimitSeconds = 24 * 60 * 60;
 
   void _debugLog(String message) {
     if (kDebugMode) debugPrint('[MultiplayerService] $message');
@@ -231,6 +244,7 @@ class MultiplayerService {
     String? inviteeUid,
     String gameType = 'scrabble',
     String? inviteId,
+    int? turnTimeLimitSeconds,
   }) {
     final config = LanguageConfig.current;
     final bag = TileBagService(config.tileBag);
@@ -242,6 +256,8 @@ class MultiplayerService {
       if (t != null) bagLetters.add(t.letter);
     }
 
+    final limit = turnTimeLimitSeconds ?? defaultTurnTimeLimitSeconds;
+
     return {
       'hostUid': hostUid,
       'hostName': hostName,
@@ -251,6 +267,7 @@ class MultiplayerService {
       if (inviteeUid != null) 'inviteeUid': inviteeUid,
       if (inviteId != null) 'inviteId': inviteId,
       'gameType': gameType,
+      'turnTimeLimitSeconds': limit,
       'currentTurnUid': hostUid,
       'hostScore': 0,
       'guestScore': 0,
@@ -264,10 +281,20 @@ class MultiplayerService {
       'guestStealsLeft': 2,
       'createdAt': FieldValue.serverTimestamp(),
       'lastMoveAt': FieldValue.serverTimestamp(),
+      if (status == 'active') ...{
+        'turnStartedAt': FieldValue.serverTimestamp(),
+        'turnDeadlineAt': Timestamp.fromDate(
+          DateTime.now().add(Duration(seconds: limit)),
+        ),
+      },
     };
   }
 
-  Future<String> createRoom(String uid, String displayName) async {
+  Future<String> createRoom(
+    String uid,
+    String displayName, {
+    int? turnTimeLimitSeconds,
+  }) async {
     final config = LanguageConfig.current;
     final bag = TileBagService(config.tileBag);
     final hostRack = bag.drawMany(7).map((t) => t.letter).toList();
@@ -285,12 +312,15 @@ class MultiplayerService {
       code = _generateCode();
     }
 
+    final limit = turnTimeLimitSeconds ?? defaultTurnTimeLimitSeconds;
+
     await _rooms.doc(code).set({
       'hostUid': uid,
       'hostName': displayName,
       'guestUid': null,
       'guestName': null,
       'status': 'waiting',
+      'turnTimeLimitSeconds': limit,
       'currentTurnUid': uid,
       'hostScore': 0,
       'guestScore': 0,
@@ -304,6 +334,8 @@ class MultiplayerService {
       'guestStealsLeft': 2,
       'createdAt': FieldValue.serverTimestamp(),
       'lastMoveAt': FieldValue.serverTimestamp(),
+      'turnStartedAt': null,
+      'turnDeadlineAt': null,
     });
 
     _debugLog('createRoom code=$code host=$uid status=waiting');
@@ -322,10 +354,16 @@ class MultiplayerService {
         final status = d['status'] as String? ?? '';
         if (!status.startsWith('waiting')) throw Exception('room_unavailable');
         if (d['hostUid'] == uid) throw Exception('cannot_join_own_room');
+        final limit = (d['turnTimeLimitSeconds'] as num?)?.toInt();
         tx.update(ref, {
           'guestUid': uid,
           'guestName': displayName,
           'status': 'active',
+          if (limit != null) ...{
+            'turnStartedAt': FieldValue.serverTimestamp(),
+            'turnDeadlineAt': Timestamp.fromDate(
+                DateTime.now().add(Duration(seconds: limit))),
+          },
         });
       });
       _debugLog('joinRoom code=$code guest=$uid status=active');
@@ -377,6 +415,7 @@ class MultiplayerService {
       'guestUid': null,
       'guestName': null,
       'status': 'waiting_random',
+      'turnTimeLimitSeconds': defaultTurnTimeLimitSeconds,
       'currentTurnUid': uid,
       'hostScore': 0,
       'guestScore': 0,
@@ -416,6 +455,7 @@ class MultiplayerService {
     String displayName,
     String inviteeUid, {
     String gameType = 'scrabble',
+    int? turnTimeLimitSeconds,
   }) async {
     final existing = await _existingInviteRoom(
       hostUid: uid,
@@ -445,6 +485,8 @@ class MultiplayerService {
       code = _generateCode();
     }
 
+    final limit = turnTimeLimitSeconds ?? defaultTurnTimeLimitSeconds;
+
     await _rooms.doc(code).set({
       'hostUid': uid,
       'hostName': displayName,
@@ -453,6 +495,7 @@ class MultiplayerService {
       'status': 'waiting_invite',
       'inviteeUid': inviteeUid,
       'gameType': gameType,
+      'turnTimeLimitSeconds': limit,
       'currentTurnUid': uid,
       'hostScore': 0,
       'guestScore': 0,
@@ -466,6 +509,8 @@ class MultiplayerService {
       'guestStealsLeft': 2,
       'createdAt': FieldValue.serverTimestamp(),
       'lastMoveAt': FieldValue.serverTimestamp(),
+      'turnStartedAt': null,
+      'turnDeadlineAt': null,
     });
 
     _debugLog(
@@ -546,6 +591,7 @@ class MultiplayerService {
     String toUserId,
     String toDisplayName, {
     String gameType = 'scrabble',
+    int? turnTimeLimitSeconds,
   }) async {
     final existing = await _existingPendingInvite(
       fromUserId: fromUserId,
@@ -560,6 +606,7 @@ class MultiplayerService {
 
     final ref = _gameInvites.doc();
     final expiresAt = DateTime.now().add(inviteValidity);
+    final limit = turnTimeLimitSeconds ?? defaultTurnTimeLimitSeconds;
     final data = {
       'inviteId': ref.id,
       'fromUserId': fromUserId,
@@ -569,6 +616,7 @@ class MultiplayerService {
       'status': 'pending',
       'roomCode': null,
       'gameType': gameType,
+      'turnTimeLimitSeconds': limit,
       'createdAt': FieldValue.serverTimestamp(),
       'expiresAt': Timestamp.fromDate(expiresAt),
       'acceptedAt': null,
@@ -639,6 +687,7 @@ class MultiplayerService {
       status: 'active',
       inviteId: invite.inviteId,
       gameType: invite.gameType,
+      turnTimeLimitSeconds: invite.turnTimeLimitSeconds,
     );
 
     return _db.runTransaction<String>((tx) async {
@@ -759,6 +808,63 @@ class MultiplayerService {
     return MultiplayerRoom.fromDoc(snap);
   }
 
+  bool _applyTimeoutIfNeeded(
+      Map<String, dynamic> d, Map<String, dynamic> update,
+      {DateTime? now}) {
+    if (d['status'] != 'active') return false;
+    final deadline = (d['turnDeadlineAt'] as Timestamp?)?.toDate();
+    if (deadline == null) return false;
+    final currentTime = now ?? DateTime.now();
+    if (deadline.isAfter(currentTime)) return false;
+
+    final timedOutUid = d['currentTurnUid'] as String? ?? '';
+    final hostUid = d['hostUid'] as String? ?? '';
+    final guestUid = d['guestUid'] as String? ?? '';
+    update
+      ..clear()
+      ..addAll({
+        'status': 'finished',
+        'winner': timedOutUid == hostUid
+            ? 'guest'
+            : timedOutUid == guestUid
+                ? 'host'
+                : null,
+        'finishReason': 'timeout',
+        'finishedBy': timedOutUid,
+        'finishedAt': FieldValue.serverTimestamp(),
+      });
+    return true;
+  }
+
+  Map<String, dynamic> _nextTurnTimerUpdate(Map<String, dynamic> d) {
+    final limit = (d['turnTimeLimitSeconds'] as num?)?.toInt();
+    if (limit == null) {
+      return {
+        'turnStartedAt': null,
+        'turnDeadlineAt': null,
+      };
+    }
+    return {
+      'turnStartedAt': FieldValue.serverTimestamp(),
+      'turnDeadlineAt':
+          Timestamp.fromDate(DateTime.now().add(Duration(seconds: limit))),
+    };
+  }
+
+  Future<bool> resolveTimedOutTurn(String roomCode) async {
+    var timedOut = false;
+    final ref = _rooms.doc(roomCode);
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      if (!snap.exists) return;
+      final d = snap.data() as Map<String, dynamic>;
+      final update = <String, dynamic>{};
+      timedOut = _applyTimeoutIfNeeded(d, update);
+      if (timedOut) tx.update(ref, update);
+    });
+    return timedOut;
+  }
+
   /// Kullanıcının bitmiş çok oyunculu oyunlarını döner (en yeni önce).
   /// İndekssiz çalışsın diye finishedAt yerine client-side sıralanır.
   Future<List<MultiplayerRoom>> myFinishedRooms(String uid,
@@ -813,13 +919,21 @@ class MultiplayerService {
       if (!snap.exists) return;
       final d = snap.data() as Map<String, dynamic>;
       if (d['status'] != 'active') {
-        _debugLog('submitMove REDDEDİLDİ room=$roomCode (status=${d['status']}, aktif değil)');
+        _debugLog(
+            'submitMove REDDEDİLDİ room=$roomCode (status=${d['status']}, aktif değil)');
+        return;
+      }
+      final timeoutUpdate = <String, dynamic>{};
+      if (_applyTimeoutIfNeeded(d, timeoutUpdate)) {
+        tx.update(ref, timeoutUpdate);
+        _debugLog('submitMove REDDEDİLDİ room=$roomCode (süre doldu)');
         return;
       }
       // Sıra gerçekten bu oyuncuda mı? (server-otoritesi)
       final expectedTurnUid = isHost ? d['hostUid'] : d['guestUid'];
       if (d['currentTurnUid'] != expectedTurnUid) {
-        _debugLog('submitMove REDDEDİLDİ room=$roomCode (sıra bu oyuncuda değil)');
+        _debugLog(
+            'submitMove REDDEDİLDİ room=$roomCode (sıra bu oyuncuda değil)');
         return;
       }
 
@@ -833,6 +947,7 @@ class MultiplayerService {
         'lastMoveBy': isHost ? 'host' : 'guest',
         'lastMoveWords': lastMoveWords,
         'lastMoveCells': lastMoveCells,
+        ..._nextTurnTimerUpdate(d),
       };
       if (isHost) {
         update['hostScore'] = myScore;
@@ -841,13 +956,16 @@ class MultiplayerService {
       } else {
         update['guestScore'] = myScore;
         update['guestRack'] = myNewRack;
-        if (myNewStealsLeft != null) update['guestStealsLeft'] = myNewStealsLeft;
+        if (myNewStealsLeft != null) {
+          update['guestStealsLeft'] = myNewStealsLeft;
+        }
       }
       if (isGameOver) {
         update['status'] = 'finished';
         update['winner'] = winner;
         update['finishReason'] = 'natural_end';
         update['finishedAt'] = FieldValue.serverTimestamp();
+        update['turnDeadlineAt'] = null;
       }
       tx.update(ref, update);
       _debugLog(
@@ -871,8 +989,15 @@ class MultiplayerService {
         _debugLog('passTurn REDDEDİLDİ room=$roomCode (status=${d['status']})');
         return;
       }
+      final timeoutUpdate = <String, dynamic>{};
+      if (_applyTimeoutIfNeeded(d, timeoutUpdate)) {
+        tx.update(ref, timeoutUpdate);
+        _debugLog('passTurn REDDEDİLDİ room=$roomCode (süre doldu)');
+        return;
+      }
       // Server-otoriteli sayaç + skorlar (param yerine — eşzamanlı pass yarışını önler).
-      final currentCount = (d['passCount'] as num?)?.toInt() ?? currentPassCount;
+      final currentCount =
+          (d['passCount'] as num?)?.toInt() ?? currentPassCount;
       final newCount = currentCount + 1;
       final hScore = (d['hostScore'] as num?)?.toInt() ?? hostScore;
       final gScore = (d['guestScore'] as num?)?.toInt() ?? guestScore;
@@ -882,6 +1007,7 @@ class MultiplayerService {
         'lastMoveAt': FieldValue.serverTimestamp(),
         'lastMoveWords': [],
         'lastMoveCells': [],
+        ..._nextTurnTimerUpdate(d),
       };
       if (newCount >= 4) {
         update['status'] = 'finished';
@@ -892,6 +1018,7 @@ class MultiplayerService {
                 : 'draw';
         update['finishReason'] = 'pass_limit';
         update['finishedAt'] = FieldValue.serverTimestamp();
+        update['turnDeadlineAt'] = null;
       }
       tx.update(ref, update);
       _debugLog(

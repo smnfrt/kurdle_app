@@ -323,39 +323,92 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen>
               ),
             ),
 
-            const SizedBox(height: 30),
+            const SizedBox(height: 16),
 
-            // ── Countdown arc ────────────────────────────────────
-            RepaintBoundary(
-              child: _TimerCountdown(
-                controller: _timerCtrl,
-                stageColor: _stageColor,
-              ),
-            ),
-
-            const SizedBox(height: 22),
-
-            // ── Meaning hint ─────────────────────────────────────
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.translate_rounded,
-                      color: _stageColor.withValues(alpha: 0.7), size: 13),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      _currentWord.meaning,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: mutedColor, fontSize: 13),
-                    ),
-                  ),
-                ],
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: _StageProgressRail(
+                stageIndex: _stageIndex,
+                stageScores: _stageScores,
+                colors: _kStageColors,
               ),
             ),
 
-            const SizedBox(height: 22),
+            const SizedBox(height: 18),
+
+            // ── Challenge focus card ─────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: isDark
+                        ? const [Color(0xFF162538), Color(0xFF101927)]
+                        : const [Color(0xFFF8FBFC), Color(0xFFEAF2ED)],
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                  border:
+                      Border.all(color: _stageColor.withValues(alpha: 0.26)),
+                  boxShadow: [
+                    BoxShadow(
+                      color:
+                          _stageColor.withValues(alpha: isDark ? 0.18 : 0.12),
+                      blurRadius: 22,
+                      spreadRadius: 0.5,
+                    ),
+                    BoxShadow(
+                      color:
+                          Colors.black.withValues(alpha: isDark ? 0.24 : 0.08),
+                      blurRadius: 18,
+                      offset: const Offset(0, 10),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // ── Countdown arc ────────────────────────────
+                    RepaintBoundary(
+                      child: _TimerCountdown(
+                        controller: _timerCtrl,
+                        stageColor: _stageColor,
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    // ── Meaning hint ─────────────────────────────
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.translate_rounded,
+                            color: _stageColor.withValues(alpha: 0.82),
+                            size: 15),
+                        const SizedBox(width: 7),
+                        Flexible(
+                          child: Text(
+                            _currentWord.meaning,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: mutedColor,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              height: 1.25,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 18),
 
             // ── Word display with shake ───────────────────────────
             RepaintBoundary(
@@ -568,6 +621,97 @@ class _StageDots extends StatelessWidget {
                   : null,
         );
       }),
+    );
+  }
+}
+
+class _StageProgressRail extends StatelessWidget {
+  final int stageIndex;
+  final List<int?> stageScores;
+  final List<Color> colors;
+
+  const _StageProgressRail({
+    required this.stageIndex,
+    required this.stageScores,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final labels = [L.stageEasy, L.stageMedium, L.stageHard];
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.055)
+            : Colors.white.withValues(alpha: 0.62),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : const Color(0xFFD1DDD5),
+        ),
+      ),
+      child: Row(
+        children: List.generate(3, (i) {
+          final active = i == stageIndex;
+          final done = stageScores[i] != null;
+          final color = colors[i];
+          return Expanded(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              margin: EdgeInsets.only(right: i == 2 ? 0 : 8),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              decoration: BoxDecoration(
+                color: active || done
+                    ? color.withValues(alpha: active ? 0.18 : 0.12)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(
+                  color: active || done
+                      ? color.withValues(alpha: active ? 0.55 : 0.32)
+                      : Colors.transparent,
+                ),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    done
+                        ? Icons.check_circle_rounded
+                        : active
+                            ? Icons.radio_button_checked_rounded
+                            : Icons.circle_outlined,
+                    color: active || done
+                        ? color
+                        : (isDark ? Colors.white24 : const Color(0xFF9AABB5)),
+                    size: 14,
+                  ),
+                  const SizedBox(width: 5),
+                  Flexible(
+                    child: Text(
+                      labels[i],
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: active || done
+                            ? color
+                            : (isDark
+                                ? Colors.white.withValues(alpha: 0.36)
+                                : const Color(0xFF6B7A72)),
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }),
+      ),
     );
   }
 }
@@ -901,15 +1045,25 @@ class _OptionBtnState extends State<_OptionBtn>
             width: 52,
             height: 52,
             decoration: BoxDecoration(
+              gradient: widget.enabled
+                  ? LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        widget.color.withValues(alpha: isDark ? 0.24 : 0.18),
+                        widget.color.withValues(alpha: isDark ? 0.10 : 0.08),
+                      ],
+                    )
+                  : null,
               color: widget.enabled
-                  ? widget.color.withValues(alpha: 0.12)
+                  ? null
                   : (isDark
                       ? Colors.white.withValues(alpha: 0.04)
                       : const Color(0xFFEAF1F4)),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: widget.enabled
-                    ? widget.color.withValues(alpha: 0.55)
+                    ? widget.color.withValues(alpha: 0.64)
                     : (isDark ? Colors.white12 : const Color(0xFFD6E1E7)),
                 width: 1.4,
               ),
@@ -917,7 +1071,13 @@ class _OptionBtnState extends State<_OptionBtn>
                   ? [
                       BoxShadow(
                           color: widget.color.withValues(alpha: 0.15),
-                          blurRadius: 8)
+                          blurRadius: 10,
+                          offset: const Offset(0, 4)),
+                      BoxShadow(
+                          color: Colors.white
+                              .withValues(alpha: isDark ? 0.04 : 0.35),
+                          blurRadius: 4,
+                          offset: const Offset(0, -1)),
                     ]
                   : null,
             ),
@@ -926,7 +1086,7 @@ class _OptionBtnState extends State<_OptionBtn>
                 widget.letter,
                 style: TextStyle(
                   color: widget.enabled
-                      ? widget.color
+                      ? (isDark ? Colors.white : widget.color)
                       : (isDark ? Colors.white24 : const Color(0xFF9AABB5)),
                   fontSize: 18,
                   fontWeight: FontWeight.w900,

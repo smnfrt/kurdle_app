@@ -145,32 +145,30 @@ class MatchChatService {
 
   Future<void> markRead(String matchId, String uid) async {
     final matchRef = _matches.doc(matchId);
-    final matchSnap = await matchRef.get();
-    if (!matchSnap.exists) return;
+    await matchRef.set({
+      'unreadCounts': {uid: 0},
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
 
-    final batch = _db.batch();
-    batch.set(
-        matchRef,
-        {
-          'unreadCounts': {uid: 0},
-          'updatedAt': FieldValue.serverTimestamp(),
-        },
-        SetOptions(merge: true));
-
-    final unread = await matchRef
-        .collection('messages')
-        .where('senderId', isNotEqualTo: uid)
-        .limit(50)
-        .get();
-    for (final doc in unread.docs) {
-      final readBy = List<String>.from(doc.data()['readBy'] ?? const []);
-      if (!readBy.contains(uid)) {
-        batch.update(doc.reference, {
-          'readBy': FieldValue.arrayUnion([uid]),
-        });
-      }
+  Future<void> reportMessage({
+    required String matchId,
+    required String messageId,
+    required String reporterId,
+    required String reportedSenderId,
+    required String text,
+  }) async {
+    if (reporterId == reportedSenderId) {
+      throw const MatchChatException('cannot_report_self');
     }
-    await batch.commit();
+    await _matches.doc(matchId).collection('reports').add({
+      'messageId': messageId,
+      'reporterId': reporterId,
+      'reportedSenderId': reportedSenderId,
+      'textPreview': text.characters.take(120).join(),
+      'status': 'open',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
   }
 }
 

@@ -316,8 +316,8 @@ class _CellView extends StatelessWidget {
                                   begin: Alignment.topLeft,
                                   end: Alignment.bottomRight,
                                   colors: [
-                                    Color(0xFFB3E5FC),
-                                    Color(0xFF42A5F5),
+                                    Color(0xFFF4FFE7),
+                                    Color(0xFF7EDC83),
                                   ],
                                 )
                               : const LinearGradient(
@@ -332,7 +332,7 @@ class _CellView extends StatelessWidget {
                         : isNewStolen
                             ? const Color(0xFF1DE9B6)
                             : isLastMove
-                                ? const Color(0xFF0D47A1)
+                                ? const Color(0xFFFFD86B)
                                 : _kTileBorder,
                     width: isHighlighted
                         ? 1.8
@@ -367,9 +367,13 @@ class _CellView extends StatelessWidget {
                           : isLastMove
                               ? const [
                                   BoxShadow(
-                                      color: Color(0x8842A5F5),
-                                      blurRadius: 7,
-                                      spreadRadius: 0.8),
+                                      color: Color(0x99FFD86B),
+                                      blurRadius: 8,
+                                      spreadRadius: 1.0),
+                                  BoxShadow(
+                                      color: Color(0x554CAF50),
+                                      blurRadius: 10,
+                                      spreadRadius: 0.5),
                                   BoxShadow(
                                       color: Color(0x73000000),
                                       blurRadius: 2,

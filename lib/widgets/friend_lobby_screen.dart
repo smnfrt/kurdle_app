@@ -9,11 +9,12 @@ import 'package:kurdle_app/services/multiplayer_service.dart';
 import 'package:kurdle_app/route_transitions.dart';
 import 'package:kurdle_app/widgets/friend_game_screen.dart';
 
-const _kBg = Color(0xFF0D1520);
-const _kCard = Color(0xFF162030);
-const _kBorder = Color(0xFF243650);
-const _kPrimary = Color(0xFF4CAF50);
-const _kBlue = Color(0xFF64B5F6);
+const _kBg = Color(0xFF071018);
+const _kCard = Color(0xFF121E2D);
+const _kCard2 = Color(0xFF17263A);
+const _kBorder = Color(0x1FFFFFFF);
+const _kPrimary = Color(0xFF3FBE6F);
+const _kBlue = Color(0xFF6CC0F5);
 
 class FriendLobbyScreen extends StatefulWidget {
   final int? turnTimeLimitSeconds;
@@ -65,7 +66,11 @@ class _FriendLobbyScreenState extends State<FriendLobbyScreen>
             AuthService.instance.currentUser!.displayName ??
             name;
       }
-      final code = await MultiplayerService.instance.createRoom(uid, name);
+      final code = await MultiplayerService.instance.createRoom(
+        uid,
+        name,
+        turnTimeLimitSeconds: widget.turnTimeLimitSeconds,
+      );
       setState(() {
         _myCode = code;
         _creating = false;
@@ -170,50 +175,86 @@ class _FriendLobbyScreenState extends State<FriendLobbyScreen>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bg = isDark ? _kBg : const Color(0xFFE6EEF2);
+    final bg = isDark ? _kBg : const Color(0xFFF5F1E8);
     final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
-    final mutedColor = isDark ? Colors.white38 : const Color(0xFF667681);
+    final mutedColor =
+        isDark ? const Color(0xFF7C8898) : const Color(0xFF667681);
     return Scaffold(
       backgroundColor: bg,
       appBar: AppBar(
-        backgroundColor: bg,
+        backgroundColor: Colors.transparent,
         elevation: 0,
+        scrolledUnderElevation: 0,
         leading: IconButton(
           icon: Icon(Icons.arrow_back_ios_new_rounded, color: mutedColor),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
-          L.friendPlay,
-          style: TextStyle(color: titleColor, fontWeight: FontWeight.bold),
+        title: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [_kPrimary, Color(0xFF66E093)],
+                ),
+                borderRadius: BorderRadius.circular(11),
+              ),
+              child: const Icon(Icons.groups_rounded,
+                  color: Colors.white, size: 19),
+            ),
+            const SizedBox(width: 10),
+            Text(
+              L.friendPlay,
+              style: TextStyle(color: titleColor, fontWeight: FontWeight.w900),
+            ),
+          ],
         ),
         bottom: TabBar(
           controller: _tab,
           labelColor: _kPrimary,
           unselectedLabelColor: mutedColor,
-          indicatorColor: _kPrimary,
-          indicatorSize: TabBarIndicatorSize.label,
+          indicator: BoxDecoration(
+            color: _kPrimary.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _kPrimary.withValues(alpha: 0.24)),
+          ),
+          indicatorSize: TabBarIndicatorSize.tab,
+          dividerColor: Colors.transparent,
+          labelStyle: const TextStyle(fontWeight: FontWeight.w800),
           tabs: [
             Tab(text: L.createRoom),
             Tab(text: L.joinRoom),
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tab,
-        children: [
-          _CreateTab(
-            creating: _creating,
-            myCode: _myCode,
-            onCreate: _createRoom,
-            onCancel: _cancelRoom,
+      body: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: isDark
+                ? const [Color(0xFF111D2C), Color(0xFF071018)]
+                : const [Color(0xFFFFFFFF), Color(0xFFF5F1E8)],
           ),
-          _JoinTab(
-            codeCtrl: _codeCtrl,
-            joining: _joining,
-            error: _joinError,
-            onJoin: _joinRoom,
-          ),
-        ],
+        ),
+        child: TabBarView(
+          controller: _tab,
+          children: [
+            _CreateTab(
+              creating: _creating,
+              myCode: _myCode,
+              onCreate: _createRoom,
+              onCancel: _cancelRoom,
+            ),
+            _JoinTab(
+              codeCtrl: _codeCtrl,
+              joining: _joining,
+              error: _joinError,
+              onJoin: _joinRoom,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -242,53 +283,55 @@ class _CreateTab extends StatelessWidget {
 
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _kPrimary.withValues(alpha: 0.15),
-                border: Border.all(
-                    color: _kPrimary.withValues(alpha: 0.4), width: 2),
-              ),
-              child: const Icon(Icons.group_add_rounded,
-                  color: _kPrimary, size: 36),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              L.createRoomDesc,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: mutedColor, fontSize: 14, height: 1.5),
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: creating ? null : onCreate,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _kPrimary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                  disabledBackgroundColor: _kPrimary.withValues(alpha: 0.4),
+        padding: const EdgeInsets.all(24),
+        child: _LobbyPanel(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _kPrimary.withValues(alpha: 0.15),
+                  border: Border.all(
+                      color: _kPrimary.withValues(alpha: 0.4), width: 2),
                 ),
-                child: creating
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2.5))
-                    : Text(L.createRoom,
-                        style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold)),
+                child: const Icon(Icons.group_add_rounded,
+                    color: _kPrimary, size: 36),
               ),
-            ),
-          ],
+              const SizedBox(height: 24),
+              Text(
+                L.createRoomDesc,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: mutedColor, fontSize: 14, height: 1.5),
+              ),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: creating ? null : onCreate,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _kPrimary,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    disabledBackgroundColor: _kPrimary.withValues(alpha: 0.4),
+                  ),
+                  child: creating
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2.5))
+                      : Text(L.createRoom,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -329,101 +372,141 @@ class _WaitingViewState extends State<_WaitingView>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardBg = isDark ? _kCard : const Color(0xFFF4F8FA);
-    final borderColor = isDark ? _kBorder : const Color(0xFFD6E1E7);
+    final cardBg = isDark ? _kCard2 : const Color(0xFFFFFFFF);
+    final borderColor = isDark ? _kBorder : const Color(0x14000000);
     final titleColor = isDark ? Colors.white : const Color(0xFF18242C);
     final mutedColor = isDark ? Colors.white38 : const Color(0xFF52636E);
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ScaleTransition(
-              scale: _scale,
-              child: Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _kBlue.withValues(alpha: 0.15),
-                  border: Border.all(
-                      color: _kBlue.withValues(alpha: 0.5), width: 2),
+        padding: const EdgeInsets.all(24),
+        child: _LobbyPanel(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ScaleTransition(
+                scale: _scale,
+                child: Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _kBlue.withValues(alpha: 0.15),
+                    border: Border.all(
+                        color: _kBlue.withValues(alpha: 0.5), width: 2),
+                  ),
+                  child: const Icon(Icons.hourglass_top_rounded,
+                      color: _kBlue, size: 36),
                 ),
-                child: const Icon(Icons.hourglass_top_rounded,
-                    color: _kBlue, size: 36),
               ),
-            ),
-            const SizedBox(height: 24),
-            Text(L.waitingForOpponent,
-                style: TextStyle(color: mutedColor, fontSize: 15)),
-            const SizedBox(height: 24),
-            // Code display
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              decoration: BoxDecoration(
-                color: cardBg,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: borderColor),
-              ),
-              child: Column(
-                children: [
-                  Text(L.roomCodeLabel,
-                      style: TextStyle(color: mutedColor, fontSize: 12)),
-                  const SizedBox(height: 8),
-                  Text(
-                    widget.code,
-                    style: TextStyle(
-                      color: titleColor,
-                      fontSize: 36,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 10,
+              const SizedBox(height: 24),
+              Text(L.waitingForOpponent,
+                  style: TextStyle(color: mutedColor, fontSize: 15)),
+              const SizedBox(height: 24),
+              // Code display
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                decoration: BoxDecoration(
+                  color: cardBg,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: borderColor),
+                ),
+                child: Column(
+                  children: [
+                    Text(L.roomCodeLabel,
+                        style: TextStyle(color: mutedColor, fontSize: 12)),
+                    const SizedBox(height: 8),
+                    Text(
+                      widget.code,
+                      style: TextStyle(
+                        color: titleColor,
+                        fontSize: 34,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 8,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _CodeBtn(
-                        icon: Icons.copy_rounded,
-                        label: L.copyCode,
-                        onTap: () {
-                          Clipboard.setData(ClipboardData(text: widget.code));
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                                content: Text(L.codeCopied),
-                                duration: const Duration(seconds: 2)),
-                          );
-                        },
-                      ),
-                      const SizedBox(width: 12),
-                      _CodeBtn(
-                        icon: Icons.share_rounded,
-                        label: L.shareCode,
-                        onTap: () {
-                          final box = context.findRenderObject() as RenderBox?;
-                          Share.share(
-                            L.shareInviteMessage(widget.code),
-                            sharePositionOrigin: box != null
-                                ? box.localToGlobal(Offset.zero) & box.size
-                                : null,
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                ],
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _CodeBtn(
+                          icon: Icons.copy_rounded,
+                          label: L.copyCode,
+                          onTap: () {
+                            Clipboard.setData(ClipboardData(text: widget.code));
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                  content: Text(L.codeCopied),
+                                  duration: const Duration(seconds: 2)),
+                            );
+                          },
+                        ),
+                        const SizedBox(width: 12),
+                        _CodeBtn(
+                          icon: Icons.share_rounded,
+                          label: L.shareCode,
+                          onTap: () {
+                            final box =
+                                context.findRenderObject() as RenderBox?;
+                            Share.share(
+                              L.shareInviteMessage(widget.code),
+                              sharePositionOrigin: box != null
+                                  ? box.localToGlobal(Offset.zero) & box.size
+                                  : null,
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(height: 24),
-            TextButton(
-              onPressed: widget.onCancel,
-              child:
-                  Text(L.cancelRoom, style: const TextStyle(color: Colors.red)),
-            ),
-          ],
+              const SizedBox(height: 24),
+              TextButton(
+                onPressed: widget.onCancel,
+                child: Text(L.cancelRoom,
+                    style: const TextStyle(color: Colors.red)),
+              ),
+            ],
+          ),
         ),
       ),
+    );
+  }
+}
+
+class _LobbyPanel extends StatelessWidget {
+  final Widget child;
+
+  const _LobbyPanel({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isDark
+              ? const [_kCard2, _kCard]
+              : const [Color(0xFFFFFFFF), Color(0xFFF4F8FA)],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isDark ? _kBorder : const Color(0x14000000),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.18 : 0.05),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: child,
     );
   }
 }
@@ -490,86 +573,88 @@ class _JoinTab extends StatelessWidget {
     final hintColor = isDark ? Colors.white24 : const Color(0xFF9AABB5);
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: _kBlue.withValues(alpha: 0.15),
-                border:
-                    Border.all(color: _kBlue.withValues(alpha: 0.4), width: 2),
-              ),
-              child: const Icon(Icons.login_rounded, color: _kBlue, size: 36),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              L.joinRoomDesc,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: mutedColor, fontSize: 14, height: 1.5),
-            ),
-            const SizedBox(height: 28),
-            TextField(
-              controller: codeCtrl,
-              textCapitalization: TextCapitalization.characters,
-              textAlign: TextAlign.center,
-              maxLength: 6,
-              style: TextStyle(
-                color: titleColor,
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 8,
-              ),
-              decoration: InputDecoration(
-                counterText: '',
-                hintText: 'ABC123',
-                hintStyle:
-                    TextStyle(color: hintColor, fontSize: 28, letterSpacing: 8),
-                filled: true,
-                fillColor: cardBg,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide(color: borderColor),
+        padding: const EdgeInsets.all(24),
+        child: _LobbyPanel(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _kBlue.withValues(alpha: 0.15),
+                  border: Border.all(
+                      color: _kBlue.withValues(alpha: 0.4), width: 2),
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide(color: borderColor),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(color: _kBlue, width: 2),
-                ),
-                errorText: error.isNotEmpty ? error : null,
+                child: const Icon(Icons.login_rounded, color: _kBlue, size: 36),
               ),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: joining ? null : onJoin,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _kBlue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                  disabledBackgroundColor: _kBlue.withValues(alpha: 0.4),
-                ),
-                child: joining
-                    ? const SizedBox(
-                        width: 22,
-                        height: 22,
-                        child: CircularProgressIndicator(
-                            color: Colors.white, strokeWidth: 2.5))
-                    : Text(L.joinRoom,
-                        style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 24),
+              Text(
+                L.joinRoomDesc,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: mutedColor, fontSize: 14, height: 1.5),
               ),
-            ),
-          ],
+              const SizedBox(height: 28),
+              TextField(
+                controller: codeCtrl,
+                textCapitalization: TextCapitalization.characters,
+                textAlign: TextAlign.center,
+                maxLength: 6,
+                style: TextStyle(
+                  color: titleColor,
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 8,
+                ),
+                decoration: InputDecoration(
+                  counterText: '',
+                  hintText: 'ABC123',
+                  hintStyle: TextStyle(
+                      color: hintColor, fontSize: 28, letterSpacing: 8),
+                  filled: true,
+                  fillColor: cardBg,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: borderColor),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: borderColor),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: const BorderSide(color: _kBlue, width: 2),
+                  ),
+                  errorText: error.isNotEmpty ? error : null,
+                ),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: joining ? null : onJoin,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _kBlue,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14)),
+                    disabledBackgroundColor: _kBlue.withValues(alpha: 0.4),
+                  ),
+                  child: joining
+                      ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2.5))
+                      : Text(L.joinRoom,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

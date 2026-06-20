@@ -19,6 +19,12 @@ import 'package:kurdle_app/widgets/keyboard.dart';
 import 'package:kurdle_app/widgets/settings.dart';
 import 'package:kurdle_app/widgets/stats.dart';
 
+const _kWordleBgTop = Color(0xFF111D2C);
+const _kWordleBgBottom = Color(0xFF071018);
+const _kWordleSurface = Color(0xFF142133);
+const _kWordlePrimary = Color(0xFF3FBE6F);
+const _kWordleGold = Color(0xFFFFD27A);
+
 class WordleGameScreen extends StatefulWidget {
   const WordleGameScreen({super.key});
 
@@ -28,7 +34,8 @@ class WordleGameScreen extends StatefulWidget {
 
 class _WordleGameScreenState extends State<WordleGameScreen> {
   final Kurdle _game = Kurdle();
-  final StreamController<Settings> _streamController = StreamController.broadcast();
+  final StreamController<Settings> _streamController =
+      StreamController.broadcast();
   Future<bool> _initialized = Future<bool>.value(false);
   domain.Dialog _currentDialog = domain.Dialog.none;
 
@@ -77,8 +84,7 @@ class _WordleGameScreenState extends State<WordleGameScreen> {
     if (!hasWordleHintUnlock(level)) {
       _showHintMsg(
         title: 'Seviye 6 gerekli',
-        body:
-            'Harf İpucu Seviye 6\'da açılır. Şu an Seviye $level\'desin.',
+        body: 'Harf İpucu Seviye 6\'da açılır. Şu an Seviye $level\'desin.',
         icon: Icons.lock_rounded,
       );
       return;
@@ -124,8 +130,7 @@ class _WordleGameScreenState extends State<WordleGameScreen> {
     return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: const [
             Icon(Icons.lightbulb_rounded, color: Color(0xFFFFB300)),
@@ -165,8 +170,7 @@ class _WordleGameScreenState extends State<WordleGameScreen> {
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: const [
             Icon(Icons.lightbulb_rounded, color: Color(0xFFFFB300)),
@@ -213,8 +217,7 @@ class _WordleGameScreenState extends State<WordleGameScreen> {
     showDialog<void>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
             Icon(icon, color: const Color(0xFFFFB300)),
@@ -260,8 +263,8 @@ class _WordleGameScreenState extends State<WordleGameScreen> {
           ),
           backgroundColor: const Color(0xFF1A2535),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           margin: const EdgeInsets.all(16),
           duration: const Duration(seconds: 3),
         ),
@@ -297,7 +300,9 @@ class _WordleGameScreenState extends State<WordleGameScreen> {
         _game.isEvaluating = false;
       } else if (_game.context.turnResult == TurnResult.successful) {
         for (var i = 0; i < _game.context.attempt.length; i++) {
-          var offset = i + ((Kurdle.totalTries - _game.context.remainingTries) * Kurdle.rowLength);
+          var offset = i +
+              ((Kurdle.totalTries - _game.context.remainingTries) *
+                  Kurdle.rowLength);
           Timer(Duration(milliseconds: i * 200), () {
             if (!mounted) return;
             setState(() {
@@ -318,7 +323,9 @@ class _WordleGameScreenState extends State<WordleGameScreen> {
         if (didWin) {
           Timer(const Duration(seconds: 2), () {
             for (var i = 0; i < _game.context.attempt.length; i++) {
-              var offset = i + ((Kurdle.totalTries - _game.context.remainingTries) * Kurdle.rowLength);
+              var offset = i +
+                  ((Kurdle.totalTries - _game.context.remainingTries) *
+                      Kurdle.rowLength);
               Timer(Duration(milliseconds: i * 200), () {
                 if (!mounted) return;
                 setState(() {
@@ -396,7 +403,12 @@ class _WordleGameScreenState extends State<WordleGameScreen> {
 
         return Stack(children: [
           Scaffold(
+            backgroundColor: _kWordleBgBottom,
             appBar: AppBar(
+              backgroundColor: _kWordleBgTop,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              scrolledUnderElevation: 0,
               leading: Padding(
                 padding: const EdgeInsets.only(left: 16, right: 20),
                 child: GestureDetector(
@@ -407,29 +419,20 @@ class _WordleGameScreenState extends State<WordleGameScreen> {
                   ),
                 ),
               ),
-              title: const Text('Peyvok'),
+              title: const _WordleTitle(),
               centerTitle: true,
               actions: [
-                Padding(
-                  padding: const EdgeInsets.only(left: 8, right: 8),
-                  child: GestureDetector(
-                    onTap: _onHintTap,
-                    child: Semantics(
-                      label: 'Harf İpucu',
-                      child: const Icon(Icons.lightbulb_outline_rounded,
-                          size: 26),
-                    ),
-                  ),
+                _WordleIconAction(
+                  icon: Icons.lightbulb_outline_rounded,
+                  label: 'Harf İpucu',
+                  color: _kWordleGold,
+                  onTap: _onHintTap,
                 ),
-                Padding(
-                  padding: const EdgeInsets.only(left: 8, right: 16),
-                  child: GestureDetector(
-                    onTap: () => _setDialog(domain.Dialog.stats),
-                    child: Semantics(
-                      label: 'İstatistikler',
-                      child: const Icon(Icons.leaderboard, size: 26),
-                    ),
-                  ),
+                _WordleIconAction(
+                  icon: Icons.leaderboard_rounded,
+                  label: 'İstatistikler',
+                  color: const Color(0xFF64B5F6),
+                  onTap: () => _setDialog(domain.Dialog.stats),
                 ),
                 Padding(
                   padding: const EdgeInsets.only(right: 20),
@@ -446,31 +449,55 @@ class _WordleGameScreenState extends State<WordleGameScreen> {
             body: LayoutBuilder(
               builder: (context, constraints) {
                 return Stack(children: [
+                  const Positioned.fill(
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [_kWordleBgTop, _kWordleBgBottom],
+                        ),
+                      ),
+                    ),
+                  ),
                   SizedBox.expand(
                     child: FittedBox(
                       fit: BoxFit.contain,
                       child: SizedBox(
                         width: 400,
-                        height: 670,
+                        height: 700,
                         child: Stack(children: [
                           Positioned(
-                            top: 0,
-                            left: 25,
-                            child: BoardWidget(
-                              _game,
-                              Kurdle.rowLength,
-                              _game.shakeKeys,
-                              _game.bounceKeys,
-                              _game.settings,
+                            top: 10,
+                            left: 13,
+                            child: _WordleBoardStage(
+                              child: BoardWidget(
+                                _game,
+                                Kurdle.rowLength,
+                                _game.shakeKeys,
+                                _game.bounceKeys,
+                                _game.settings,
+                              ),
                             ),
                           ),
                           Positioned(
-                            top: 470,
+                            top: 458,
+                            left: 28,
+                            right: 28,
+                            child: _WordleStatusStrip(
+                              gameNumber: _game.gameNumber,
+                              remainingTries: _game.context.remainingTries,
+                            ),
+                          ),
+                          Positioned(
+                            top: 500,
                             left: 0,
-                            child: Keyboard(
-                              _game.context.keys,
-                              _game.settings,
-                              _onKeyPressed,
+                            child: _WordleKeyboardStage(
+                              child: Keyboard(
+                                _game.context.keys,
+                                _game.settings,
+                                _onKeyPressed,
+                              ),
                             ),
                           ),
                           if (_currentDialog == domain.Dialog.stats) ...[
@@ -510,6 +537,199 @@ class _WordleGameScreenState extends State<WordleGameScreen> {
           ],
         ]);
       },
+    );
+  }
+}
+
+class _WordleTitle extends StatelessWidget {
+  const _WordleTitle();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: const [
+        Text(
+          'Günün Kelimesi',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0,
+          ),
+        ),
+        SizedBox(height: 1),
+        Text(
+          'Peyvok',
+          style: TextStyle(
+            color: Color(0xFFB7C0CD),
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.8,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _WordleIconAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _WordleIconAction({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, right: 4),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Semantics(
+          label: label,
+          child: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: color.withValues(alpha: 0.28)),
+            ),
+            child: Icon(icon, size: 20, color: color),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _WordleBoardStage extends StatelessWidget {
+  final Widget child;
+
+  const _WordleBoardStage({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 374,
+      height: 438,
+      padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF17263A), Color(0xFF0E1825)],
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.34),
+            blurRadius: 26,
+            offset: const Offset(0, 14),
+          ),
+          BoxShadow(
+            color: _kWordlePrimary.withValues(alpha: 0.12),
+            blurRadius: 22,
+            spreadRadius: 0.5,
+          ),
+        ],
+      ),
+      child: child,
+    );
+  }
+}
+
+class _WordleStatusStrip extends StatelessWidget {
+  final int gameNumber;
+  final int remainingTries;
+
+  const _WordleStatusStrip({
+    required this.gameNumber,
+    required this.remainingTries,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final attemptsUsed = (Kurdle.totalTries - remainingTries).clamp(0, 6);
+    return Container(
+      height: 34,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: _kWordleSurface.withValues(alpha: 0.94),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.calendar_today_rounded,
+              size: 14, color: _kWordleGold),
+          const SizedBox(width: 6),
+          Text(
+            '#$gameNumber',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const Spacer(),
+          Text(
+            '$attemptsUsed / ${Kurdle.totalTries}',
+            style: const TextStyle(
+              color: Color(0xFFB7C0CD),
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(width: 8),
+          for (var i = 0; i < Kurdle.totalTries; i++)
+            Container(
+              width: 7,
+              height: 7,
+              margin: const EdgeInsets.only(left: 3),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: i < attemptsUsed
+                    ? _kWordlePrimary
+                    : Colors.white.withValues(alpha: 0.14),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _WordleKeyboardStage extends StatelessWidget {
+  final Widget child;
+
+  const _WordleKeyboardStage({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 400,
+      height: 200,
+      padding: const EdgeInsets.only(top: 2),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            _kWordleSurface.withValues(alpha: 0.24),
+            Colors.transparent,
+          ],
+        ),
+      ),
+      child: child,
     );
   }
 }

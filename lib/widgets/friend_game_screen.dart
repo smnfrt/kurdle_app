@@ -49,6 +49,13 @@ Color _topStartFor(BuildContext ctx) =>
         : _kTopStartLight;
 Color _cardFor(BuildContext ctx) =>
     Theme.of(ctx).brightness == Brightness.dark ? _kCardDark : _kCardLight;
+Color _textFor(BuildContext ctx) => Theme.of(ctx).brightness == Brightness.dark
+    ? Colors.white
+    : const Color(0xFF172033);
+Color _mutedTextFor(BuildContext ctx) =>
+    Theme.of(ctx).brightness == Brightness.dark
+        ? Colors.white.withValues(alpha: 0.62)
+        : const Color(0xFF5D6A7A);
 const _kInitialBoardZoom = 2.05;
 
 double _bottomSafePadding(BuildContext context, {double minimum = 18}) {
@@ -114,6 +121,10 @@ class _FriendGameScreenState extends State<FriendGameScreen>
 
   // ── Game over ─────────────────────────────────────────────────────
   bool _gameOverShown = false;
+  Timer? _turnTimeoutTimer;
+  Timer? _turnClockTimer;
+  String? _scheduledTurnReminderKey;
+  DateTime _clockNow = DateTime.now();
 
   // ── Player progression info (avatar frame + title) ──────────────
   int _myLevel = 1;
@@ -160,6 +171,8 @@ class _FriendGameScreenState extends State<FriendGameScreen>
   @override
   void dispose() {
     NotificationService.instance.clearRoomForeground(widget.roomCode);
+    _turnTimeoutTimer?.cancel();
+    _turnClockTimer?.cancel();
     _sub?.cancel();
     _chatUnreadSub?.cancel();
     _turnBannerCtrl?.dispose();
@@ -383,6 +396,7 @@ class _FriendGameScreenState extends State<FriendGameScreen>
       _room = room;
       _loading = false;
     });
+    _handleTurnTiming(room);
 
     // İlk yüklemede her iki oyuncunun seviyesini çek (bot olmayanlar için).
     if (!_levelsFetched) {
@@ -421,6 +435,64 @@ class _FriendGameScreenState extends State<FriendGameScreen>
       _gameOverShown = true;
       WidgetsBinding.instance.addPostFrameCallback((_) => _showGameOver(room));
     }
+  }
+
+  void _handleTurnTiming(MultiplayerRoom room) {
+    _turnTimeoutTimer?.cancel();
+    _turnClockTimer?.cancel();
+
+    final deadline = room.turnDeadlineAt;
+    final limit = room.turnTimeLimitSeconds;
+    if (room.status != 'active' || deadline == null || limit == null) {
+      _scheduledTurnReminderKey = null;
+      unawaited(
+          NotificationService.instance.cancelTurnReminders(room.roomCode));
+      return;
+    }
+
+    final now = DateTime.now();
+    if (!deadline.isAfter(now)) {
+      unawaited(MultiplayerService.instance.resolveTimedOutTurn(room.roomCode));
+      return;
+    }
+
+    final remaining = deadline.difference(now);
+    _turnTimeoutTimer = Timer(remaining, () {
+      if (!mounted) return;
+      unawaited(MultiplayerService.instance.resolveTimedOutTurn(room.roomCode));
+    });
+
+    final isMyTurn = room.currentTurnUid == widget.myUid;
+    if (!isMyTurn) {
+      _scheduledTurnReminderKey = null;
+      unawaited(
+          NotificationService.instance.cancelTurnReminders(room.roomCode));
+      return;
+    }
+
+    final key =
+        '${room.roomCode}:${room.currentTurnUid}:${deadline.millisecondsSinceEpoch}';
+    if (_scheduledTurnReminderKey != key) {
+      _scheduledTurnReminderKey = key;
+      unawaited(NotificationService.instance.scheduleTurnReminders(
+        roomCode: room.roomCode,
+        deadline: deadline,
+        timeLimitSeconds: limit,
+      ));
+    }
+
+    _clockNow = now;
+    _turnClockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) return;
+      final room = _room;
+      if (room == null ||
+          room.status != 'active' ||
+          room.currentTurnUid != widget.myUid) {
+        _turnClockTimer?.cancel();
+        return;
+      }
+      setState(() => _clockNow = DateTime.now());
+    });
   }
 
   void _ensureChatListener(MultiplayerRoom room) {
@@ -475,6 +547,20 @@ class _FriendGameScreenState extends State<FriendGameScreen>
   // ── Board interactions ────────────────────────────────────────────
 
   bool get _isMyTurn => _room?.currentTurnUid == widget.myUid;
+
+  String? _turnTimeLabel(MultiplayerRoom room) {
+    final deadline = room.turnDeadlineAt;
+    if (deadline == null || room.turnTimeLimitSeconds == null) return null;
+    final remaining = deadline.difference(_clockNow);
+    if (remaining <= Duration.zero) return '0:00';
+    final hours = remaining.inHours;
+    final minutes = remaining.inMinutes.remainder(60);
+    final seconds = remaining.inSeconds.remainder(60);
+    if (hours > 0) {
+      return '$hours:${minutes.toString().padLeft(2, '0')}';
+    }
+    return '$minutes:${seconds.toString().padLeft(2, '0')}';
+  }
 
   void _onTileTap(GameTile tile) {
     // Sıra rakipte olsa bile taş seçilebilsin (preview/test için).
@@ -889,6 +975,7 @@ class _FriendGameScreenState extends State<FriendGameScreen>
                 myScore: myScore,
                 oppScore: oppScore,
                 oppName: oppName,
+                finishReason: room.finishReason,
                 onClose: () {
                   Navigator.of(ctx).pop();
                   if (mounted) Navigator.of(context).pop();
@@ -956,6 +1043,7 @@ class _FriendGameScreenState extends State<FriendGameScreen>
     final myScore = isHost ? room.hostScore : room.guestScore;
     final oppScore = isHost ? room.guestScore : room.hostScore;
     final myTurn = _isMyTurn;
+    final turnTimeLabel = _turnTimeLabel(room);
     final boardInteractive = room.status != 'finished';
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -996,6 +1084,7 @@ class _FriendGameScreenState extends State<FriendGameScreen>
                     bagCount: room.bagLetters.length,
                     roomCode: widget.roomCode,
                     chatUnreadCount: _chatUnreadCount,
+                    turnTimeLabel: turnTimeLabel,
                     onBack: () {
                       Navigator.pop(context);
                       homeOpenMyGamesTick.value++;
@@ -1006,8 +1095,8 @@ class _FriendGameScreenState extends State<FriendGameScreen>
                       if (!leave || !mounted) return;
                       await MultiplayerService.instance
                           .leaveRoom(widget.roomCode, widget.myUid);
-                      if (!context.mounted) return;
-                      Navigator.pop(context);
+                      if (!mounted) return;
+                      _returnToMyGames();
                     },
                   ),
                   // Board — zoom/pan destekli alan
@@ -1153,6 +1242,14 @@ class _FriendGameScreenState extends State<FriendGameScreen>
                       ),
                     ),
                   ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 4, 10, 6),
+                    child: _TurnStateBand(
+                      isMyTurn: myTurn,
+                      opponentName: oppName,
+                      timeLabel: turnTimeLabel,
+                    ),
+                  ),
                   // Action buttons — opponent turn'ünde de göster ama
                   // submit/pass/steal disabled. Recall her zaman aktif
                   // ki preview temizlenebilsin.
@@ -1268,17 +1365,17 @@ class _FriendGameScreenState extends State<FriendGameScreen>
             backgroundColor: _cardFor(ctx),
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: Text(L.leaveGameTitle,
-                style: const TextStyle(color: Colors.white)),
+            title:
+                Text(L.leaveGameTitle, style: TextStyle(color: _textFor(ctx))),
             content: Text(
               L.leaveGameMessage,
-              style: const TextStyle(color: Colors.white54),
+              style: TextStyle(color: _mutedTextFor(ctx)),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: Text(L.cancel,
-                    style: const TextStyle(color: Colors.white54)),
+                child:
+                    Text(L.cancel, style: TextStyle(color: _mutedTextFor(ctx))),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(context, true),
@@ -1289,6 +1386,13 @@ class _FriendGameScreenState extends State<FriendGameScreen>
           ),
         ) ??
         false;
+  }
+
+  void _returnToMyGames() {
+    Navigator.of(context).popUntil((route) => route.isFirst);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      homeOpenMyGamesTick.value++;
+    });
   }
 
   String _cleanError(Object error) =>
@@ -1308,6 +1412,7 @@ class _Header extends StatefulWidget {
   final int bagCount;
   final String roomCode;
   final int chatUnreadCount;
+  final String? turnTimeLabel;
   final VoidCallback onBack;
   final VoidCallback onChat;
   final VoidCallback onForfeit;
@@ -1323,6 +1428,7 @@ class _Header extends StatefulWidget {
     required this.bagCount,
     required this.roomCode,
     required this.chatUnreadCount,
+    required this.turnTimeLabel,
     required this.onBack,
     required this.onChat,
     required this.onForfeit,
@@ -1436,6 +1542,13 @@ class _HeaderState extends State<_Header> with TickerProviderStateMixin {
             ),
           ),
           _BagChip(count: widget.bagCount),
+          if (widget.turnTimeLabel != null) ...[
+            const SizedBox(width: 4),
+            _TurnTimerChip(
+              label: widget.turnTimeLabel!,
+              active: widget.isMyTurn,
+            ),
+          ],
           Expanded(
             child: _PlayerCard(
               name: widget.oppName,
@@ -1502,6 +1615,50 @@ class _IconBtn extends StatelessWidget {
       ),
     );
     return tooltip != null ? Tooltip(message: tooltip!, child: btn) : btn;
+  }
+}
+
+class _TurnTimerChip extends StatelessWidget {
+  final String label;
+  final bool active;
+
+  const _TurnTimerChip({required this.label, required this.active});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final color = active ? const Color(0xFFFFC857) : Colors.white70;
+    return Container(
+      height: 36,
+      constraints: const BoxConstraints(minWidth: 54),
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        color: Colors.white.withValues(alpha: isDark ? 0.06 : 0.14),
+        border: Border.all(
+          color: active
+              ? const Color(0xFFFFC857).withValues(alpha: 0.48)
+              : Colors.white.withValues(alpha: isDark ? 0.10 : 0.22),
+          width: 1.1,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.timer_rounded, color: color, size: 16),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -1967,6 +2124,150 @@ class _FloatingDeltaState extends State<_FloatingDelta>
           ),
         );
       },
+    );
+  }
+}
+
+class _TurnStateBand extends StatelessWidget {
+  final bool isMyTurn;
+  final String opponentName;
+  final String? timeLabel;
+
+  const _TurnStateBand({
+    required this.isMyTurn,
+    required this.opponentName,
+    required this.timeLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final accent =
+        isMyTurn ? const Color(0xFF66E093) : const Color(0xFF64B5F6);
+    final bg = isDark
+        ? const Color(0xFF101A25).withValues(alpha: 0.92)
+        : Colors.white.withValues(alpha: 0.86);
+    final textColor = isDark ? Colors.white : const Color(0xFF17251E);
+    final muted =
+        isDark ? Colors.white.withValues(alpha: 0.56) : const Color(0xFF5E6D64);
+    final title = isMyTurn
+        ? (L.current == AppLocale.tr ? 'Sıra sende' : 'Dor li te ye')
+        : (L.current == AppLocale.tr
+            ? '$opponentName düşünüyor'
+            : '$opponentName difikire');
+    final subtitle = isMyTurn
+        ? (L.current == AppLocale.tr
+            ? 'Kelime kur, puanı gör ve hamleni oyna'
+            : 'Peyvê ava bike, pûanê bibîne û bilîze')
+        : (L.current == AppLocale.tr
+            ? 'İstersen taşlarını deneyip hamleni hazırlayabilirsin'
+            : 'Tu dikarî tîpan biceribînî û tevgera xwe amade bikî');
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accent.withValues(alpha: 0.34)),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(alpha: isMyTurn ? 0.18 : 0.10),
+            blurRadius: isMyTurn ? 18 : 10,
+            spreadRadius: isMyTurn ? 0.6 : 0,
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  accent.withValues(alpha: 0.30),
+                  accent.withValues(alpha: 0.10),
+                ],
+              ),
+              border: Border.all(color: accent.withValues(alpha: 0.42)),
+            ),
+            child: Icon(
+              isMyTurn ? Icons.play_arrow_rounded : Icons.hourglass_top_rounded,
+              color: accent,
+              size: 21,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: muted,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (timeLabel != null) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: accent.withValues(alpha: 0.30)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.timer_rounded, color: accent, size: 13),
+                  const SizedBox(width: 4),
+                  Text(
+                    timeLabel!,
+                    style: TextStyle(
+                      color: accent,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -3032,6 +3333,7 @@ class _GameOverCard extends StatelessWidget {
   final int myScore;
   final int oppScore;
   final String oppName;
+  final String? finishReason;
   final VoidCallback onClose;
 
   const _GameOverCard({
@@ -3040,6 +3342,7 @@ class _GameOverCard extends StatelessWidget {
     required this.myScore,
     required this.oppScore,
     required this.oppName,
+    this.finishReason,
     required this.onClose,
   });
 
@@ -3069,7 +3372,11 @@ class _GameOverCard extends StatelessWidget {
         ? (L.current == AppLocale.tr ? 'İyi maç!' : 'Lîstik baş bû!')
         : iWon
             ? (L.current == AppLocale.tr ? 'Mükemmel oyun!' : 'Pir baş!')
-            : (L.current == AppLocale.tr ? 'Tekrar dene!' : 'Dîsa biceribîne!');
+            : finishReason == 'timeout'
+                ? L.timeoutLose
+                : (L.current == AppLocale.tr
+                    ? 'Tekrar dene!'
+                    : 'Dîsa biceribîne!');
 
     return Material(
       color: Colors.transparent,

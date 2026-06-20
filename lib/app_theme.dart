@@ -148,6 +148,15 @@ class AppTheme {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       behavior: SnackBarBehavior.floating,
     ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: _surfaceDark,
+      titleTextStyle: AppTokens.buildTextTheme(Typography.whiteMountainView)
+          .titleLarge
+          ?.copyWith(fontSize: 20),
+      contentTextStyle:
+          AppTokens.buildTextTheme(Typography.whiteMountainView).bodyMedium,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    ),
     bottomSheetTheme: const BottomSheetThemeData(
       backgroundColor: Color(0xFF141E2B),
       shape: RoundedRectangleBorder(
@@ -243,6 +252,24 @@ class AppTheme {
       contentTextStyle: const TextStyle(color: Colors.white),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       behavior: SnackBarBehavior.floating,
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: _surfaceLight,
+      titleTextStyle: AppTokens.buildTextTheme(
+        Typography.whiteMountainView,
+        primaryText: const Color(0xFF172033),
+        secondaryText: const Color(0xFF354456),
+        mutedText: const Color(0xFF5D6A7A),
+        stronger: true,
+      ).titleLarge?.copyWith(fontSize: 20),
+      contentTextStyle: AppTokens.buildTextTheme(
+        Typography.whiteMountainView,
+        primaryText: const Color(0xFF172033),
+        secondaryText: const Color(0xFF354456),
+        mutedText: const Color(0xFF5D6A7A),
+        stronger: true,
+      ).bodyMedium,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
     ),
     bottomSheetTheme: BottomSheetThemeData(
       backgroundColor: _surfaceLight,

@@ -98,7 +98,8 @@ const _trSections = <_Section>[
         '• Anonim kullanıcı kimliği (Firebase Auth) — oyun ilerlemenizi cihazlar arası senkronize etmek için.\n'
         '• İsteğe bağlı profil adı — sadece kendi seçtiğiniz isim.\n'
         '• Oyun istatistikleri — günlük oyun sonuçları, achievement (rozet) ilerlemeniz, leaderboard skorlarınız.\n'
-        '• Çok oyunculu oyun verileri — oda kodu, hamleler. Oyun bittiğinde silinir.\n'
+        '• Çok oyunculu oyun verileri — oda kodu, oyuncu UID\'leri, hamleler.\n'
+        '• Oyuncular arası chat mesajları ve mesaj raporları — kötüye kullanım incelemesi ve güvenlik için.\n'
         '• Bildirim token\'ı (Firebase Messaging) — sadece bildirim izni verdiyseniz.\n'
         '• Çökme raporları (Firebase Crashlytics) — uygulama çöktüğünde teknik bilgi (cihaz modeli, hata stack trace).\n'
         '• Anonim kullanım metrikleri (Firebase Analytics) — hangi ekranların kullanıldığı.',
@@ -143,7 +144,8 @@ const _kmrSections = <_Section>[
         '• Nasnameya bikarhênera anonîm (Firebase Auth) — ji bo senkronîzekirina pêşveçûna lîstikê di navbera amûran de.\n'
         '• Navê profîlê yê bijartî — tenê navê ku tu hilbijêrî.\n'
         '• Statîstîkên lîstikê — encamên rojane, pêşveçûna rozetan, pûanên leaderboard\'ê.\n'
-        '• Daneyên lîstika gelek-lîstikvan — koda odeyê, livên lîstikê. Piştî lîstikê tê jêbirin.\n'
+        '• Daneyên lîstika gelek-lîstikvan — koda odeyê, UID\'ên lîstikvanan, livên lîstikê.\n'
+        '• Peyamên chatê di navbera lîstikvanan de û raporên peyaman — ji bo ewlehî û lêkolîna xerab-bikaranînê.\n'
         '• Token a agahdariyan (Firebase Messaging) — tenê eger destûr dabe.\n'
         '• Raporên xeletiyê (Firebase Crashlytics) — gava sepan dikeve, agahdariya teknîkî.\n'
         '• Metrîkên bikaranînê yên anonîm (Firebase Analytics) — kîjan ekran tê bikaranîn.',

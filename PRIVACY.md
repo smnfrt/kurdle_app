@@ -13,7 +13,8 @@ Peyvok yalnızca uygulamanın çalışması için gerekli en az veriyi toplar:
 - **Anonim kullanıcı kimliği** (Firebase Authentication) — oyun ilerlemenizi cihazlar arası senkronize etmek için.
 - **İsteğe bağlı profil adı** — sadece kendi seçtiğiniz isim.
 - **Oyun istatistikleri** — günlük oyun sonuçları, achievement (rozet) ilerlemeniz, leaderboard skorlarınız.
-- **Çok oyunculu oyun verileri** — oda kodu, oyuncu UID'leri, hamleler. Oyun bittiğinde silinir.
+- **Çok oyunculu oyun verileri** — oda kodu, oyuncu UID'leri, hamleler.
+- **Oyuncular arası chat mesajları ve mesaj raporları** — kötüye kullanım incelemesi ve güvenlik için.
 - **Bildirim token'ı** (Firebase Messaging) — sadece bildirim izni verdiyseniz.
 - **Çökme raporları** (Firebase Crashlytics) — uygulama çöktüğünde teknik bilgi (cihaz modeli, hata stack trace). Kullanıcıyı tanımlayan veri içermez.
 - **Anonim kullanım metrikleri** (Firebase Analytics) — hangi ekranların kullanıldığı gibi bilgiler.
@@ -55,7 +56,8 @@ Peyvok tenê wan daneyan kom dike ku ji bo karkirina sepanê pêwîst in:
 - **Nasnameya bikarhênera anonîm** (Firebase Authentication) — ji bo senkronîzekirina pêşveçûna lîstikê di navbera amûran de.
 - **Navê profîlê yê bijartî** — tenê navê ku tu hilbijêrî.
 - **Statîstîkên lîstikê** — encamên rojane, pêşveçûna rozetan, pûanên leaderboard'ê.
-- **Daneyên lîstika gelek-lîstikvan** — koda odeyê, UID'ên lîstikvanan, livên lîstikê. Piştî lîstikê tê jêbirin.
+- **Daneyên lîstika gelek-lîstikvan** — koda odeyê, UID'ên lîstikvanan, livên lîstikê.
+- **Peyamên chatê di navbera lîstikvanan de û raporên peyaman** — ji bo ewlehî û lêkolîna xerab-bikaranînê.
 - **Token a agahdariyan** (Firebase Messaging) — tenê eger destûr dabe.
 - **Raporên xeletiyê** (Firebase Crashlytics) — gava sepan dikeve, agahdariya teknîkî (modelê amûrê, stack trace). Daneyên nasnameyê di nav de tune ne.
 - **Metrîkên bikaranînê yên anonîm** (Firebase Analytics) — wek kîjan ekran tê bikaranîn.

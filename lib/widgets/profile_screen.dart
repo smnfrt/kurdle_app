@@ -10,13 +10,14 @@ import 'package:kurdle_app/services/firestore_service.dart';
 import 'package:kurdle_app/services/level_rewards.dart';
 import 'package:kurdle_app/widgets/peyv_shop_sheet.dart';
 
-const _kBgDark = Color(0xFF0F1923);
+const _kBgDark = Color(0xFF071018);
 const _kBgLight = Color(0xFFF6F1E8);
-const _kSurfaceDark = Color(0xFF1A2535);
+const _kSurfaceDark = Color(0xFF121E2D);
 const _kSurfaceLight = Color(0xFFFFFFFF);
 const _kOnLight = Color(0xFF18242C);
-const _kPrimary = Color(0xFF4CAF50);
-const _kGold = Color(0xFFFFD700);
+const _kPrimary = Color(0xFF3FBE6F);
+const _kGold = Color(0xFFFFD27A);
+const _kBlue = Color(0xFF6CC0F5);
 
 // XP → seviye eşikleri
 const _levelThresholds = [
@@ -205,7 +206,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: _isDark
-                    ? const [Color(0xFF1A2535), Color(0xFF0F1923)]
+                    ? const [
+                        Color(0xFF142133),
+                        Color(0xFF0B1624),
+                        Color(0xFF071018),
+                      ]
                     : const [Color(0xFFFFFFFF), Color(0xFFF1EADC)],
               ),
               border: _isDark
@@ -218,8 +223,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
               boxShadow: [
                 BoxShadow(
-                    color: Colors.black
-                        .withValues(alpha: _isDark ? 0.38 : 0.06),
+                    color:
+                        Colors.black.withValues(alpha: _isDark ? 0.38 : 0.06),
                     blurRadius: 12,
                     offset: const Offset(0, 3))
               ],
@@ -247,11 +252,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ),
                 ),
                 const SizedBox(width: 14),
-                Text(L.profileTitle,
-                    style: TextStyle(
-                        color: _onBg,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold)),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(L.profileTitle,
+                        style: TextStyle(
+                            color: _onBg,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 2),
+                    Text(
+                      L.current == AppLocale.tr
+                          ? 'Oyuncu ilerlemesi'
+                          : 'Pêşketina lîstikvan',
+                      style: TextStyle(
+                        color: _onBgA(0.46),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -311,8 +332,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       ),
       child: Row(
         children: [
-          const Icon(Icons.mark_email_unread_rounded,
-              color: amber, size: 22),
+          const Icon(Icons.mark_email_unread_rounded, color: amber, size: 22),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -321,9 +341,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Text(
                   'E-postanı doğrula',
                   style: TextStyle(
-                      color: _onBg,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700),
+                      color: _onBg, fontSize: 13, fontWeight: FontWeight.w700),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -342,8 +360,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               customBorder: const StadiumBorder(),
               onTap: _sendingVerify ? null : _resendVerification,
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 child: _sendingVerify
                     ? const SizedBox(
                         width: 14,
@@ -391,8 +409,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             : err),
         backgroundColor: ok ? const Color(0xFF2E7D32) : const Color(0xFFD32F2F),
         behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
       ),
     );
@@ -401,35 +418,98 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildAvatarSection(user) {
     final isAnon = AuthService.instance.isAnonymous;
     final photoUrl = user?.photoURL as String?;
-    final name =
-        _profile?.displayName ?? user?.displayName ?? L.playerFallback;
+    final name = _profile?.displayName ?? user?.displayName ?? L.playerFallback;
     final initial = name.isNotEmpty ? name[0].toUpperCase() : 'P';
+    final level = _profile?.level ?? 1;
+    final xp = _profile?.xp ?? 0;
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
       decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: _surfaceBorder),
-        boxShadow: _isDark
-            ? null
-            : [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: _isDark
+              ? const [Color(0xFF1A2A40), Color(0xFF101B2A)]
+              : const [Color(0xFFFFFFFF), Color(0xFFF4EFE5)],
+        ),
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(
+          color: _isDark
+              ? Colors.white.withValues(alpha: 0.10)
+              : Colors.black.withValues(alpha: 0.08),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: _isDark ? 0.22 : 0.06),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: Column(
         children: [
-          // Avatar — seviye-bağımlı çerçeve
-          _AvatarWithFrame(
-            photoUrl: photoUrl,
-            initial: initial,
-            level: _profile?.level ?? 1,
+          Row(
+            children: [
+              _AvatarWithFrame(
+                photoUrl: photoUrl,
+                initial: initial,
+                level: level,
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: _kGold.withValues(alpha: _isDark ? 0.14 : 0.18),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: _kGold.withValues(alpha: 0.35),
+                        ),
+                      ),
+                      child: Text(
+                        '${L.levelLabel(level)} • ${_levelTitle(level)}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: _isDark ? _kGold : const Color(0xFF8A6D00),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      '$xp XP',
+                      style: TextStyle(
+                        color: _onBg,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      L.current == AppLocale.tr
+                          ? 'Toplam oyuncu deneyimi'
+                          : 'Tecrubeya giştî ya lîstikê',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: _onBgA(0.48),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 18),
 
           // İsim + düzenleme
           if (_editing)
@@ -489,8 +569,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       color: _inputFill,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(Icons.close_rounded,
-                        color: _onBgA(0.5), size: 20),
+                    child:
+                        Icon(Icons.close_rounded, color: _onBgA(0.5), size: 20),
                   ),
                 ),
               ],
@@ -511,8 +591,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 if (isAnon) ...[
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 3),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: _onBgA(0.08),
                       borderRadius: BorderRadius.circular(8),
@@ -530,8 +610,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   const SizedBox(width: 8),
                   GestureDetector(
                     onTap: () => setState(() => _editing = true),
-                    child: Icon(Icons.edit_rounded,
-                        color: _onBgA(0.4), size: 16),
+                    child:
+                        Icon(Icons.edit_rounded, color: _onBgA(0.4), size: 16),
                   ),
                 ],
               ],
@@ -542,6 +622,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
             isAnon ? L.anonymousUser : (user?.email ?? ''),
             style: TextStyle(color: _onBgA(0.45), fontSize: 12),
           ),
+          if (_profile != null) ...[
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: _MiniProfilePill(
+                    icon: Icons.savings_rounded,
+                    label: 'Peyv',
+                    value: '${_profile!.peyv}',
+                    color: const Color(0xFF00BFA5),
+                    onBg: _onBg,
+                    onTap: _openShop,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _MiniProfilePill(
+                    icon: Icons.local_fire_department_rounded,
+                    label: L.statStreak,
+                    value: '${_profile!.stats.streak}',
+                    color: const Color(0xFFFF7043),
+                    onBg: _onBg,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _MiniProfilePill(
+                    icon: Icons.emoji_events_rounded,
+                    label: L.statWinRate,
+                    value:
+                        '%${_profile!.stats.played > 0 ? (_profile!.stats.won / _profile!.stats.played * 100).round() : 0}',
+                    color: _kPrimary,
+                    onBg: _onBg,
+                  ),
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );
@@ -554,26 +672,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final toNext = _xpToNextLevel(xp, level);
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
       decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: _kGold.withValues(alpha: 0.2)),
-        boxShadow: _isDark
-            ? null
-            : [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: _isDark
+              ? const [Color(0xFF162335), Color(0xFF111C2B)]
+              : const [Color(0xFFFFFFFF), Color(0xFFFFF8E5)],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: _kGold.withValues(alpha: 0.24)),
+        boxShadow: [
+          BoxShadow(
+            color: _kGold.withValues(alpha: _isDark ? 0.08 : 0.12),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: _kGold.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _kGold.withValues(alpha: 0.26)),
+                ),
+                child: const Icon(Icons.auto_awesome_rounded,
+                    color: _kGold, size: 19),
+              ),
+              const SizedBox(width: 10),
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -589,14 +723,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         fontWeight: FontWeight.bold)),
               ),
               const SizedBox(width: 10),
-              Text(_levelTitle(level),
-                  style: TextStyle(color: _onBgA(0.65), fontSize: 13)),
-              const Spacer(),
+              Expanded(
+                child: Text(
+                  _levelTitle(level),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: _onBgA(0.65), fontSize: 13),
+                ),
+              ),
+              const SizedBox(width: 8),
               Text('$xp XP',
                   style: TextStyle(
                       color: _isDark ? _kGold : const Color(0xFF8A6D00),
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600)),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900)),
             ],
           ),
           const SizedBox(height: 12),
@@ -639,8 +779,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildLevelRewardsCard() {
     final currentLevel = _profile?.level ?? 1;
     final isTr = L.current == AppLocale.tr;
-    final unlocked =
-        kLevelRewards.where((r) => r.level <= currentLevel).length;
+    final unlocked = kLevelRewards.where((r) => r.level <= currentLevel).length;
 
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
@@ -728,30 +867,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
     ];
 
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _surface,
-        borderRadius: BorderRadius.circular(18),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: _isDark
+              ? const [Color(0xFF152235), Color(0xFF111B2A)]
+              : const [Color(0xFFFFFFFF), Color(0xFFF4F8FB)],
+        ),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: _surfaceBorder),
-        boxShadow: _isDark
-            ? null
-            : [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: _isDark ? 0.16 : 0.05),
+            blurRadius: 14,
+            offset: const Offset(0, 7),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(L.statsHeading,
-              style: TextStyle(
-                  color: _onBgA(0.5),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.5)),
+          Row(
+            children: [
+              Icon(Icons.query_stats_rounded, color: _kBlue, size: 18),
+              const SizedBox(width: 8),
+              Text(L.statsHeading,
+                  style: TextStyle(
+                      color: _onBgA(0.62),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5)),
+            ],
+          ),
           const SizedBox(height: 14),
           Row(
             children: items
@@ -764,9 +913,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             decoration: BoxDecoration(
                               color: item.color.withValues(alpha: 0.12),
                               borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: item.color.withValues(alpha: 0.20),
+                              ),
                             ),
-                            child:
-                                Icon(item.icon, color: item.color, size: 22),
+                            child: Icon(item.icon, color: item.color, size: 22),
                           ),
                           const SizedBox(height: 8),
                           Text(item.value,
@@ -776,8 +927,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   fontWeight: FontWeight.bold)),
                           const SizedBox(height: 3),
                           Text(item.label,
-                              style: TextStyle(
-                                  color: _onBgA(0.45), fontSize: 10)),
+                              style:
+                                  TextStyle(color: _onBgA(0.45), fontSize: 10)),
                         ],
                       ),
                     ))
@@ -864,6 +1015,76 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
+class _MiniProfilePill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+  final Color onBg;
+  final VoidCallback? onTap;
+
+  const _MiniProfilePill({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+    required this.onBg,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final content = Container(
+      constraints: const BoxConstraints(minHeight: 58),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.11),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: color, size: 17),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: onBg,
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 1),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: onBg.withValues(alpha: 0.48),
+              fontSize: 9.5,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (onTap == null) return content;
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: content,
+      ),
+    );
+  }
+}
+
 class _AchievementRow extends StatelessWidget {
   final AchievementDef def;
   final AchievementState state;
@@ -925,8 +1146,7 @@ class _AchievementRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color:
-                        state.unlocked ? onBg : onBg.withValues(alpha: 0.78),
+                    color: state.unlocked ? onBg : onBg.withValues(alpha: 0.78),
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
                   ),
@@ -1056,9 +1276,7 @@ class _LevelRewardTile extends StatelessWidget {
           ),
           const SizedBox(width: 6),
           Icon(
-            achieved
-                ? Icons.check_circle_rounded
-                : Icons.lock_outline_rounded,
+            achieved ? Icons.check_circle_rounded : Icons.lock_outline_rounded,
             color: achieved
                 ? const Color(0xFF4CAF50)
                 : onBg.withValues(alpha: 0.3),
