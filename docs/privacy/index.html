@@ -3,86 +3,270 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Peyvok — Gizlilik Politikası</title>
+<title>Peyvok Gizlilik Politikası</title>
 <style>
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-    max-width: 740px;
-    margin: 0 auto;
-    padding: 40px 24px 80px;
-    color: #1a1a1a;
-    line-height: 1.6;
-    background: #fafafa;
+  :root {
+    color-scheme: light;
+    --bg: #f7f3dc;
+    --paper: #fffdf0;
+    --text: #17251b;
+    --muted: #5f695f;
+    --green: #2f7d32;
+    --green-dark: #1f5a26;
+    --line: #ded7b7;
   }
-  h1 { color: #1B5E20; border-bottom: 2px solid #4CAF50; padding-bottom: 8px; margin-top: 48px; }
-  h2 { color: #2E7D32; margin-top: 32px; }
-  hr { margin: 48px 0; border: 0; border-top: 1px solid #ddd; }
-  a { color: #1B5E20; }
-  ul { padding-left: 24px; }
-  li { margin-bottom: 8px; }
-  blockquote { color: #555; border-left: 3px solid #4CAF50; padding: 6px 16px; background: #f4f8f6; }
-  strong { color: #1a1a1a; }
-  code { background: #eee; padding: 2px 6px; border-radius: 4px; }
-  .back-link { display: inline-block; margin-bottom: 16px; color: #1B5E20; text-decoration: none; }
-  .back-link:hover { text-decoration: underline; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background:
+      radial-gradient(circle at 50% -10%, rgba(255,255,255,0.9), transparent 34rem),
+      linear-gradient(180deg, #fbf7df, var(--bg));
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+    line-height: 1.65;
+  }
+  main {
+    width: min(920px, calc(100% - 32px));
+    margin: 0 auto;
+    padding: 40px 0 72px;
+  }
+  article {
+    background: rgba(255, 253, 240, 0.86);
+    border: 1px solid rgba(126, 112, 55, 0.22);
+    border-radius: 22px;
+    box-shadow: 0 24px 80px rgba(53, 72, 40, 0.12);
+    padding: clamp(24px, 5vw, 56px);
+  }
+  h1 {
+    margin: 0 0 8px;
+    color: var(--green-dark);
+    font-size: clamp(30px, 5vw, 46px);
+    line-height: 1.1;
+    letter-spacing: 0;
+  }
+  h2 {
+    margin: 34px 0 10px;
+    color: var(--green-dark);
+    font-size: 21px;
+    letter-spacing: 0;
+  }
+  h3 {
+    margin: 24px 0 8px;
+    color: var(--green);
+    font-size: 17px;
+    letter-spacing: 0;
+  }
+  p, li { font-size: 15.5px; }
+  ul { padding-left: 22px; }
+  li { margin: 8px 0; }
+  a { color: var(--green-dark); font-weight: 650; }
+  .meta {
+    color: var(--muted);
+    margin: 0 0 28px;
+  }
+  .notice {
+    border-left: 4px solid var(--green);
+    background: rgba(76, 175, 80, 0.10);
+    padding: 14px 16px;
+    border-radius: 12px;
+    margin: 24px 0;
+  }
+  .table-wrap { overflow-x: auto; margin-top: 14px; }
+  table {
+    width: 100%;
+    min-width: 680px;
+    border-collapse: collapse;
+    background: rgba(255,255,255,0.46);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  th, td {
+    border-bottom: 1px solid var(--line);
+    padding: 12px 14px;
+    text-align: left;
+    vertical-align: top;
+    font-size: 14.5px;
+  }
+  th {
+    background: rgba(47, 125, 50, 0.10);
+    color: var(--green-dark);
+  }
+  tr:last-child td { border-bottom: 0; }
+  .footer {
+    color: var(--muted);
+    border-top: 1px solid var(--line);
+    margin-top: 40px;
+    padding-top: 18px;
+    font-size: 14px;
+  }
 </style>
 </head>
 <body>
-<a class="back-link" href="../">← Peyvok</a>
-<h1>Peyvok — Gizlilik Politikası</h1>
-<p><strong>Son güncelleme:</strong> 16 Mayıs 2026</p>
-<p>Bu metnin Kurmancî sürümü için aşağıya bakın · <a href="#peyvok--polîtîkaya-veşartiyê">Kurmancî</a></p>
-<hr />
-<h2>1. Hangi verileri topluyoruz?</h2>
-<p>Peyvok yalnızca uygulamanın çalışması için gerekli en az veriyi toplar:</p>
-<ul>
-<li><strong>Anonim kullanıcı kimliği</strong> (Firebase Authentication) — oyun ilerlemenizi cihazlar arası senkronize etmek için.</li>
-<li><strong>İsteğe bağlı profil adı</strong> — sadece kendi seçtiğiniz isim.</li>
-<li><strong>Oyun istatistikleri</strong> — günlük oyun sonuçları, achievement (rozet) ilerlemeniz, leaderboard skorlarınız.</li>
-<li><strong>Çok oyunculu oyun verileri</strong> — oda kodu, oyuncu UID'leri, hamleler.</li>
-<li><strong>Oyuncular arası chat mesajları ve mesaj raporları</strong> — kötüye kullanım incelemesi ve güvenlik için.</li>
-<li><strong>Bildirim token'ı</strong> (Firebase Messaging) — sadece bildirim izni verdiyseniz.</li>
-<li><strong>Çökme raporları</strong> (Firebase Crashlytics) — uygulama çöktüğünde teknik bilgi (cihaz modeli, hata stack trace). Kullanıcıyı tanımlayan veri içermez.</li>
-<li><strong>Anonim kullanım metrikleri</strong> (Firebase Analytics) — hangi ekranların kullanıldığı gibi bilgiler.</li>
-</ul>
-<h2>2. Hangi verileri toplamıyoruz?</h2>
-<p>Konum, kişiler, mikrofon, kamera, takvim ya da reklam kimliği (IDFA) gibi hiçbir hassas veriyi toplamıyoruz. Google veya e-posta ile giriş yaparsanız sadece o sağlayıcının verdiği temel kimlik bilgileri kullanılır.</p>
-<h2>3. Verilerinizi kiminle paylaşıyoruz?</h2>
-<p>Verileriniz yalnızca uygulamanın işleyişi için Firebase (Google) altyapısında saklanır. Hiçbir verinizi reklam ağlarına, üçüncü taraf veri brokerlerine veya pazarlama şirketlerine satmıyor, paylaşmıyoruz.</p>
-<h2>4. Verileriniz ne kadar saklanıyor?</h2>
-<p>Hesabınız aktif olduğu sürece. Hesabınızı silmek isterseniz uygulama içinden veya destek e-postası üzerinden talep edebilirsiniz; profil, oyun geçmişi ve achievement'larınız 30 gün içinde tamamen silinir.</p>
-<h2>5. Çocukların gizliliği</h2>
-<p>Peyvok 13 yaş altı çocukları aktif olarak hedeflemez. 13 yaş altı bir kullanıcının veri girdiğini fark edersek verileri sileriz.</p>
-<h2>6. Politika güncellemeleri</h2>
-<p>Bu politika değişirse uygulama içinde bildirim göstereceğiz. Devam eden kullanım güncel politikayı kabul ettiğiniz anlamına gelir.</p>
-<h2>7. İletişim</h2>
-<p>Sorularınız için: <strong>smnfrt@gmail.com</strong></p>
-<hr />
-<h1>Peyvok — Polîtîkaya Veşartiyê</h1>
-<p><strong>Nûkirina dawî:</strong> 16 Gulan 2026</p>
-<h2>1. Em kîjan daneyan kom dikin?</h2>
-<p>Peyvok tenê wan daneyan kom dike ku ji bo karkirina sepanê pêwîst in:</p>
-<ul>
-<li><strong>Nasnameya bikarhênera anonîm</strong> (Firebase Authentication) — ji bo senkronîzekirina pêşveçûna lîstikê di navbera amûran de.</li>
-<li><strong>Navê profîlê yê bijartî</strong> — tenê navê ku tu hilbijêrî.</li>
-<li><strong>Statîstîkên lîstikê</strong> — encamên rojane, pêşveçûna rozetan, pûanên leaderboard'ê.</li>
-<li><strong>Daneyên lîstika gelek-lîstikvan</strong> — koda odeyê, UID'ên lîstikvanan, livên lîstikê.</li>
-<li><strong>Peyamên chatê di navbera lîstikvanan de û raporên peyaman</strong> — ji bo ewlehî û lêkolîna xerab-bikaranînê.</li>
-<li><strong>Token a agahdariyan</strong> (Firebase Messaging) — tenê eger destûr dabe.</li>
-<li><strong>Raporên xeletiyê</strong> (Firebase Crashlytics) — gava sepan dikeve, agahdariya teknîkî (modelê amûrê, stack trace). Daneyên nasnameyê di nav de tune ne.</li>
-<li><strong>Metrîkên bikaranînê yên anonîm</strong> (Firebase Analytics) — wek kîjan ekran tê bikaranîn.</li>
-</ul>
-<h2>2. Em kîjan daneyan kom nakin?</h2>
-<p>Em ti daneyên hesas wek cih, têkilî, mîkrofon, kamera, jimara reklamê (IDFA) kom nakin. Eger bi Google an e-posta xwe têxin, tenê agahiyên kîmliyê yên ku ew dabe tê bikaranîn.</p>
-<h2>3. Daneyên te bi kê re tê parvekirin?</h2>
-<p>Daneyên te tenê di binesaziya Firebase (Google) de têne hilanîn. Em ti daneyan nafiroşin, bi torên reklamê, broker an pargîdaniyên bazariyê re parve nakin.</p>
-<h2>4. Daneyên te çiqas tê hilanîn?</h2>
-<p>Heya hesabê te aktîf be. Eger bixwazî hesabê xwe jêbibî, ji nav sepanê yan e-posta piştgiriyê dikarî daxwaz bikî; di nav 30 rojan de profîl, dîroka lîstikê û rozetên te bi temamî tê jêbirin.</p>
-<h2>5. Veşariya zarokan</h2>
-<p>Peyvok zarokên di bin 13 saliyê de ne armanc dike. Ger em fêr bibin ku bikarhênerek di bin 13 saliyê de daneyan dixe, em wan daneyan jê dibin.</p>
-<h2>6. Nûkirinên polîtîkayê</h2>
-<p>Eger ev polîtîka biguhere, em ê di nav sepanê de agahdariyê nîşan bidin. Bikaranîna berdewam tê wateya pejirandina polîtîkaya nûkirî.</p>
-<h2>7. Têkilî</h2>
-<p>Ji bo pirsên xwe: <strong>smnfrt@gmail.com</strong></p>
+<main>
+<article>
+  <h1>Peyvok Gizlilik Politikası</h1>
+  <p class="meta"><strong>Son güncelleme:</strong> 28 Haziran 2026</p>
+
+  <p>
+    Bu Gizlilik Politikası, <strong>Peyvok</strong> mobil kelime oyununun kullanıcı verilerini nasıl topladığını,
+    kullandığını, sakladığını ve koruduğunu açıklar. Peyvok, Kurmancî kelime oyunları, sözlük/kelime anlamı,
+    günlük meydan okuma, yapay zekaya karşı oyun ve çok oyunculu oyun özellikleri sunar.
+  </p>
+
+  <div class="notice">
+    Peyvok kişisel verileri satmaz. Reklam ağına veri satışı veya üçüncü taraf veri brokerleriyle paylaşım yapılmaz.
+    Veriler yalnızca oyunun çalışması, hesap/ilerleme senkronizasyonu, çok oyunculu özellikler, güvenlik,
+    hata ayıklama ve uygulama performansını iyileştirme amaçlarıyla kullanılır.
+  </div>
+
+  <h2>1. Veri sorumlusu ve iletişim</h2>
+  <p>
+    Bu politika kapsamında uygulama adı <strong>Peyvok</strong>tur. Gizlilik, veri silme veya hesap silme
+    talepleri için bizimle şu adresten iletişime geçebilirsiniz:
+    <a href="mailto:smnfrt@gmail.com">smnfrt@gmail.com</a>.
+  </p>
+
+  <h2>2. Topladığımız veri türleri</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Veri türü</th>
+          <th>Ne için kullanılır?</th>
+          <th>Toplanma durumu</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Hesap ve kimlik bilgileri</td>
+          <td>Firebase Authentication ile kullanıcı hesabı oluşturmak, giriş yapmak, ilerlemeyi saklamak ve cihazlar arasında senkronize etmek.</td>
+          <td>Anonim girişte teknik kullanıcı kimliği; Google veya e-posta ile girişte ilgili sağlayıcının verdiği temel hesap bilgileri.</td>
+        </tr>
+        <tr>
+          <td>Profil bilgileri</td>
+          <td>Oyuncu adını, avatar/profil görünümünü ve oyun içi kimliği göstermek.</td>
+          <td>Kullanıcının seçtiği veya giriş sağlayıcısından gelen ad/görsel gibi temel bilgiler.</td>
+        </tr>
+        <tr>
+          <td>Oyun verileri</td>
+          <td>Skorlar, istatistikler, günlük oyun ilerlemesi, rozetler, liderlik tablosu, hamleler ve oyun geçmişini çalıştırmak.</td>
+          <td>Uygulama kullanıldıkça oluşturulur.</td>
+        </tr>
+        <tr>
+          <td>Çok oyunculu oyun verileri</td>
+          <td>Davet, oda, eşleşme, oyuncular, hamleler, sıra durumu ve oyun sonuçlarını yönetmek.</td>
+          <td>Çok oyunculu özellikler kullanıldığında oluşturulur.</td>
+        </tr>
+        <tr>
+          <td>Oyun içi sohbet mesajları</td>
+          <td>Aynı maçtaki oyuncuların mesajlaşmasını sağlamak, okunmamış mesaj sayısını göstermek ve kötüye kullanım durumlarını incelemek.</td>
+          <td>Yalnızca kullanıcı mesaj gönderdiğinde oluşur.</td>
+        </tr>
+        <tr>
+          <td>Bildirim token'ı</td>
+          <td>Oyun sırası, davet, hatırlatma veya ilgili oyun bildirimi göndermek.</td>
+          <td>Bildirim izni verildiğinde Firebase Cloud Messaging tarafından oluşturulur.</td>
+        </tr>
+        <tr>
+          <td>Uygulama performansı ve çökme verileri</td>
+          <td>Hataları bulmak, çökmeleri analiz etmek ve uygulamanın kararlılığını artırmak.</td>
+          <td>Firebase Crashlytics ve Firebase Analytics gibi hizmetlerle teknik olarak toplanabilir.</td>
+        </tr>
+        <tr>
+          <td>Cihaz ve kullanım bilgileri</td>
+          <td>Uygulama sürümü, cihaz modeli, işletim sistemi, ekran/performans bilgisi ve temel kullanım olaylarını analiz etmek.</td>
+          <td>Hata analizi ve ürün iyileştirme amacıyla sınırlı şekilde işlenebilir.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>3. Toplamadığımız veriler</h2>
+  <p>Peyvok aşağıdaki hassas verilere erişmek için tasarlanmamıştır:</p>
+  <ul>
+    <li>Kesin konum veya arka plan konumu,</li>
+    <li>Kişiler/rehber, SMS, arama kayıtları, kamera veya mikrofon,</li>
+    <li>Sağlık verileri, finansal bilgiler veya resmi kimlik bilgileri,</li>
+    <li>Kullanıcının dosyaları, fotoğrafları veya takvim verileri.</li>
+  </ul>
+
+  <h2>4. Verileri nasıl kullanıyoruz?</h2>
+  <ul>
+    <li>Oyunu, hesap sistemini, skorları, sözlük/kelime anlamı özelliklerini ve çok oyunculu akışları çalıştırmak,</li>
+    <li>Oyuncu davetlerini, sohbeti, bildirimleri ve sıra bilgisini yönetmek,</li>
+    <li>Hata, çökme ve performans sorunlarını gidermek,</li>
+    <li>Hile, kötüye kullanım veya güvenlik sorunlarını önlemek,</li>
+    <li>Uygulama deneyimini, arayüzü ve oyun dengesini iyileştirmek.</li>
+  </ul>
+
+  <h2>5. Verileri kimlerle paylaşıyoruz?</h2>
+  <p>
+    Peyvok, temel altyapı için Google Firebase hizmetlerini kullanır. Bu kapsamda veriler Google/Firebase
+    altyapısında işlenebilir veya saklanabilir. Bu hizmetler şunları içerebilir:
+  </p>
+  <ul>
+    <li>Firebase Authentication,</li>
+    <li>Cloud Firestore,</li>
+    <li>Firebase Cloud Messaging,</li>
+    <li>Firebase Crashlytics,</li>
+    <li>Firebase Analytics.</li>
+  </ul>
+  <p>
+    Veriler reklam amaçlı satılmaz. Yasal zorunluluk, güvenlik, kötüye kullanım incelemesi veya hizmet sağlayıcı
+    altyapısı dışında üçüncü taraflarla paylaşılmaz.
+  </p>
+
+  <h2>6. Verilerin güvenliği</h2>
+  <p>
+    Verilerin aktarımı modern güvenli bağlantılar üzerinden yapılır. Firebase ve Google altyapısının sunduğu
+    güvenlik kontrolleri, kimlik doğrulama ve erişim kuralları kullanılır. Yine de internet üzerinden yapılan
+    hiçbir veri aktarımı veya depolama yöntemi tamamen risksiz değildir.
+  </p>
+
+  <h2>7. Veri saklama ve silme</h2>
+  <p>
+    Hesap, oyun ilerlemesi, skor, davet, sohbet ve ilgili oyun verileri hesabınız aktif olduğu sürece saklanabilir.
+    Hesabınızı veya kişisel verilerinizi silmek isterseniz uygulama içinden, 
+    <a href="../account-deletion/">hesap silme talebi sayfasından</a> veya
+    <a href="mailto:smnfrt@gmail.com">smnfrt@gmail.com</a> adresinden talep oluşturabilirsiniz.
+  </p>
+  <p>
+    Silme talebi doğrulandıktan sonra, hesabınız ve hesabınızla ilişkilendirilebilen kişisel veriler makul süre
+    içinde silinir. Güvenlik, hata kayıtları, yasal yükümlülükler veya kötüye kullanım incelemesi için tutulması
+    gereken sınırlı teknik kayıtlar daha uzun süre saklanabilir.
+  </p>
+
+  <h2>8. Çocukların gizliliği</h2>
+  <p>
+    Peyvok 13 yaş altındaki çocukları özel olarak hedeflemez. 13 yaş altındaki bir çocuğa ait kişisel veri
+    toplandığını fark edersek, bu verilerin silinmesi için gerekli adımları atarız.
+  </p>
+
+  <h2>9. Üçüncü taraf hizmetlerin politikaları</h2>
+  <p>Peyvok'un kullandığı bazı hizmet sağlayıcıların kendi gizlilik politikaları vardır:</p>
+  <ul>
+    <li><a href="https://policies.google.com/privacy" rel="noopener">Google Gizlilik Politikası</a></li>
+    <li><a href="https://firebase.google.com/support/privacy" rel="noopener">Firebase Gizlilik ve Güvenlik Bilgileri</a></li>
+  </ul>
+
+  <h2>10. Politika değişiklikleri</h2>
+  <p>
+    Bu Gizlilik Politikası zaman zaman güncellenebilir. Önemli değişikliklerde uygulama içinde veya yayınlanan
+    politika sayfasında bildirim yapılabilir. Bu sayfadaki “Son güncelleme” tarihi politikanın en güncel halini gösterir.
+  </p>
+
+  <h2>11. İletişim</h2>
+  <p>
+    Gizlilik, veri erişimi, veri silme veya hesap silme talepleri için:
+    <a href="mailto:smnfrt@gmail.com">smnfrt@gmail.com</a>
+  </p>
+
+  <p class="footer">
+    Bu sayfa Peyvok uygulamasının gizlilik politikasıdır. Play Console veri güvenliği beyanları bu metinle tutarlı
+    olacak şekilde doldurulmalıdır.
+  </p>
+</article>
+</main>
 </body>
 </html>
