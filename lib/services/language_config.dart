@@ -90,11 +90,10 @@ class LanguageConfig {
       'assets/ferheng/wordlist.txt.gz',
       'assets/allowed_guesses.txt',
       'assets/answers.txt',
-      'assets/ferheng/entries.ndjson.gz',
       // Curated 516-kelime listesi — Hunspell henüz tüm Kurmancî kelimeleri
       // kapsamıyor (özellikle 3-4 harf curated kelimeler eksik). Union ile
-      // geriye dönük uyumluluk korunur. Ana doğrulama kaynağı Ferheng
-      // başlıklarıdır; böylece oyun ve sözlük aynı kelime evrenini paylaşır.
+      // geriye dönük uyumluluk korunur. Detaylı entries.ndjson.gz yalnızca
+      // Ferheng anlamları için yüklenir; oyun başlangıcını ağırlaştırmaz.
       'assets/kurdish_dictionary.txt',
     ],
   );

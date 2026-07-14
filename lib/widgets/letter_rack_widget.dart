@@ -52,7 +52,9 @@ class LetterRackWidget extends StatelessWidget {
         children: [
           // Üst ışık çizgisi
           Positioned(
-            top: 0, left: 8, right: 8,
+            top: 0,
+            left: 8,
+            right: 8,
             child: Container(
               height: 1,
               decoration: BoxDecoration(
@@ -69,15 +71,18 @@ class LetterRackWidget extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: tiles.isEmpty
-                ? [const Text('Harf kalmadı',
-                    style: TextStyle(color: Colors.white38, fontSize: 13))]
+                ? [
+                    const Text('Harf kalmadı',
+                        style: TextStyle(color: Colors.white38, fontSize: 13))
+                  ]
                 : tiles
                     .map((tile) => _TileWidget(
                           key: ValueKey('rack-${tile.id}'),
                           tile: tile,
                           enabled: enabled,
                           isSelected: tile.id == selectedTileId,
-                          onTap: onTileTap != null ? () => onTileTap!(tile) : null,
+                          onTap:
+                              onTileTap != null ? () => onTileTap!(tile) : null,
                         ))
                     .toList(),
           ),
@@ -105,7 +110,8 @@ class _TileWidget extends StatefulWidget {
   State<_TileWidget> createState() => _TileWidgetState();
 }
 
-class _TileWidgetState extends State<_TileWidget> with TickerProviderStateMixin {
+class _TileWidgetState extends State<_TileWidget>
+    with TickerProviderStateMixin {
   late final AnimationController _press;
   late final AnimationController _selectedPulse;
   late final AnimationController _entrance;
@@ -115,14 +121,14 @@ class _TileWidgetState extends State<_TileWidget> with TickerProviderStateMixin 
     super.initState();
     _press = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 110),
-      reverseDuration: const Duration(milliseconds: 320),
+      duration: const Duration(milliseconds: 85),
+      reverseDuration: const Duration(milliseconds: 140),
       lowerBound: 0.0,
       upperBound: 1.0,
     );
     _selectedPulse = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 950),
     );
     if (widget.isSelected) _selectedPulse.repeat(reverse: true);
 
@@ -164,7 +170,8 @@ class _TileWidgetState extends State<_TileWidget> with TickerProviderStateMixin 
     _press.reverse();
   }
 
-  Widget _face({double scale = 1.0, bool selected = false, bool isFeedback = false}) {
+  Widget _face(
+      {double scale = 1.0, bool selected = false, bool isFeedback = false}) {
     final tile = widget.tile;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 140),
@@ -217,12 +224,14 @@ class _TileWidgetState extends State<_TileWidget> with TickerProviderStateMixin 
         children: [
           // Üst yansıma katmanı
           Positioned(
-            top: 0, left: 0, right: 0,
+            top: 0,
+            left: 0,
+            right: 0,
             child: Container(
               height: 14 * scale,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.vertical(
-                    top: Radius.circular(8 * scale)),
+                borderRadius:
+                    BorderRadius.vertical(top: Radius.circular(8 * scale)),
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
@@ -257,7 +266,7 @@ class _TileWidgetState extends State<_TileWidget> with TickerProviderStateMixin 
                   fontWeight: FontWeight.w900,
                   color: const Color(0xFF2C1810),
                   height: 1,
-                  letterSpacing: -0.3,
+                  letterSpacing: 0,
                   shadows: [
                     Shadow(
                       color: Colors.white.withValues(alpha: 0.35),
@@ -288,11 +297,15 @@ class _TileWidgetState extends State<_TileWidget> with TickerProviderStateMixin 
 
   @override
   Widget build(BuildContext context) {
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     if (!widget.enabled) {
       return AnimatedBuilder(
         animation: _entrance,
         builder: (_, __) {
-          final v = Curves.easeOutBack.transform(_entrance.value.clamp(0.0, 1.0));
+          final v = reduceMotion
+              ? 1.0
+              : Curves.easeOutBack.transform(_entrance.value.clamp(0.0, 1.0));
           return Transform.scale(scale: 0.85 + 0.15 * v, child: _face());
         },
       );
@@ -302,7 +315,12 @@ class _TileWidgetState extends State<_TileWidget> with TickerProviderStateMixin 
       onTapDown: _handleDown,
       onTapUp: _handleUp,
       onTapCancel: _handleCancel,
-      onTap: widget.onTap,
+      onTap: widget.onTap == null
+          ? null
+          : () {
+              HapticService.instance.tileSelect();
+              widget.onTap!();
+            },
       child: AnimatedBuilder(
         animation: Listenable.merge([_press, _selectedPulse, _entrance]),
         builder: (_, __) {
@@ -313,13 +331,17 @@ class _TileWidgetState extends State<_TileWidget> with TickerProviderStateMixin 
               ? Curves.elasticOut.transform(1 - _press.value)
               : 0.0;
 
-          // Press: 1.0 → 0.88 (forward), reverse: bounce back to 1.0
-          final scale = 1.0 - 0.12 * pressForward + 0.04 * pressReverse;
-          final tilt = -0.04 * pressForward;
-          final entranceScale = Curves.easeOutBack
-              .transform(_entrance.value.clamp(0.0, 1.0));
-          final selectedLift =
-              widget.isSelected ? -3.0 - 2.0 * _selectedPulse.value : 0.0;
+          // Press: 1.0 -> 0.93, reverse: kısa ve canlı dönüş.
+          final scale = reduceMotion
+              ? 1.0
+              : 1.0 - 0.07 * pressForward + 0.025 * pressReverse;
+          final tilt = reduceMotion ? 0.0 : -0.025 * pressForward;
+          final entranceScale = reduceMotion
+              ? 1.0
+              : Curves.easeOutBack.transform(_entrance.value.clamp(0.0, 1.0));
+          final selectedLift = widget.isSelected
+              ? (reduceMotion ? -4.5 : -4.5 - 1.4 * _selectedPulse.value)
+              : 0.0;
 
           return Transform.translate(
             offset: Offset(0, selectedLift),

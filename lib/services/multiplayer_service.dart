@@ -7,6 +7,7 @@ import 'package:kurdle_app/models/word_board.dart';
 import 'package:kurdle_app/services/board_layout_service.dart';
 import 'package:kurdle_app/services/language_config.dart';
 import 'package:kurdle_app/services/logging_service.dart';
+import 'package:kurdle_app/services/multiplayer_privacy_service.dart';
 import 'package:kurdle_app/services/tile_bag_service.dart';
 
 class MultiplayerRoom {
@@ -346,6 +347,15 @@ class MultiplayerService {
       String rawCode, String uid, String displayName) async {
     final code = rawCode.toUpperCase().trim();
     try {
+      final snap = await _rooms.doc(code).get();
+      if (!snap.exists) throw Exception('room_not_found');
+      final data = snap.data() as Map<String, dynamic>;
+      final hostUid = data['hostUid'] as String? ?? '';
+      if (hostUid == uid) throw Exception('cannot_join_own_room');
+      final allowed = await MultiplayerPrivacyService.instance
+          .canPlayersInteract(uid, hostUid);
+      if (!allowed) throw Exception('player_blocked');
+
       await _db.runTransaction((tx) async {
         final ref = _rooms.doc(code);
         final snap = await tx.get(ref);
@@ -376,19 +386,37 @@ class MultiplayerService {
 
   /// Mevcut rastgele bekleme odasına katıl, yoksa yeni oluştur.
   Future<String> findOrCreateRandomRoom(String uid, String displayName) async {
+    final joined = await tryJoinWaitingRandomRoom(uid, displayName);
+    if (joined != null) return joined;
+
+    return _createRandomRoom(uid, displayName);
+  }
+
+  /// Bekleme ekranı açıkken mevcut rastgele odaları tekrar tarar.
+  /// İki oyuncu aynı anda arama başlatırsa ikisi de ayrı bekleme odası
+  /// oluşturabilir; bu periyodik tarama onları sonradan birleştirir.
+  Future<String?> tryJoinWaitingRandomRoom(
+    String uid,
+    String displayName, {
+    String? excludeRoomCode,
+  }) async {
     final snap = await _rooms
         .where('status', isEqualTo: 'waiting_random')
         .limit(10)
         .get();
 
     for (final doc in snap.docs) {
+      if (doc.id == excludeRoomCode) continue;
       final d = doc.data() as Map<String, dynamic>;
-      if (d['hostUid'] == uid) continue;
+      final hostUid = d['hostUid'] as String? ?? '';
+      if (hostUid == uid) continue;
+      final allowed = await MultiplayerPrivacyService.instance
+          .canPlayersInteract(uid, hostUid);
+      if (!allowed) continue;
       final err = await joinRoom(doc.id, uid, displayName);
       if (err == null) return doc.id;
     }
-
-    return _createRandomRoom(uid, displayName);
+    return null;
   }
 
   Future<String> _createRandomRoom(String uid, String displayName) async {
@@ -457,6 +485,10 @@ class MultiplayerService {
     String gameType = 'scrabble',
     int? turnTimeLimitSeconds,
   }) async {
+    final allowed = await MultiplayerPrivacyService.instance
+        .canPlayersInteract(uid, inviteeUid);
+    if (!allowed) throw Exception('player_blocked');
+
     final existing = await _existingInviteRoom(
       hostUid: uid,
       inviteeUid: inviteeUid,
@@ -593,6 +625,10 @@ class MultiplayerService {
     String gameType = 'scrabble',
     int? turnTimeLimitSeconds,
   }) async {
+    final allowed = await MultiplayerPrivacyService.instance
+        .canPlayersInteract(fromUserId, toUserId);
+    if (!allowed) throw Exception('player_blocked');
+
     final existing = await _existingPendingInvite(
       fromUserId: fromUserId,
       toUserId: toUserId,
@@ -678,6 +714,10 @@ class MultiplayerService {
     String uid,
     String displayName,
   ) async {
+    final allowed = await MultiplayerPrivacyService.instance
+        .canPlayersInteract(uid, invite.fromUserId);
+    if (!allowed) throw Exception('player_blocked');
+
     final code = await _newRoomCode();
     final roomData = _initialRoomData(
       hostUid: invite.fromUserId,

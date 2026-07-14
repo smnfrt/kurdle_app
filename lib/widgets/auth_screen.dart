@@ -4,6 +4,7 @@ import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/firestore_service.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/logging_service.dart';
+import 'package:kurdle_app/widgets/brand_mark.dart';
 
 const _kBg = Color(0xFF0F1923);
 const _kSurface = Color(0xFF1A2533);
@@ -81,30 +82,6 @@ class _AuthScreenState extends State<AuthScreen>
     } else {
       setState(() {
         _error = 'Google girişi iptal edildi.';
-        _loading = false;
-      });
-    }
-  }
-
-  // ── Facebook ─────────────────────────────────────────────────────
-  Future<void> _facebookSignIn() async {
-    setState(() {
-      _loading = true;
-      _error = '';
-    });
-    final user = await AuthService.instance.signInWithFacebook();
-    if (!mounted) return;
-    if (user != null) {
-      try {
-        await FirestoreService.instance.createUserIfNotExists(user);
-      } catch (e) {
-        Log.warn('AuthScreen',
-            'createUserIfNotExists after Facebook sign-in failed', e);
-      }
-      _finish();
-    } else {
-      setState(() {
-        _error = 'Facebook girişi iptal edildi veya tamamlanamadı.';
         _loading = false;
       });
     }
@@ -300,30 +277,10 @@ class _AuthScreenState extends State<AuthScreen>
                     Center(
                       child: Column(
                         children: [
-                          Container(
-                            width: 72,
-                            height: 72,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF4CAF50), Color(0xFF2E7D32)],
-                              ),
-                              borderRadius: BorderRadius.circular(20),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: _kPrimary.withValues(alpha: 0.4),
-                                  blurRadius: 20,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                            child: const Center(
-                              child: Text('P',
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 38,
-                                      fontWeight: FontWeight.bold,
-                                      height: 1)),
-                            ),
+                          const PeyvokBrandMark(
+                            size: 76,
+                            radius: 20,
+                            elevation: 20,
                           ),
                           const SizedBox(height: 14),
                           Text('Peyvok',
@@ -363,11 +320,6 @@ class _AuthScreenState extends State<AuthScreen>
 
                     // ── Google butonu ────────────────────────────────
                     _GoogleBtn(onTap: _loading ? null : _googleSignIn),
-
-                    const SizedBox(height: 12),
-
-                    // ── Facebook butonu ──────────────────────────────
-                    _FacebookBtn(onTap: _loading ? null : _facebookSignIn),
 
                     const SizedBox(height: 18),
 
@@ -747,61 +699,6 @@ class _GoogleGPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_GoogleGPainter _) => false;
-}
-
-// ── Facebook butonu ────────────────────────────────────────────────
-
-class _FacebookBtn extends StatelessWidget {
-  final VoidCallback? onTap;
-  const _FacebookBtn({this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedOpacity(
-        opacity: onTap == null ? 0.5 : 1.0,
-        duration: const Duration(milliseconds: 150),
-        child: Container(
-          height: 52,
-          decoration: BoxDecoration(
-            color: const Color(0xFF1877F2),
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.15),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3)),
-            ],
-          ),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                'f',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 26,
-                  fontWeight: FontWeight.w800,
-                  height: 1,
-                ),
-              ),
-              SizedBox(width: 12),
-              Text(
-                'Facebook ile Giriş Yap',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.2,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 // ── Metin alanı ───────────────────────────────────────────────────

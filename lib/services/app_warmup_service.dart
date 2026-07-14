@@ -4,6 +4,7 @@ import 'package:firebase_messaging/firebase_messaging.dart'
     show AuthorizationStatus;
 import 'package:flutter/foundation.dart';
 import 'package:kurdle_app/services/connectivity_service.dart';
+import 'package:kurdle_app/services/ferheng_service.dart';
 import 'package:kurdle_app/services/firebase_service.dart';
 import 'package:kurdle_app/services/haptic_service.dart';
 import 'package:kurdle_app/services/language_config.dart';
@@ -17,10 +18,15 @@ class AppWarmupService {
   AppWarmupService._();
   static final AppWarmupService instance = AppWarmupService._();
 
+  static const _notificationWarmupTimeout = Duration(milliseconds: 1200);
+  static const _settingsWarmupTimeout = Duration(milliseconds: 700);
+  static const _tokenSyncTimeout = Duration(milliseconds: 1200);
+
   Future<void>? _connectivityFuture;
   Future<void>? _runtimeFuture;
   Future<void>? _firebaseFuture;
   Future<void>? _wordGameFuture;
+  Future<void>? _ferhengFuture;
   Future<void>? _notificationPermissionFuture;
 
   Future<void> initConnectivity() {
@@ -44,10 +50,16 @@ class AppWarmupService {
     return _firebaseFuture ??= FirebaseService.init().then((_) async {
       if (!FirebaseService.isAvailable) return;
       try {
-        await NotificationService.instance.init();
-        final settings = await SettingsService().load();
+        await NotificationService.instance.init().timeout(
+              _notificationWarmupTimeout,
+            );
+        final settings = await SettingsService().load().timeout(
+              _settingsWarmupTimeout,
+            );
         if (settings.notifsEnabled) {
-          await NotificationService.instance.syncFcmTokenToFirestore();
+          await NotificationService.instance.syncFcmTokenToFirestore().timeout(
+                _tokenSyncTimeout,
+              );
         }
       } catch (e) {
         debugPrint('NotificationService init failed: $e');
@@ -64,6 +76,14 @@ class AppWarmupService {
       WordValidatorService(list);
     }).catchError((e) {
       debugPrint('Wordlist preload failed: $e');
+    });
+  }
+
+  Future<void> preloadFerheng() {
+    return _ferhengFuture ??= FerhengService.instance.init().then((_) {
+      unawaited(FerhengService.instance.warmUpCategories());
+    }).catchError((e) {
+      debugPrint('Ferheng preload failed: $e');
     });
   }
 

@@ -137,7 +137,7 @@ class NotificationService {
 
     // Plugin başlat
     const initSettings = InitializationSettings(
-      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      android: AndroidInitializationSettings('@mipmap/launcher_icon'),
     );
     await _local.initialize(
       initSettings,

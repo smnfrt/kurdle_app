@@ -71,7 +71,8 @@ class L {
   static String get privacyPolicy =>
       _s('Gizlilik Politikası', 'Polîtîkaya Veşartiyê');
   static String get privacyPolicyUpdated =>
-      _s('Son güncelleme: 16 Mayıs 2026', 'Nûkirina dawî: 16 Gulan 2026');
+      _s('Son güncelleme: 28 Haziran 2026',
+          'Nûkirina dawî: 28 Hezîran 2026');
 
   // ── Onboarding ─────────────────────────────────────────────────
   static String get onboardingSkip => _s('Atla', 'Derbas bike');

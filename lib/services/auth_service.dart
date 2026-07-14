@@ -1,6 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,6 +7,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 class AuthService {
   AuthService._();
   static final AuthService instance = AuthService._();
+
+  static const _lastAuthProviderKey = 'last_auth_provider';
+  static const _providerGoogle = 'google';
+  static const _providerEmail = 'email';
 
   FirebaseAuth get _auth => FirebaseAuth.instance;
   final _google = GoogleSignIn();
@@ -89,6 +92,7 @@ class AuthService {
           // anonymous'tan miras kalan "Misafir XYZA" adı kalır. Google
           // profilinden explicit yansıt.
           await _applyGoogleProfileToUser(linked.user, googleUser);
+          await _rememberAuthProvider(_providerGoogle);
           return linked.user;
         } on FirebaseAuthException catch (e) {
           if (e.code != 'credential-already-in-use' &&
@@ -104,6 +108,7 @@ class AuthService {
       // Yeni giriş (fresh sign-in) Firebase Auth zaten Google profilini
       // map'ler ama emin olmak için aynı yardımcıyı çağır (idempotent).
       await _applyGoogleProfileToUser(cred.user, googleUser);
+      await _rememberAuthProvider(_providerGoogle);
       return cred.user;
     } catch (e) {
       _log('signInWithGoogle', e.toString());
@@ -111,42 +116,38 @@ class AuthService {
     }
   }
 
-  // ── Facebook ile giriş ───────────────────────────────────────────
-  Future<User?> signInWithFacebook() async {
+  /// Firebase Auth normalde native persistence ile kullanıcıyı korur. Bazı
+  /// Android release/AAB kurulumlarında bu state boş dönerse, Google oturumunu
+  /// sessizce tekrar Firebase credential'a çevirerek hesabı geri yükle.
+  Future<User?> restorePersistedSession() async {
+    final existing = currentUser;
+    if (existing != null) return existing;
+
+    final provider = await _lastAuthProvider();
+    if (provider != _providerGoogle) return null;
+
     try {
-      final result = await FacebookAuth.instance.login(
-        permissions: const ['email', 'public_profile'],
-        loginTracking: LoginTracking.enabled,
+      final googleUser = await _google.signInSilently();
+      if (googleUser == null) return null;
+
+      final googleAuth = await googleUser.authentication;
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
       );
-      if (result.status != LoginStatus.success || result.accessToken == null) {
-        _log('signInWithFacebook', result.status.name);
-        return null;
-      }
-
-      final credential =
-          FacebookAuthProvider.credential(result.accessToken!.tokenString);
-
-      if (isAnonymous && currentUser != null) {
-        try {
-          final linked = await currentUser!.linkWithCredential(credential);
-          await _applyFacebookProfileToUser(linked.user);
-          return linked.user;
-        } on FirebaseAuthException catch (e) {
-          if (e.code != 'credential-already-in-use' &&
-              e.code != 'email-already-in-use') {
-            rethrow;
-          }
-          await _auth.signOut();
-        }
-      }
-
       final cred = await _auth.signInWithCredential(credential);
-      await _applyFacebookProfileToUser(cred.user);
+      await _applyGoogleProfileToUser(cred.user, googleUser);
+      await _rememberAuthProvider(_providerGoogle);
       return cred.user;
     } catch (e) {
-      _log('signInWithFacebook', e.toString());
+      _log('restorePersistedSession', e.toString());
       return null;
     }
+  }
+
+  Future<bool> hasRememberedAccount() async {
+    final provider = await _lastAuthProvider();
+    return provider == _providerGoogle || provider == _providerEmail;
   }
 
   /// Google profilini Firebase Auth user'ına yansıt — link sonrası
@@ -179,41 +180,6 @@ class AuthService {
     }
   }
 
-  Future<void> _applyFacebookProfileToUser(User? user) async {
-    if (user == null) return;
-    try {
-      final data = await FacebookAuth.instance.getUserData(
-        fields: 'name,email,picture.width(200)',
-      );
-      final facebookName = (data['name'] as String?)?.trim();
-      String? facebookPhoto;
-      final picture = data['picture'];
-      if (picture is Map<String, dynamic>) {
-        final pictureData = picture['data'];
-        if (pictureData is Map<String, dynamic>) {
-          facebookPhoto = pictureData['url'] as String?;
-        }
-      }
-      final isAuto = (user.displayName ?? '').startsWith('Misafir ') ||
-          (user.displayName ?? '').startsWith('Mêvan ') ||
-          (user.displayName ?? '').trim().isEmpty;
-
-      if (facebookName != null &&
-          facebookName.isNotEmpty &&
-          (isAuto || user.displayName != facebookName)) {
-        await user.updateDisplayName(facebookName);
-      }
-      if (facebookPhoto != null &&
-          facebookPhoto.isNotEmpty &&
-          (user.photoURL == null || user.photoURL!.isEmpty)) {
-        await user.updatePhotoURL(facebookPhoto);
-      }
-      await user.reload();
-    } catch (e) {
-      _log('applyFacebookProfile', e.toString());
-    }
-  }
-
   // ── E-posta / şifre kaydı ─────────────────────────────────────────
   Future<({User? user, String? error})> registerWithEmail({
     required String email,
@@ -233,6 +199,7 @@ class AuthService {
       }
 
       await cred.user?.updateDisplayName(displayName);
+      await _rememberAuthProvider(_providerEmail);
       return (user: cred.user, error: null);
     } on FirebaseAuthException catch (e) {
       _log('registerWithEmail', '${e.code}: ${e.message}');
@@ -251,6 +218,7 @@ class AuthService {
     try {
       final cred = await _auth.signInWithEmailAndPassword(
           email: email, password: password);
+      await _rememberAuthProvider(_providerEmail);
       return (user: cred.user, error: null);
     } on FirebaseAuthException catch (e) {
       _log('signInWithEmail', '${e.code}: ${e.message}');
@@ -264,8 +232,8 @@ class AuthService {
   // ── Çıkış ────────────────────────────────────────────────────────
   Future<void> signOut() async {
     await _google.signOut();
-    await FacebookAuth.instance.logOut();
     await _auth.signOut();
+    await _clearRememberedAuthProvider();
   }
 
   // ── E-posta doğrulama gönder ─────────────────────────────────────
@@ -338,5 +306,20 @@ class AuthService {
 
   void _log(String method, String code) {
     if (kDebugMode) debugPrint('[AuthService] $method error: $code');
+  }
+
+  Future<String?> _lastAuthProvider() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_lastAuthProviderKey);
+  }
+
+  Future<void> _rememberAuthProvider(String provider) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_lastAuthProviderKey, provider);
+  }
+
+  Future<void> _clearRememberedAuthProvider() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_lastAuthProviderKey);
   }
 }

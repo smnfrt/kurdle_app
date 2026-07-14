@@ -1,0 +1,19 @@
+opt_out_usage
+
+default_platform(:android)
+
+platform :android do
+  desc "Upload the release AAB to Google Play internal testing"
+  lane :internal do
+    upload_to_play_store(
+      package_name: "com.kurdle.kurdle_app",
+      track: "internal",
+      aab: "build/app/outputs/bundle/release/app-release.aab",
+      json_key: ENV["PLAY_STORE_JSON_KEY"] || "fastlane/play-store-service-account.json",
+      skip_upload_metadata: true,
+      skip_upload_changelogs: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
+end

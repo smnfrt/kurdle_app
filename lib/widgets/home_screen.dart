@@ -7,7 +7,6 @@ import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/app_warmup_service.dart';
 import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/firebase_service.dart';
-import 'package:kurdle_app/services/ferheng_service.dart';
 import 'package:kurdle_app/services/firestore_service.dart';
 import 'package:kurdle_app/services/game_store.dart';
 import 'package:kurdle_app/services/haptic_service.dart';
@@ -19,6 +18,7 @@ import 'package:kurdle_app/services/daily_streak_service.dart';
 import 'package:kurdle_app/services/settings_service.dart';
 import 'package:kurdle_app/services/version_service.dart';
 import 'package:kurdle_app/widgets/auth_screen.dart';
+import 'package:kurdle_app/widgets/brand_mark.dart';
 import 'package:kurdle_app/widgets/common/animations.dart';
 import 'package:kurdle_app/widgets/ferheng/ferheng_home_screen.dart';
 import 'package:kurdle_app/widgets/how_to_play_screen.dart';
@@ -63,29 +63,10 @@ void _showAboutDialog(BuildContext ctx) {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF4CAF50), Color(0xFF2E7D32)],
-                ),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                      color: _kPrimary.withValues(alpha: 0.35),
-                      blurRadius: 14,
-                      offset: const Offset(0, 4)),
-                ],
-              ),
-              child: const Center(
-                child: Text('P',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 40,
-                        fontWeight: FontWeight.bold,
-                        height: 1)),
-              ),
+            const PeyvokBrandMark(
+              size: 72,
+              radius: 20,
+              elevation: 16,
             ),
             const SizedBox(height: 16),
             Text('Peyvok',
@@ -190,7 +171,6 @@ class _HomeScreenState extends State<HomeScreen>
     NotificationService.instance.onInviteTap(_onNotificationInviteTap);
     _onOpenMyGames = _handleOpenMyGames;
     homeOpenMyGamesTick.addListener(_onOpenMyGames);
-    _warmUpFerhengCategories();
     _scheduleNotificationPermissionWarmup();
   }
 
@@ -208,12 +188,6 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _onLocaleChanged() {
     if (mounted) setState(() {});
-  }
-
-  void _warmUpFerhengCategories() {
-    unawaited(FerhengService.instance.warmUpCategories().catchError((e) {
-      debugPrint('Ferheng category warm-up failed: $e');
-    }));
   }
 
   void _scheduleNotificationPermissionWarmup() {
@@ -242,6 +216,7 @@ class _HomeScreenState extends State<HomeScreen>
         .distinct()
         .listen((uid) {
       _restartMultiplayerListeners(uid);
+      if (mounted) setState(() {});
       if (uid != null) {
         NotificationService.instance.syncFcmTokenToFirestore();
       }
@@ -651,7 +626,9 @@ class _HomeScreenState extends State<HomeScreen>
                           SizedBox(
                             height: 134,
                             child: _QuickPlayCard(
-                              onTap: () => _showQuickPlayDifficulty(context),
+                              onTap: () => _startQuickPlay(AiDifficulty.normal),
+                              onOptionsTap: () =>
+                                  _showQuickPlayDifficulty(context),
                             ),
                           )),
                       const SizedBox(height: 14),
@@ -1149,8 +1126,8 @@ class _SiralamalarCardState extends State<_SiralamalarCard> {
                                       color: _kPrimary.withValues(alpha: 0.1),
                                       borderRadius: BorderRadius.circular(8),
                                       border: Border.all(
-                                          color: _kPrimary.withValues(
-                                              alpha: 0.3)),
+                                          color:
+                                              _kPrimary.withValues(alpha: 0.3)),
                                     ),
                                     child: Text(
                                         '${_fmtScore(myScore!)} ${L.points}',
@@ -1433,7 +1410,7 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
                 label: L.stageEasy,
                 icon: '🟢',
                 percent: '30%',
-                seconds: '5s',
+                seconds: '12s',
                 isActive: !_hasPlayed && _activeStage == 0,
               ),
               const SizedBox(width: 6),
@@ -1442,7 +1419,7 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
                 label: L.stageMedium,
                 icon: '🟡',
                 percent: '50%',
-                seconds: '7s',
+                seconds: '18s',
                 isActive: !_hasPlayed && _activeStage == 1,
               ),
               const SizedBox(width: 6),
@@ -1451,7 +1428,7 @@ class _GununKelimesiCardState extends State<_GununKelimesiCard>
                 label: L.stageHard,
                 icon: '🔴',
                 percent: '70%',
-                seconds: '10s',
+                seconds: '25s',
                 isActive: !_hasPlayed && _activeStage == 2,
               ),
             ],
@@ -1708,7 +1685,11 @@ class _StreakRiskBanner extends StatelessWidget {
 
 class _QuickPlayCard extends StatefulWidget {
   final VoidCallback onTap;
-  const _QuickPlayCard({required this.onTap});
+  final VoidCallback onOptionsTap;
+  const _QuickPlayCard({
+    required this.onTap,
+    required this.onOptionsTap,
+  });
 
   @override
   State<_QuickPlayCard> createState() => _QuickPlayCardState();
@@ -1878,7 +1859,7 @@ class _QuickPlayCardState extends State<_QuickPlayCard>
                                         color: titleColor,
                                         fontSize: 23,
                                         fontWeight: FontWeight.w800,
-                                        letterSpacing: -0.4,
+                                        letterSpacing: 0,
                                         height: 1.0,
                                       ),
                                     ),
@@ -1924,6 +1905,10 @@ class _QuickPlayCardState extends State<_QuickPlayCard>
                                       label: L.current == AppLocale.tr
                                           ? 'Hızlı Başla'
                                           : 'Zû Dest Pê Bike',
+                                    ),
+                                    const SizedBox(width: 7),
+                                    _QuickSettingsChip(
+                                      onTap: widget.onOptionsTap,
                                     ),
                                   ],
                                 ),
@@ -2041,6 +2026,44 @@ class _QuickStatChip extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _QuickSettingsChip extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _QuickSettingsChip({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final fg =
+        isDark ? Colors.white.withValues(alpha: 0.82) : const Color(0xFF24342A);
+    final borderColor = isDark
+        ? Colors.white.withValues(alpha: 0.14)
+        : const Color(0xFF6F8A76).withValues(alpha: 0.30);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        borderRadius: BorderRadius.circular(999),
+        splashColor: _kGold.withValues(alpha: 0.14),
+        child: Ink(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          decoration: BoxDecoration(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.075)
+                : Colors.white.withValues(alpha: 0.22),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: borderColor),
+          ),
+          child: Icon(Icons.tune_rounded, size: 14, color: fg),
+        ),
       ),
     );
   }
@@ -5349,39 +5372,10 @@ class _HomeHeader extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Container(
-                      width: 34,
-                      height: 34,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [Color(0xFF66E093), Color(0xFF1B5E20)],
-                        ),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.20),
-                          width: 1,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: _kPrimary.withValues(alpha: 0.45),
-                            blurRadius: 14,
-                            spreadRadius: -1,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: const Center(
-                        child: Text('P',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 19,
-                              fontWeight: FontWeight.w900,
-                              height: 1,
-                              letterSpacing: -0.5,
-                            )),
-                      ),
+                    const PeyvokBrandMark(
+                      size: 36,
+                      radius: 10,
+                      elevation: 12,
                     ),
                     const SizedBox(width: 9),
                     Text(

@@ -4,6 +4,7 @@ import 'package:kurdle_app/route_transitions.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/match_chat_service.dart';
 import 'package:kurdle_app/services/multiplayer_service.dart';
+import 'package:kurdle_app/services/multiplayer_privacy_service.dart';
 import 'package:kurdle_app/widgets/chat_screen.dart';
 
 const _kChatBg = Color(0xFF0E1724);
@@ -286,6 +287,7 @@ class _PlayerChatTabState extends State<_PlayerChatTab> {
   final _controller = TextEditingController();
   final _scroll = ScrollController();
   late final Stream<List<MatchChatMessage>> _messagesStream;
+  late final Stream<ChatAccessStatus>? _chatAccessStream;
   late final ValueNotifier<bool> _sending;
   DateTime? _lastMarkReadAt;
 
@@ -294,8 +296,28 @@ class _PlayerChatTabState extends State<_PlayerChatTab> {
     super.initState();
     _messagesStream =
         MatchChatService.instance.messagesStream(widget.room.roomCode);
+    final opponentUid = _opponentUid;
+    _chatAccessStream = opponentUid == null
+        ? null
+        : MultiplayerPrivacyService.instance.chatAccessStream(
+            myUid: widget.myUid,
+            opponentUid: opponentUid,
+          );
     _sending = ValueNotifier<bool>(false);
     _markReadThrottled(force: true);
+  }
+
+  String? get _opponentUid {
+    if (widget.room.hostUid == widget.myUid) return widget.room.guestUid;
+    if (widget.room.guestUid == widget.myUid) return widget.room.hostUid;
+    return null;
+  }
+
+  String get _opponentName {
+    if (widget.room.hostUid == widget.myUid) {
+      return widget.room.guestName ?? 'Oyuncu';
+    }
+    return widget.room.hostName;
   }
 
   @override
@@ -358,6 +380,22 @@ class _PlayerChatTabState extends State<_PlayerChatTab> {
         return L.current == AppLocale.tr
             ? 'Sohbet maç başladıktan sonra açılır.'
             : 'Sohbet piştî destpêka maçê vedibe.';
+      case 'chat_disabled_by_me':
+        return L.current == AppLocale.tr
+            ? 'Sohbetin kapalı. Mesaj göndermek için aç.'
+            : 'Sohbeta te girtî ye. Ji bo şandinê veke.';
+      case 'opponent_chat_disabled':
+        return L.current == AppLocale.tr
+            ? 'Rakibin sohbetini kapatmış.'
+            : 'Hevrikê te sohbet girtî kiriye.';
+      case 'you_blocked_player':
+        return L.current == AppLocale.tr
+            ? 'Bu oyuncuyu engellediğin için mesaj gönderemezsin.'
+            : 'Te ev lîstikvan asteng kiriye; peyam nayê şandin.';
+      case 'blocked_by_player':
+        return L.current == AppLocale.tr
+            ? 'Bu oyuncuya mesaj gönderemezsin.'
+            : 'Tu nikarî ji vê lîstikvanê re peyam bişînî.';
       default:
         return L.current == AppLocale.tr
             ? 'Bu sohbete mesaj gönderemezsin.'
@@ -402,6 +440,67 @@ class _PlayerChatTabState extends State<_PlayerChatTab> {
     }
   }
 
+  Future<void> _toggleChat(bool enabled) async {
+    try {
+      await MultiplayerPrivacyService.instance
+          .setChatEnabled(widget.myUid, enabled);
+      HapticFeedback.selectionClick();
+    } catch (_) {
+      _showError(L.current == AppLocale.tr
+          ? 'Sohbet tercihi güncellenemedi.'
+          : 'Bijareya sohbetê nehat nûkirin.');
+    }
+  }
+
+  Future<void> _toggleBlock(ChatAccessStatus access) async {
+    final opponentUid = _opponentUid;
+    if (opponentUid == null) return;
+    if (!access.iBlockedOpponent) {
+      final ok = await showDialog<bool>(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: Text(L.current == AppLocale.tr
+                  ? 'Oyuncuyu engelle'
+                  : 'Lîstikvan asteng bike'),
+              content: Text(L.current == AppLocale.tr
+                  ? '$_opponentName ile sohbet kapanacak ve tekrar eşleşmeniz engellenecek.'
+                  : 'Sohbet bi $_opponentName re digire û careke din hevdu nabînin.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: Text(L.current == AppLocale.tr ? 'Vazgeç' : 'Betal'),
+                ),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: Text(
+                      L.current == AppLocale.tr ? 'Engelle' : 'Asteng bike'),
+                ),
+              ],
+            ),
+          ) ??
+          false;
+      if (!ok) return;
+    }
+    try {
+      if (access.iBlockedOpponent) {
+        await MultiplayerPrivacyService.instance.unblockPlayer(
+          myUid: widget.myUid,
+          blockedUid: opponentUid,
+        );
+      } else {
+        await MultiplayerPrivacyService.instance.blockPlayer(
+          myUid: widget.myUid,
+          blockedUid: opponentUid,
+        );
+      }
+      HapticFeedback.selectionClick();
+    } catch (_) {
+      _showError(L.current == AppLocale.tr
+          ? 'Engelleme tercihi güncellenemedi.'
+          : 'Bijareya astengkirinê nehat nûkirin.');
+    }
+  }
+
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_scroll.hasClients) return;
@@ -420,156 +519,337 @@ class _PlayerChatTabState extends State<_PlayerChatTab> {
         isDark ? Colors.white.withValues(alpha: 0.07) : Colors.white;
     final borderColor =
         isDark ? Colors.white.withValues(alpha: 0.10) : const Color(0xFFD6E1E7);
-    return Column(
-      children: [
-        Expanded(
-          child: StreamBuilder<List<MatchChatMessage>>(
-            stream: _messagesStream,
-            builder: (context, snap) {
-              final messages = snap.data ?? const <MatchChatMessage>[];
-              if (messages.isEmpty && !snap.hasError) {
-                return Center(
-                  child: Text(
-                    L.current == AppLocale.tr
-                        ? 'Henüz mesaj yok'
-                        : 'Hîn peyam tune',
-                    style: TextStyle(
-                      color: isDark
-                          ? Colors.white.withValues(alpha: 0.34)
-                          : const Color(0xFF667681),
-                      fontSize: 13,
-                    ),
-                  ),
-                );
-              }
-              if (snap.hasError) {
-                return Center(
-                  child: Text(
-                    L.current == AppLocale.tr
-                        ? 'Sohbet yüklenemedi.'
-                        : 'Sohbet nehat barkirin.',
-                    style: const TextStyle(color: _kChatError),
-                  ),
-                );
-              }
-              WidgetsBinding.instance
-                  .addPostFrameCallback((_) => _markReadThrottled());
-              return ListView.builder(
-                controller: _scroll,
-                reverse: true,
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-                itemCount: messages.length,
-                itemBuilder: (_, i) {
-                  final message = messages[messages.length - 1 - i];
-                  return _PlayerBubble(
-                    message: message,
-                    isMe: message.senderId == widget.myUid,
-                    onReport: message.senderId == widget.myUid
-                        ? null
-                        : () => _reportMessage(message),
+    final accessStream = _chatAccessStream;
+    if (accessStream == null) {
+      return Center(
+        child: Text(
+          L.current == AppLocale.tr
+              ? 'Sohbet maç başladıktan sonra açılır.'
+              : 'Sohbet piştî destpêka maçê vedibe.',
+          style: TextStyle(
+            color: isDark ? Colors.white54 : const Color(0xFF667681),
+          ),
+        ),
+      );
+    }
+    return StreamBuilder<ChatAccessStatus>(
+      stream: accessStream,
+      builder: (context, accessSnap) {
+        final access = accessSnap.data ??
+            ChatAccessStatus(
+              me: const MultiplayerPrivacy(
+                  chatEnabled: true, blockedUids: <String>{}),
+              opponent: const MultiplayerPrivacy(
+                  chatEnabled: true, blockedUids: <String>{}),
+              myUid: widget.myUid,
+              opponentUid: _opponentUid ?? '',
+            );
+        final canSend = access.canSend;
+        final disabledReason = _chatDisabledReason(access);
+        return Column(
+          children: [
+            _ChatPrivacyBar(
+              chatEnabled: access.me.chatEnabled,
+              isBlocked: access.iBlockedOpponent,
+              opponentName: _opponentName,
+              onChatChanged: _toggleChat,
+              onBlockTap: () => _toggleBlock(access),
+            ),
+            if (disabledReason != null)
+              _ChatNotice(message: disabledReason, isDark: isDark),
+            Expanded(
+              child: StreamBuilder<List<MatchChatMessage>>(
+                stream: _messagesStream,
+                builder: (context, snap) {
+                  final messages = snap.data ?? const <MatchChatMessage>[];
+                  if (messages.isEmpty && !snap.hasError) {
+                    return Center(
+                      child: Text(
+                        L.current == AppLocale.tr
+                            ? 'Henüz mesaj yok'
+                            : 'Hîn peyam tune',
+                        style: TextStyle(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.34)
+                              : const Color(0xFF667681),
+                          fontSize: 13,
+                        ),
+                      ),
+                    );
+                  }
+                  if (snap.hasError) {
+                    return Center(
+                      child: Text(
+                        L.current == AppLocale.tr
+                            ? 'Sohbet yüklenemedi.'
+                            : 'Sohbet nehat barkirin.',
+                        style: const TextStyle(color: _kChatError),
+                      ),
+                    );
+                  }
+                  WidgetsBinding.instance
+                      .addPostFrameCallback((_) => _markReadThrottled());
+                  return ListView.builder(
+                    controller: _scroll,
+                    reverse: true,
+                    keyboardDismissBehavior:
+                        ScrollViewKeyboardDismissBehavior.onDrag,
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                    itemCount: messages.length,
+                    itemBuilder: (_, i) {
+                      final message = messages[messages.length - 1 - i];
+                      return _PlayerBubble(
+                        message: message,
+                        isMe: message.senderId == widget.myUid,
+                        onReport: message.senderId == widget.myUid
+                            ? null
+                            : () => _reportMessage(message),
+                      );
+                    },
                   );
                 },
-              );
-            },
-          ),
-        ),
-        SafeArea(
-          top: false,
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-            decoration: BoxDecoration(
-              color: isDark ? _kChatSurface : const Color(0xFFF4F8FA),
-              border: Border(top: BorderSide(color: borderColor)),
+              ),
             ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    maxLength: MatchChatService.maxMessageLength,
-                    minLines: 1,
-                    maxLines: 4,
-                    style: TextStyle(
-                      color: isDark ? Colors.white : const Color(0xFF18242C),
-                      fontSize: 14,
-                    ),
-                    cursorColor: _kChatPrimary,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _send(),
-                    decoration: InputDecoration(
-                      counterText: '',
-                      hintText: L.current == AppLocale.tr
-                          ? 'Mesaj yaz...'
-                          : 'Peyam binivîse...',
-                      hintStyle: TextStyle(
-                        color: isDark
-                            ? Colors.white.withValues(alpha: 0.34)
-                            : const Color(0xFF667681),
-                      ),
-                      filled: true,
-                      fillColor: inputBg,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(22),
-                        borderSide: BorderSide(color: borderColor),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(22),
-                        borderSide: BorderSide(color: borderColor),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(22),
-                        borderSide: BorderSide(
-                          color: _kChatPrimary.withValues(alpha: 0.65),
-                          width: 1.4,
+            SafeArea(
+              top: false,
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+                decoration: BoxDecoration(
+                  color: isDark ? _kChatSurface : const Color(0xFFF4F8FA),
+                  border: Border(top: BorderSide(color: borderColor)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _controller,
+                        enabled: canSend,
+                        maxLength: MatchChatService.maxMessageLength,
+                        minLines: 1,
+                        maxLines: 4,
+                        style: TextStyle(
+                          color:
+                              isDark ? Colors.white : const Color(0xFF18242C),
+                          fontSize: 14,
+                        ),
+                        cursorColor: _kChatPrimary,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => _send(),
+                        decoration: InputDecoration(
+                          counterText: '',
+                          hintText: canSend
+                              ? (L.current == AppLocale.tr
+                                  ? 'Mesaj yaz...'
+                                  : 'Peyam binivîse...')
+                              : (L.current == AppLocale.tr
+                                  ? 'Sohbet kapalı'
+                                  : 'Sohbet girtî ye'),
+                          hintStyle: TextStyle(
+                            color: isDark
+                                ? Colors.white.withValues(alpha: 0.34)
+                                : const Color(0xFF667681),
+                          ),
+                          filled: true,
+                          fillColor: inputBg,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(22),
+                            borderSide: BorderSide(color: borderColor),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(22),
+                            borderSide: BorderSide(color: borderColor),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(22),
+                            borderSide: BorderSide(
+                              color: _kChatPrimary.withValues(alpha: 0.65),
+                              width: 1.4,
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                ValueListenableBuilder<bool>(
-                  valueListenable: _sending,
-                  builder: (_, sending, __) => AnimatedScale(
-                    scale: sending ? 0.94 : 1,
-                    duration: const Duration(milliseconds: 120),
-                    curve: Curves.easeOutCubic,
-                    child: Material(
-                      color: sending
-                          ? _kChatPrimary.withValues(alpha: 0.45)
-                          : _kChatPrimary,
-                      shape: const CircleBorder(),
-                      child: InkWell(
-                        customBorder: const CircleBorder(),
-                        onTap: sending ? null : _send,
-                        child: SizedBox(
-                          width: 46,
-                          height: 46,
-                          child: sending
-                              ? const Padding(
-                                  padding: EdgeInsets.all(13),
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Icon(Icons.send_rounded,
-                                  color: Colors.white, size: 20),
+                    const SizedBox(width: 8),
+                    ValueListenableBuilder<bool>(
+                      valueListenable: _sending,
+                      builder: (_, sending, __) => AnimatedScale(
+                        scale: sending ? 0.94 : 1,
+                        duration: const Duration(milliseconds: 120),
+                        curve: Curves.easeOutCubic,
+                        child: Material(
+                          color: sending
+                              ? _kChatPrimary.withValues(alpha: 0.45)
+                              : _kChatPrimary,
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: sending || !canSend ? null : _send,
+                            child: SizedBox(
+                              width: 46,
+                              height: 46,
+                              child: sending
+                                  ? const Padding(
+                                      padding: EdgeInsets.all(13),
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Icon(Icons.send_rounded,
+                                      color: Colors.white, size: 20),
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String? _chatDisabledReason(ChatAccessStatus access) {
+    if (!access.me.chatEnabled) {
+      return L.current == AppLocale.tr
+          ? 'Sohbetin kapalı. İstersen buradan tekrar açabilirsin.'
+          : 'Sohbeta te girtî ye. Tu dikarî ji vir dîsa vekî.';
+    }
+    if (access.iBlockedOpponent) {
+      return L.current == AppLocale.tr
+          ? 'Bu oyuncuyu engelledin. Mesajlaşma ve yeniden eşleşme kapalı.'
+          : 'Te ev lîstikvan asteng kiriye. Sohbet û hevhatin girtî ye.';
+    }
+    if (access.opponentBlockedMe) {
+      return L.current == AppLocale.tr
+          ? 'Bu oyuncuyla mesajlaşamazsın.'
+          : 'Tu nikarî bi vî lîstikvanî re biaxivî.';
+    }
+    if (!access.opponent.chatEnabled) {
+      return L.current == AppLocale.tr
+          ? 'Rakibin sohbetini kapatmış.'
+          : 'Hevrikê te sohbet girtî kiriye.';
+    }
+    return null;
+  }
+}
+
+class _ChatPrivacyBar extends StatelessWidget {
+  final bool chatEnabled;
+  final bool isBlocked;
+  final String opponentName;
+  final ValueChanged<bool> onChatChanged;
+  final VoidCallback onBlockTap;
+
+  const _ChatPrivacyBar({
+    required this.chatEnabled,
+    required this.isBlocked,
+    required this.opponentName,
+    required this.onChatChanged,
+    required this.onBlockTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : const Color(0xFF18242C);
+    final muted = isDark ? Colors.white60 : const Color(0xFF667681);
+    return Container(
+      margin: const EdgeInsets.fromLTRB(14, 8, 14, 6),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.055)
+            : const Color(0xFFF4F8FA),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withValues(alpha: 0.08)
+              : const Color(0xFFD6E1E7),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            chatEnabled
+                ? Icons.mark_chat_read_rounded
+                : Icons.speaker_notes_off_rounded,
+            color: chatEnabled ? _kChatPrimary : muted,
+            size: 20,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              L.current == AppLocale.tr ? 'Sohbetim' : 'Sohbeta min',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: textColor,
+                fontWeight: FontWeight.w800,
+                fontSize: 13,
+              ),
             ),
           ),
+          Switch.adaptive(
+            value: chatEnabled,
+            onChanged: onChatChanged,
+            activeColor: _kChatPrimary,
+          ),
+          const SizedBox(width: 8),
+          TextButton.icon(
+            onPressed: onBlockTap,
+            icon: Icon(
+              isBlocked ? Icons.lock_open_rounded : Icons.block_rounded,
+              size: 17,
+            ),
+            label: Text(
+              isBlocked
+                  ? (L.current == AppLocale.tr ? 'Aç' : 'Veke')
+                  : (L.current == AppLocale.tr ? 'Engelle' : 'Asteng'),
+            ),
+            style: TextButton.styleFrom(
+              foregroundColor: isBlocked ? _kChatPrimary : _kChatError,
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ChatNotice extends StatelessWidget {
+  final String message;
+  final bool isDark;
+
+  const _ChatNotice({required this.message, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+      decoration: BoxDecoration(
+        color: _kChatError.withValues(alpha: isDark ? 0.16 : 0.10),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _kChatError.withValues(alpha: 0.28)),
+      ),
+      child: Text(
+        message,
+        style: TextStyle(
+          color: isDark ? Colors.white70 : const Color(0xFF7A2730),
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
         ),
-      ],
+      ),
     );
   }
 }

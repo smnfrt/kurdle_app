@@ -203,6 +203,8 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
     with TickerProviderStateMixin {
   ScrabbleGameController? _controller;
   String _error = '';
+  String _moveFeedback = '';
+  int _moveFeedbackSerial = 0;
   GameTile? _selectedTile;
   GamePhase? _lastPhase;
 
@@ -222,7 +224,7 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
   bool _hasUnread = false;
 
   final Map<String, _MeaningTabEntry> _meaningCache = {};
-  final Set<String> _meaningWarmInFlight = {};
+  final Map<String, Future<_MeaningTabEntry>> _meaningWarmInFlight = {};
 
   void _handleDoubleTap() {
     if (_touchCtrl.panEnabled) {
@@ -273,23 +275,49 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
     );
   }
 
+  Future<_MeaningTabEntry> _meaningEntryFuture(String word) {
+    final key = _meaningKey(word);
+    final cached = _meaningCache[key];
+    if (cached != null) return Future.value(cached);
+
+    final pending = _meaningWarmInFlight[key];
+    if (pending != null) return pending;
+
+    late final Future<_MeaningTabEntry> future;
+    future = _loadMeaningEntry(word).then((entry) {
+      _meaningCache[key] = entry;
+      return entry;
+    }).catchError((_) {
+      final fallback =
+          _MeaningTabEntry(word: word, meaning: L.dictionaryWordNotFound);
+      _meaningCache[key] = fallback;
+      return fallback;
+    }).whenComplete(() {
+      if (_meaningWarmInFlight[key] == future) {
+        _meaningWarmInFlight.remove(key);
+      }
+    });
+    _meaningWarmInFlight[key] = future;
+    return future;
+  }
+
+  List<_MeaningTabEntry> _meaningEntriesSnapshot(List<String> words) {
+    return words
+        .map((word) =>
+            _meaningCache[_meaningKey(word)] ??
+            _MeaningTabEntry(word: word, meaning: L.meaningLoading))
+        .toList(growable: false);
+  }
+
   void _warmMeaningCache(Iterable<String> words) {
     final uniqueWords = _uniqueMeaningWords(words);
     for (final word in uniqueWords) {
       final key = _meaningKey(word);
       if (_meaningCache.containsKey(key) ||
-          _meaningWarmInFlight.contains(key)) {
+          _meaningWarmInFlight.containsKey(key)) {
         continue;
       }
-      _meaningWarmInFlight.add(key);
-      unawaited(_loadMeaningEntry(word).then((entry) {
-        _meaningCache[key] = entry;
-      }).catchError((_) {
-        _meaningCache[key] =
-            _MeaningTabEntry(word: word, meaning: L.dictionaryWordNotFound);
-      }).whenComplete(() {
-        _meaningWarmInFlight.remove(key);
-      }));
+      unawaited(_meaningEntryFuture(word));
     }
   }
 
@@ -298,13 +326,15 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
     if (uniqueWords.isEmpty) return;
     HapticFeedback.selectionClick();
 
-    final entries = ValueNotifier<List<_MeaningTabEntry>>(
-      uniqueWords
-          .map((word) =>
-              _meaningCache[_meaningKey(word)] ??
-              _MeaningTabEntry(word: word, meaning: L.meaningLoading))
-          .toList(growable: false),
+    final initialEntries = await Future.wait(
+      uniqueWords.map(_meaningEntryFuture),
+    ).timeout(
+      const Duration(milliseconds: 650),
+      onTimeout: () => _meaningEntriesSnapshot(uniqueWords),
     );
+    if (!mounted) return;
+
+    final entries = ValueNotifier<List<_MeaningTabEntry>>(initialEntries);
 
     var dialogOpen = true;
     // AI sırasındaysa AI hamlesini popup kapanana kadar duraklat
@@ -330,14 +360,7 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
     });
 
     try {
-      final results = await Future.wait(uniqueWords.map((word) async {
-        final key = _meaningKey(word);
-        final cached = _meaningCache[key];
-        if (cached != null) return cached;
-        final entry = await _loadMeaningEntry(word);
-        _meaningCache[key] = entry;
-        return entry;
-      }));
+      final results = await Future.wait(uniqueWords.map(_meaningEntryFuture));
       if (!mounted || !dialogOpen) return;
       entries.value = results;
     } catch (e) {
@@ -361,7 +384,7 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
   @override
   void initState() {
     super.initState();
-    unawaited(FerhengService.instance.init());
+    unawaited(AppWarmupService.instance.preloadFerheng());
     _touchCtrl = BoardTouchController(
       transformCtrl: _zoomController,
       vsync: this,
@@ -383,6 +406,7 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
   Future<void> _loadGame() async {
     final config = LanguageConfig.current;
     unawaited(AppWarmupService.instance.preloadWordGame());
+    unawaited(AppWarmupService.instance.preloadFerheng());
     final wordsFuture = WordlistLoader.loadAssets(config.wordAssets);
     final settingsFuture = SettingsService().load();
     final playerLevelFuture = _resolvePlayerLevel();
@@ -483,13 +507,17 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
       if (ctrl.turnForfeited) {
         SoundService.instance.play(SFX.wordInvalid);
         HapticService.instance.wordInvalid();
-        setState(() => _error = ctrl.message);
+        setState(() {
+          _error = ctrl.message;
+          _moveFeedback = '';
+        });
       } else {
         HapticService.instance.submit();
         SoundService.instance.play(SFX.wordValid);
         SoundService.instance.play(SFX.scoreUp);
         GameStore.instance.sync(ctrl, moveMade: true);
         if (_error.isNotEmpty) setState(() => _error = '');
+        _showMoveFeedback(ctrl.message);
 
         // Çalma gerçekleştiyse banner göster + 3s sonra temizle
         if (ctrl.lastStealResult?.success == true) {
@@ -512,7 +540,10 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
     } else {
       SoundService.instance.play(SFX.wordInvalid);
       HapticService.instance.wordInvalid();
-      setState(() => _error = err);
+      setState(() {
+        _error = err;
+        _moveFeedback = '';
+      });
 
       final suggestion = ctrl.lastSuggestion;
       if (suggestion != null) {
@@ -535,6 +566,17 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
       ),
     );
     overlay.insert(entry);
+  }
+
+  void _showMoveFeedback(String message) {
+    final text = message.trim();
+    if (text.isEmpty) return;
+    final serial = ++_moveFeedbackSerial;
+    setState(() => _moveFeedback = text);
+    Future.delayed(const Duration(milliseconds: 1450), () {
+      if (!mounted || serial != _moveFeedbackSerial) return;
+      setState(() => _moveFeedback = '');
+    });
   }
 
   void _showSuggestionSheet(WordSuggestion suggestion) {
@@ -715,6 +757,7 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
                                 highlightedCells: ctrl.highlightedCells,
                                 stolenNewCells: ctrl.stolenNewCells,
                                 lastMoveCells: ctrl.lastMoveCells,
+                                hasSelectedRackTile: _selectedTile != null,
                                 meaningWords: ctrl.lastMoveWords
                                     .map((e) => (word: e.word, cells: e.cells))
                                     .toList(growable: false),
@@ -730,7 +773,6 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
                                 onTileDrop: isPlayer
                                     ? (row, col, tile) {
                                         ctrl.placeTile(row, col, tile);
-                                        HapticFeedback.selectionClick();
                                         SoundService.instance
                                             .play(SFX.tilePlace);
                                         if (_error.isNotEmpty ||
@@ -750,7 +792,7 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
                                         ? (row, col) {
                                             ctrl.placeTile(
                                                 row, col, _selectedTile!);
-                                            HapticFeedback.selectionClick();
+                                            HapticService.instance.tileDrop();
                                             SoundService.instance
                                                 .play(SFX.tilePlace);
                                             setState(() {
@@ -791,6 +833,7 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
               isEnabled: isPlayer,
               rackEnabled: canInspectRack,
               error: _error,
+              moveFeedback: _moveFeedback,
               phase: ctrl.phase,
               playerScore: ctrl.playerScore,
               aiScore: ctrl.aiScore,
@@ -807,6 +850,7 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
                 if (_error.isNotEmpty || _selectedTile != null) {
                   setState(() {
                     _error = '';
+                    _moveFeedback = '';
                     _selectedTile = null;
                   });
                 }
@@ -816,7 +860,10 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
                   ? () {
                       final err = ctrl.passTurn();
                       if (err == null) SoundService.instance.play(SFX.passTurn);
-                      setState(() => _error = err ?? '');
+                      setState(() {
+                        _error = err ?? '';
+                        _moveFeedback = '';
+                      });
                     }
                   : null,
               onSubmit: _onSubmit,
@@ -1437,15 +1484,18 @@ class _NameScore extends StatelessWidget {
         ),
         const SizedBox(height: 1),
         AnimatedSwitcher(
-          duration: const Duration(milliseconds: 350),
-          transitionBuilder: (child, anim) => SlideTransition(
-            position:
-                Tween<Offset>(begin: const Offset(0, -0.4), end: Offset.zero)
-                    .animate(
-              CurvedAnimation(parent: anim, curve: Curves.easeOut),
-            ),
-            child: FadeTransition(opacity: anim, child: child),
-          ),
+          duration: const Duration(milliseconds: 240),
+          switchOutCurve: Curves.easeIn,
+          switchInCurve: Curves.easeOutCubic,
+          transitionBuilder: (child, anim) {
+            return FadeTransition(
+              opacity: anim,
+              child: ScaleTransition(
+                scale: Tween<double>(begin: 0.86, end: 1.0).animate(anim),
+                child: child,
+              ),
+            );
+          },
           child: Text(
             '$score',
             key: ValueKey(score),
@@ -1454,7 +1504,7 @@ class _NameScore extends StatelessWidget {
               fontSize: 24,
               fontWeight: FontWeight.bold,
               height: 1.0,
-              letterSpacing: -0.5,
+              letterSpacing: 0,
             ),
           ),
         ),
@@ -1519,6 +1569,7 @@ class _BottomPanel extends StatelessWidget {
   final bool isEnabled;
   final bool rackEnabled;
   final String error;
+  final String moveFeedback;
   final GamePhase phase;
   final int playerScore;
   final int aiScore;
@@ -1539,6 +1590,7 @@ class _BottomPanel extends StatelessWidget {
     required this.isEnabled,
     this.rackEnabled = true,
     required this.error,
+    this.moveFeedback = '',
     required this.phase,
     required this.playerScore,
     required this.aiScore,
@@ -1633,7 +1685,19 @@ class _BottomPanel extends StatelessWidget {
 
           // Hata mesajı
           AnimatedSwitcher(
-            duration: const Duration(milliseconds: 220),
+            duration: const Duration(milliseconds: 160),
+            switchOutCurve: Curves.easeIn,
+            switchInCurve: Curves.easeOutCubic,
+            transitionBuilder: (child, animation) {
+              final offset = Tween<Offset>(
+                begin: const Offset(0, 0.35),
+                end: Offset.zero,
+              ).animate(animation);
+              return FadeTransition(
+                opacity: animation,
+                child: SlideTransition(position: offset, child: child),
+              );
+            },
             child: error.isNotEmpty
                 ? Padding(
                     key: ValueKey(error),
@@ -1660,6 +1724,30 @@ class _BottomPanel extends StatelessWidget {
                         ],
                       ),
                     ),
+                  )
+                : const SizedBox.shrink(),
+          ),
+
+          // Başarılı hamle geri bildirimi
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 170),
+            switchOutCurve: Curves.easeIn,
+            switchInCurve: Curves.easeOutCubic,
+            transitionBuilder: (child, animation) {
+              final offset = Tween<Offset>(
+                begin: const Offset(0, 0.28),
+                end: Offset.zero,
+              ).animate(animation);
+              return FadeTransition(
+                opacity: animation,
+                child: SlideTransition(position: offset, child: child),
+              );
+            },
+            child: moveFeedback.isNotEmpty && error.isEmpty
+                ? Padding(
+                    key: ValueKey(moveFeedback),
+                    padding: const EdgeInsets.fromLTRB(14, 4, 14, 0),
+                    child: _MoveFeedbackPill(text: moveFeedback),
                   )
                 : const SizedBox.shrink(),
           ),
@@ -1722,30 +1810,9 @@ class _BottomPanel extends StatelessWidget {
           // Büyük "Bilîze" butonu
           Padding(
             padding: EdgeInsets.fromLTRB(10, 6, 10, bottom + 10),
-            child: SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: isEnabled ? onSubmit : null,
-                icon: const Icon(Icons.check_circle_rounded, size: 20),
-                label: Text(L.play,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 16)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _kPrimary,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: isDark
-                      ? const Color(0xFF2A2A2A)
-                      : Colors.black.withValues(alpha: 0.10),
-                  disabledForegroundColor: isDark
-                      ? Colors.white24
-                      : Colors.black.withValues(alpha: 0.32),
-                  padding: const EdgeInsets.symmetric(vertical: 15),
-                  elevation: isEnabled ? 6 : 0,
-                  shadowColor: _kPrimary.withValues(alpha: 0.5),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                ),
-              ),
+            child: _SubmitMoveButton(
+              enabled: isEnabled,
+              onTap: onSubmit,
             ),
           ),
 
@@ -1826,6 +1893,153 @@ class _ActionBtn extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _SubmitMoveButton extends StatefulWidget {
+  final bool enabled;
+  final VoidCallback onTap;
+
+  const _SubmitMoveButton({
+    required this.enabled,
+    required this.onTap,
+  });
+
+  @override
+  State<_SubmitMoveButton> createState() => _SubmitMoveButtonState();
+}
+
+class _SubmitMoveButtonState extends State<_SubmitMoveButton> {
+  bool _pressed = false;
+
+  void _setPressed(bool value) {
+    if (_pressed == value) return;
+    setState(() => _pressed = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    final enabled = widget.enabled;
+    final scale = reduceMotion || !enabled ? 1.0 : (_pressed ? 0.975 : 1.0);
+    final bg = enabled
+        ? _kPrimary
+        : (isDark
+            ? const Color(0xFF2A2A2A)
+            : Colors.black.withValues(alpha: 0.10));
+    final fg = enabled
+        ? Colors.white
+        : (isDark ? Colors.white24 : Colors.black.withValues(alpha: 0.32));
+
+    return Listener(
+      onPointerDown: enabled ? (_) => _setPressed(true) : null,
+      onPointerCancel: enabled ? (_) => _setPressed(false) : null,
+      onPointerUp: enabled ? (_) => _setPressed(false) : null,
+      child: AnimatedScale(
+        scale: scale,
+        duration:
+            reduceMotion ? Duration.zero : const Duration(milliseconds: 90),
+        curve: Curves.easeOutQuart,
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+          child: InkWell(
+            onTap: enabled ? widget.onTap : null,
+            borderRadius: BorderRadius.circular(14),
+            splashColor: Colors.white.withValues(alpha: 0.14),
+            highlightColor: Colors.white.withValues(alpha: 0.06),
+            child: AnimatedContainer(
+              duration: reduceMotion
+                  ? Duration.zero
+                  : const Duration(milliseconds: 120),
+              curve: Curves.easeOut,
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 15),
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: enabled
+                    ? [
+                        BoxShadow(
+                          color: _kPrimary.withValues(alpha: 0.48),
+                          blurRadius: _pressed ? 9 : 14,
+                          offset: Offset(0, _pressed ? 3 : 6),
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check_circle_rounded, size: 20, color: fg),
+                  const SizedBox(width: 8),
+                  Text(
+                    L.play,
+                    style: TextStyle(
+                      color: fg,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MoveFeedbackPill extends StatelessWidget {
+  final String text;
+
+  const _MoveFeedbackPill({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor =
+        isDark ? const Color(0xFFE7F7E8) : const Color(0xFF1F5E31);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: BoxDecoration(
+        color: _kPrimary.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: _kPrimary.withValues(alpha: 0.42)),
+        boxShadow: [
+          BoxShadow(
+            color: _kPrimary.withValues(alpha: 0.18),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.add_circle_rounded, color: textColor, size: 15),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: textColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -2887,7 +3101,7 @@ class _AiThinkingPillState extends State<_AiThinkingPill>
     super.initState();
     _ctrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1500),
+      duration: const Duration(milliseconds: 900),
     )..repeat();
   }
 
@@ -2899,78 +3113,124 @@ class _AiThinkingPillState extends State<_AiThinkingPill>
 
   @override
   Widget build(BuildContext context) {
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
+    if (reduceMotion) {
+      return _AiThinkingShell(
+        glow: 0.38,
+        dots: const [
+          _AiDot(progress: 1.0),
+          SizedBox(width: 3),
+          _AiDot(progress: 1.0),
+          SizedBox(width: 3),
+          _AiDot(progress: 1.0),
+        ],
+      );
+    }
     return AnimatedBuilder(
       animation: _ctrl,
       builder: (_, __) {
-        final glow =
-            0.35 + 0.25 * (0.5 + 0.5 * (1 - (2 * _ctrl.value - 1).abs()));
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                const Color(0xFF7B1FA2).withValues(alpha: 0.18),
-                const Color(0xFF9C27B0).withValues(alpha: 0.22),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-                color: const Color(0xFFCE93D8).withValues(alpha: 0.45),
-                width: 1),
-            boxShadow: [
-              BoxShadow(
-                color: const Color(0xFF9C27B0).withValues(alpha: glow * 0.6),
-                blurRadius: 14,
-                spreadRadius: 0.5,
-              ),
-            ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.psychology_rounded,
-                  color: Color(0xFFE1BEE7), size: 16),
-              const SizedBox(width: 8),
-              Text(
-                L.aiTurn,
-                style: const TextStyle(
-                  color: Color(0xFFEDE7F6),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.2,
-                ),
-              ),
-              const SizedBox(width: 6),
-              _AiDot(active: _ctrl.value < 0.33),
-              const SizedBox(width: 3),
-              _AiDot(active: _ctrl.value >= 0.33 && _ctrl.value < 0.66),
-              const SizedBox(width: 3),
-              _AiDot(active: _ctrl.value >= 0.66),
-            ],
-          ),
+        final glow = 0.38 + 0.18 * (1 - (2 * _ctrl.value - 1).abs());
+        return _AiThinkingShell(
+          glow: glow,
+          dots: [
+            _AiDot(progress: _dotProgress(0.0)),
+            const SizedBox(width: 3),
+            _AiDot(progress: _dotProgress(0.18)),
+            const SizedBox(width: 3),
+            _AiDot(progress: _dotProgress(0.36)),
+          ],
         );
       },
+    );
+  }
+
+  double _dotProgress(double delay) {
+    final shifted = (_ctrl.value - delay) % 1.0;
+    final wave = 1 - (2 * shifted - 1).abs();
+    return Curves.easeOut.transform(wave.clamp(0.0, 1.0));
+  }
+}
+
+class _AiThinkingShell extends StatelessWidget {
+  final double glow;
+  final List<Widget> dots;
+
+  const _AiThinkingShell({
+    required this.glow,
+    required this.dots,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            const Color(0xFF7B1FA2).withValues(alpha: 0.18),
+            const Color(0xFF9C27B0).withValues(alpha: 0.22),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+            color: const Color(0xFFCE93D8).withValues(alpha: 0.45), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF9C27B0).withValues(alpha: glow * 0.6),
+            blurRadius: 14,
+            spreadRadius: 0.5,
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.psychology_rounded,
+              color: Color(0xFFE1BEE7), size: 16),
+          const SizedBox(width: 8),
+          Text(
+            L.aiTurn,
+            style: const TextStyle(
+              color: Color(0xFFEDE7F6),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0,
+            ),
+          ),
+          const SizedBox(width: 6),
+          ...dots,
+        ],
+      ),
     );
   }
 }
 
 class _AiDot extends StatelessWidget {
-  final bool active;
-  const _AiDot({required this.active});
+  final double progress;
+  const _AiDot({required this.progress});
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      width: 4,
-      height: 4,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: active
-            ? const Color(0xFFE1BEE7)
-            : const Color(0xFFE1BEE7).withValues(alpha: 0.30),
+    final size = 4.0 + 2.0 * progress;
+    return SizedBox(
+      width: 6,
+      height: 8,
+      child: Center(
+        child: Transform.translate(
+          offset: Offset(0, -2.0 * progress),
+          child: Container(
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFFE1BEE7)
+                  .withValues(alpha: 0.34 + 0.66 * progress),
+            ),
+          ),
+        ),
       ),
     );
   }

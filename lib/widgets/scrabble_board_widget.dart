@@ -44,6 +44,7 @@ class ScrabbleBoardWidget extends StatelessWidget {
   final void Function(int row, int col, GameTile tile)? onTileDrop;
   final void Function(int row, int col)? onCellTap;
   final void Function(int row, int col)? onEmptyCellTap;
+  final bool hasSelectedRackTile;
   final double spacing;
 
   /// Geliştirilen kelimenin hücrelerini altın rengiyle vurgular (ör. {'5:3','5:4'})
@@ -66,6 +67,7 @@ class ScrabbleBoardWidget extends StatelessWidget {
     this.onTileDrop,
     this.onCellTap,
     this.onEmptyCellTap,
+    this.hasSelectedRackTile = false,
     this.spacing = 1.4,
     this.highlightedCells = const {},
     this.stolenNewCells = const {},
@@ -140,6 +142,7 @@ class ScrabbleBoardWidget extends StatelessWidget {
                   isNewStolen: isNewStolen,
                   isLastMove: isLastMove,
                   isDarkMode: isDarkMode,
+                  isTapTarget: hasSelectedRackTile,
                   onDrop: onTileDrop != null
                       ? (t) => onTileDrop!(row, col, t)
                       : null,
@@ -180,6 +183,7 @@ class _CellView extends StatelessWidget {
   final bool isNewStolen;
   final bool isLastMove;
   final bool isDarkMode;
+  final bool isTapTarget;
   final void Function(GameTile)? onDrop;
   final VoidCallback? onTap;
   final VoidCallback? onEmptyTap;
@@ -190,6 +194,7 @@ class _CellView extends StatelessWidget {
     this.isNewStolen = false,
     this.isLastMove = false,
     this.isDarkMode = true,
+    this.isTapTarget = false,
     this.onDrop,
     this.onTap,
     this.onEmptyTap,
@@ -263,6 +268,8 @@ class _CellView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final reduceMotion =
+        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
     final isLetter = cell.hasLetter;
     final isPending = cell.isPending;
 
@@ -406,11 +413,12 @@ class _CellView extends StatelessWidget {
 
       // Pop animasyonu — sadece yeni eklenen pending taşlar için
       if (isPending) {
+        if (reduceMotion) return tileWidget;
         return TweenAnimationBuilder<double>(
           key: ValueKey('pop-${cell.tileId}'),
           tween: Tween(begin: 0.0, end: 1.0),
-          duration: const Duration(milliseconds: 320),
-          curve: Curves.elasticOut,
+          duration: const Duration(milliseconds: 210),
+          curve: Curves.easeOutBack,
           builder: (_, v, child) => Transform.scale(scale: v, child: child!),
           child: tileWidget,
         );
@@ -506,6 +514,38 @@ class _CellView extends StatelessWidget {
               ),
             ),
     );
+
+    if (isTapTarget && onEmptyTap != null) {
+      emptyCell = Stack(
+        fit: StackFit.expand,
+        children: [
+          emptyCell,
+          IgnorePointer(
+            child: AnimatedContainer(
+              duration: reduceMotion
+                  ? Duration.zero
+                  : const Duration(milliseconds: 120),
+              curve: Curves.easeOut,
+              margin: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                borderRadius: const BorderRadius.all(Radius.circular(4)),
+                border: Border.all(
+                  color: _kPrimary.withValues(alpha: 0.72),
+                  width: 1.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: _kPrimary.withValues(alpha: 0.20),
+                    blurRadius: 8,
+                    spreadRadius: 0.5,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
 
     if (onDrop != null) {
       return _DroppableCell(
@@ -638,6 +678,7 @@ class _DroppableCellState extends State<_DroppableCell> {
       },
       builder: (context, _, __) {
         return GestureDetector(
+          behavior: HitTestBehavior.opaque,
           onTap: widget.onEmptyTap,
           child: _hot
               ? TweenAnimationBuilder<double>(
@@ -734,7 +775,7 @@ class _TileContent extends StatelessWidget {
                   fontWeight: FontWeight.w900,
                   color: _kTileText,
                   height: 1,
-                  letterSpacing: -0.3,
+                  letterSpacing: 0,
                 ),
               ),
             ),

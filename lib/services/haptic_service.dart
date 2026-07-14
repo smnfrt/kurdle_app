@@ -23,13 +23,20 @@ class HapticService {
     try {
       await _channel.invokeMethod('vibrate', {'pattern': pattern});
     } catch (e) {
-      Log.warn('HapticService', 'native channel failed, using system fallback', e);
+      Log.warn(
+          'HapticService', 'native channel failed, using system fallback', e);
       await HapticFeedback.selectionClick();
     }
   }
 
   // Taşı raftan kaldırma
   void tilePickup() => _play('tilePickup');
+
+  // Taşı dokunarak seçme
+  void tileSelect() {
+    if (!_enabled) return;
+    HapticFeedback.selectionClick();
+  }
 
   // Sürüklerken hücreye girme (hafif tık)
   void cellHover() => _play('cellHover');

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/onboarding_service.dart';
+import 'package:kurdle_app/widgets/brand_mark.dart';
 
 /// Peyvok onboarding — 6 sayfada tüm oyun modları tanıtılır,
 /// son sayfada büyük "Hemen Oyna" CTA'sı.
@@ -21,7 +22,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   int _page = 0;
 
   static const _kPrimary = Color(0xFF4CAF50);
-  static const _kPrimaryDark = Color(0xFF1B5E20);
 
   late final List<_SlideData> _pages = [
     _SlideData(
@@ -210,31 +210,10 @@ class _LogoVisual extends StatelessWidget {
   const _LogoVisual();
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 110,
-      height: 110,
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [_OnboardingScreenState._kPrimary, _OnboardingScreenState._kPrimaryDark],
-        ),
-        borderRadius: BorderRadius.circular(28),
-        boxShadow: [
-          BoxShadow(
-              color: _OnboardingScreenState._kPrimary.withValues(alpha: 0.35),
-              blurRadius: 28,
-              offset: const Offset(0, 10)),
-        ],
-      ),
-      child: const Center(
-        child: Text('P',
-            style: TextStyle(
-                color: Colors.white,
-                fontSize: 58,
-                fontWeight: FontWeight.bold,
-                height: 1)),
-      ),
+    return const PeyvokBrandMark(
+      size: 112,
+      radius: 28,
+      elevation: 28,
     );
   }
 }

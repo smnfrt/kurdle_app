@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:characters/characters.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:kurdle_app/services/multiplayer_service.dart';
+import 'package:kurdle_app/services/multiplayer_privacy_service.dart';
 
 class MatchChatMessage {
   final String id;
@@ -111,6 +112,22 @@ class MatchChatService {
     }
 
     final otherUid = players.firstWhere((uid) => uid != senderId);
+    final privacy = MultiplayerPrivacyService.instance;
+    final senderPrivacy = await privacy.getPrivacy(senderId);
+    final otherPrivacy = await privacy.getPrivacy(otherUid);
+    if (!senderPrivacy.chatEnabled) {
+      throw const MatchChatException('chat_disabled_by_me');
+    }
+    if (!otherPrivacy.chatEnabled) {
+      throw const MatchChatException('opponent_chat_disabled');
+    }
+    if (senderPrivacy.blocks(otherUid)) {
+      throw const MatchChatException('you_blocked_player');
+    }
+    if (otherPrivacy.blocks(senderId)) {
+      throw const MatchChatException('blocked_by_player');
+    }
+
     final matchRef = _matches.doc(room.roomCode);
     final messageRef = matchRef.collection('messages').doc();
 

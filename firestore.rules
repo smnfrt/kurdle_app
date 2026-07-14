@@ -49,6 +49,30 @@ service cloud.firestore {
     function matchPath(matchId) {
       return /databases/$(database)/documents/matches/$(matchId);
     }
+    function privacyPath(uid) {
+      return /databases/$(database)/documents/playerPrivacy/$(uid);
+    }
+    function hasPrivacy(uid) {
+      return exists(privacyPath(uid));
+    }
+    function chatEnabledFor(uid) {
+      return !hasPrivacy(uid)
+        || !('chatEnabled' in get(privacyPath(uid)).data)
+        || get(privacyPath(uid)).data.chatEnabled == true;
+    }
+    function notBlockedBy(ownerUid, otherUid) {
+      return !hasPrivacy(ownerUid)
+        || !('blockedUids' in get(privacyPath(ownerUid)).data)
+        || !(otherUid in get(privacyPath(ownerUid)).data.blockedUids);
+    }
+    function canPlayersChat(players) {
+      return players is list
+        && players.size() == 2
+        && chatEnabledFor(players[0])
+        && chatEnabledFor(players[1])
+        && notBlockedBy(players[0], players[1])
+        && notBlockedBy(players[1], players[0]);
+    }
     function invitePath(inviteId) {
       return /databases/$(database)/documents/gameInvites/$(inviteId);
     }
@@ -121,6 +145,34 @@ service cloud.firestore {
       match /ferhengFavorites/{wordId} {
         allow read, write: if isOwner(uid);
       }
+    }
+
+    // ── playerPrivacy/{uid} — sohbet ve engelleme tercihleri ─────
+    // Okuma authenticated: sohbet kuralları ve rakip UI durumu için gerekir.
+    // Yazma sadece sahip; bu dokümanda yalnızca güvenlik tercihleri tutulur.
+    match /playerPrivacy/{uid} {
+      allow read: if signedIn();
+      allow create: if isOwner(uid)
+        && request.resource.data.keys().hasOnly([
+          'chatEnabled', 'blockedUids', 'updatedAt'
+        ])
+        && (!('chatEnabled' in request.resource.data)
+          || request.resource.data.chatEnabled is bool)
+        && (!('blockedUids' in request.resource.data)
+          || request.resource.data.blockedUids is list)
+        && (!('updatedAt' in request.resource.data)
+          || request.resource.data.updatedAt == request.time);
+      allow update: if isOwner(uid)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'chatEnabled', 'blockedUids', 'updatedAt'
+        ])
+        && (!('chatEnabled' in request.resource.data)
+          || request.resource.data.chatEnabled is bool)
+        && (!('blockedUids' in request.resource.data)
+          || request.resource.data.blockedUids is list)
+        && (!('updatedAt' in request.resource.data)
+          || request.resource.data.updatedAt == request.time);
+      allow delete: if false;
     }
 
     // ── games/{gameId} — kişisel oyun kaydı ──────────────────────
@@ -218,6 +270,7 @@ service cloud.firestore {
       allow read: if isMatchPlayer(matchId);
 
       allow create: if isMatchPlayerAfter(matchId)
+        && canPlayersChat(getAfter(matchPath(matchId)).data.players)
         && request.resource.data.senderId == request.auth.uid
         && request.resource.data.senderName is string
         && request.resource.data.text is string

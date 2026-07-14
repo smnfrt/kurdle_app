@@ -8,6 +8,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:kurdle_app/models/ferheng_entry.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/ferheng_repository.dart';
+import 'package:kurdle_app/services/firebase_service.dart';
 import 'package:kurdle_app/services/language_config.dart';
 import 'package:kurdle_app/services/logging_service.dart';
 import 'package:kurdle_app/services/word_normalizer.dart';
@@ -20,8 +21,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// in-memory'e yüklenir (compute() isolate'inde). Lookup'lar O(1) Map.
 /// Firestore artık yalnızca favoriler + meta için kullanılır.
 class FerhengService {
-  FerhengService._({FerhengRepository? repo})
-      : _repo = repo ?? FerhengRepository();
+  FerhengService._({FerhengRepository? repo}) : _repo = repo;
 
   static FerhengService? _instance;
   static FerhengService get instance => _instance ??= FerhengService._();
@@ -35,7 +35,8 @@ class FerhengService {
   static const String _prefRecentSearchesKey = 'ferheng_recent_searches';
   static const int _maxRecentSearches = 20;
 
-  final FerhengRepository _repo;
+  FerhengRepository? _repo;
+  FerhengRepository get _repository => _repo ??= FerhengRepository();
 
   // In-memory veri
   Map<String, FerhengEntry> _byId = const {};
@@ -167,8 +168,9 @@ class FerhengService {
   }
 
   Future<void> _refreshMeta() async {
+    if (!FirebaseService.isAvailable) return;
     try {
-      _meta = await _repo.meta();
+      _meta = await _repository.meta();
     } catch (e) {
       Log.warn('FerhengService', 'meta refresh failed (offline?)', e);
     }
@@ -1162,11 +1164,17 @@ class FerhengService {
   // ── Favorites (Firestore-backed) ────────────────────────────────
 
   Future<List<String>> listFavoriteIds(String uid) =>
-      _repo.listFavoriteIds(uid);
+      FirebaseService.isAvailable
+          ? _repository.listFavoriteIds(uid)
+          : Future.value(const <String>[]);
   Future<void> addFavorite(String uid, String word) =>
-      _repo.addFavorite(uid, _normalize(word));
+      FirebaseService.isAvailable
+          ? _repository.addFavorite(uid, _normalize(word))
+          : Future.value();
   Future<void> removeFavorite(String uid, String word) =>
-      _repo.removeFavorite(uid, _normalize(word));
+      FirebaseService.isAvailable
+          ? _repository.removeFavorite(uid, _normalize(word))
+          : Future.value();
 
   // ── Categories ──────────────────────────────────────────────────
 

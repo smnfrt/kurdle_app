@@ -96,7 +96,7 @@ class _FriendGameScreenState extends State<FriendGameScreen>
   String? _chatRoomCode;
   int _chatUnreadCount = 0;
   final Map<String, _MeaningTabEntry> _meaningCache = {};
-  final Set<String> _meaningWarmInFlight = {};
+  final Map<String, Future<_MeaningTabEntry>> _meaningWarmInFlight = {};
 
   // ── Local game state ─────────────────────────────────────────────
   WordBoard _localBoard = BoardLayoutService.createClassicLayout();
@@ -293,23 +293,49 @@ class _FriendGameScreenState extends State<FriendGameScreen>
     );
   }
 
+  Future<_MeaningTabEntry> _meaningEntryFuture(String word) {
+    final key = _meaningKey(word);
+    final cached = _meaningCache[key];
+    if (cached != null) return Future.value(cached);
+
+    final pending = _meaningWarmInFlight[key];
+    if (pending != null) return pending;
+
+    late final Future<_MeaningTabEntry> future;
+    future = _loadMeaningEntry(word).then((entry) {
+      _meaningCache[key] = entry;
+      return entry;
+    }).catchError((_) {
+      final fallback =
+          _MeaningTabEntry(word: word, meaning: L.dictionaryWordNotFound);
+      _meaningCache[key] = fallback;
+      return fallback;
+    }).whenComplete(() {
+      if (_meaningWarmInFlight[key] == future) {
+        _meaningWarmInFlight.remove(key);
+      }
+    });
+    _meaningWarmInFlight[key] = future;
+    return future;
+  }
+
+  List<_MeaningTabEntry> _meaningEntriesSnapshot(List<String> words) {
+    return words
+        .map((word) =>
+            _meaningCache[_meaningKey(word)] ??
+            _MeaningTabEntry(word: word, meaning: L.meaningLoading))
+        .toList(growable: false);
+  }
+
   void _warmMeaningCache(Iterable<String> words) {
     final uniqueWords = _uniqueMeaningWords(words);
     for (final word in uniqueWords) {
       final key = _meaningKey(word);
       if (_meaningCache.containsKey(key) ||
-          _meaningWarmInFlight.contains(key)) {
+          _meaningWarmInFlight.containsKey(key)) {
         continue;
       }
-      _meaningWarmInFlight.add(key);
-      unawaited(_loadMeaningEntry(word).then((entry) {
-        _meaningCache[key] = entry;
-      }).catchError((_) {
-        _meaningCache[key] =
-            _MeaningTabEntry(word: word, meaning: L.dictionaryWordNotFound);
-      }).whenComplete(() {
-        _meaningWarmInFlight.remove(key);
-      }));
+      unawaited(_meaningEntryFuture(word));
     }
   }
 
@@ -318,13 +344,15 @@ class _FriendGameScreenState extends State<FriendGameScreen>
     if (uniqueWords.isEmpty) return;
     HapticFeedback.selectionClick();
 
-    final entries = ValueNotifier<List<_MeaningTabEntry>>(
-      uniqueWords
-          .map((word) =>
-              _meaningCache[_meaningKey(word)] ??
-              _MeaningTabEntry(word: word, meaning: L.meaningLoading))
-          .toList(growable: false),
+    final initialEntries = await Future.wait(
+      uniqueWords.map(_meaningEntryFuture),
+    ).timeout(
+      const Duration(milliseconds: 650),
+      onTimeout: () => _meaningEntriesSnapshot(uniqueWords),
     );
+    if (!mounted) return;
+
+    final entries = ValueNotifier<List<_MeaningTabEntry>>(initialEntries);
     var dialogOpen = true;
     showGeneralDialog<void>(
       context: context,
@@ -347,14 +375,7 @@ class _FriendGameScreenState extends State<FriendGameScreen>
     });
 
     try {
-      final results = await Future.wait(uniqueWords.map((word) async {
-        final key = _meaningKey(word);
-        final cached = _meaningCache[key];
-        if (cached != null) return cached;
-        final entry = await _loadMeaningEntry(word);
-        _meaningCache[key] = entry;
-        return entry;
-      }));
+      final results = await Future.wait(uniqueWords.map(_meaningEntryFuture));
       if (!mounted || !dialogOpen) return;
       entries.value = results;
     } catch (e) {
@@ -370,8 +391,8 @@ class _FriendGameScreenState extends State<FriendGameScreen>
   // ── Init ─────────────────────────────────────────────────────────
 
   Future<void> _init() async {
-    unawaited(FerhengService.instance.init());
     final config = LanguageConfig.current;
+    unawaited(FerhengService.instance.init());
     final allWords = await WordlistLoader.loadAssets(config.wordAssets);
     _validator = WordValidatorService(allWords);
     _scorer = GameScoreService(ScoringService(config.letterPoints));
@@ -1520,59 +1541,94 @@ class _HeaderState extends State<_Header> with TickerProviderStateMixin {
           ),
         ],
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          _IconBtn(
-            icon: Icons.arrow_back_ios_new_rounded,
-            color: const Color(0xFFF1F5F2),
-            onTap: widget.onBack,
+          Row(
+            children: [
+              _IconBtn(
+                icon: Icons.arrow_back_ios_new_rounded,
+                color: const Color(0xFFF1F5F2),
+                onTap: widget.onBack,
+              ),
+              const SizedBox(width: 8),
+              _BagChip(count: widget.bagCount),
+              const Spacer(),
+              if (widget.turnTimeLabel != null)
+                _TurnTimerChip(
+                  label: widget.turnTimeLabel!,
+                  active: widget.isMyTurn,
+                ),
+              const SizedBox(width: 8),
+              _HeaderChatButton(
+                unreadCount: widget.chatUnreadCount,
+                onTap: widget.onChat,
+              ),
+              const SizedBox(width: 8),
+              _IconBtn(
+                icon: Icons.flag_rounded,
+                color: const Color(0xFFEF5350).withValues(alpha: 0.85),
+                onTap: widget.onForfeit,
+                tooltip: L.leaveGameAction,
+              ),
+            ],
           ),
-          const SizedBox(width: 4),
-          Expanded(
-            child: _PlayerCard(
-              name: widget.myName,
-              score: widget.myScore,
-              level: widget.myLevel,
-              isActive: widget.isMyTurn,
-              alignEnd: false,
-              pulse: _pulseCtrl,
-              delta: _myDelta,
-              deltaTick: _myDeltaTick,
-              onDeltaDone: _onMyDeltaDone,
-            ),
-          ),
-          _BagChip(count: widget.bagCount),
-          if (widget.turnTimeLabel != null) ...[
-            const SizedBox(width: 4),
-            _TurnTimerChip(
-              label: widget.turnTimeLabel!,
-              active: widget.isMyTurn,
-            ),
-          ],
-          Expanded(
-            child: _PlayerCard(
-              name: widget.oppName,
-              score: widget.oppScore,
-              level: widget.oppLevel,
-              isActive: !widget.isMyTurn,
-              alignEnd: true,
-              pulse: _pulseCtrl,
-              delta: _oppDelta,
-              deltaTick: _oppDeltaTick,
-              onDeltaDone: _onOppDeltaDone,
-            ),
-          ),
-          const SizedBox(width: 4),
-          _HeaderChatButton(
-            unreadCount: widget.chatUnreadCount,
-            onTap: widget.onChat,
-          ),
-          const SizedBox(width: 4),
-          _IconBtn(
-            icon: Icons.flag_rounded,
-            color: const Color(0xFFEF5350).withValues(alpha: 0.85),
-            onTap: widget.onForfeit,
-            tooltip: L.leaveGameAction,
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _PlayerCard(
+                  name: widget.myName,
+                  score: widget.myScore,
+                  level: widget.myLevel,
+                  isActive: widget.isMyTurn,
+                  alignEnd: false,
+                  pulse: _pulseCtrl,
+                  delta: _myDelta,
+                  deltaTick: _myDeltaTick,
+                  onDeltaDone: _onMyDeltaDone,
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Container(
+                  width: 28,
+                  height: 28,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withValues(alpha: isDark ? 0.06 : 0.16),
+                    border: Border.all(
+                      color:
+                          Colors.white.withValues(alpha: isDark ? 0.10 : 0.22),
+                    ),
+                  ),
+                  child: Text(
+                    'VS',
+                    maxLines: 1,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.68),
+                      fontSize: 9,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: _PlayerCard(
+                  name: widget.oppName,
+                  score: widget.oppScore,
+                  level: widget.oppLevel,
+                  isActive: !widget.isMyTurn,
+                  alignEnd: true,
+                  pulse: _pulseCtrl,
+                  delta: _oppDelta,
+                  deltaTick: _oppDeltaTick,
+                  onDeltaDone: _onOppDeltaDone,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -1962,6 +2018,7 @@ class _PlayerCard extends StatelessWidget {
                 name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
+                softWrap: false,
                 style: TextStyle(
                   color: isActive ? Colors.white : Colors.white54,
                   fontSize: 12,
@@ -1989,6 +2046,8 @@ class _PlayerCard extends StatelessWidget {
               ),
               child: Text(
                 title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: frameColor ?? const Color(0xFFFFD700),
                   fontSize: 9,
@@ -2008,11 +2067,14 @@ class _PlayerCard extends StatelessWidget {
               duration: const Duration(milliseconds: 250),
               builder: (_, val, __) => Text(
                 '${val.round()} ${L.points}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                softWrap: false,
                 style: TextStyle(
                   color: isActive ? const Color(0xFF8BE193) : Colors.white38,
                   fontSize: 18,
                   fontWeight: FontWeight.w800,
-                  letterSpacing: -0.2,
+                  letterSpacing: 0,
                   shadows: isActive
                       ? [
                           Shadow(
@@ -2142,8 +2204,7 @@ class _TurnStateBand extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent =
-        isMyTurn ? const Color(0xFF66E093) : const Color(0xFF64B5F6);
+    final accent = isMyTurn ? const Color(0xFF66E093) : const Color(0xFF64B5F6);
     final bg = isDark
         ? const Color(0xFF101A25).withValues(alpha: 0.92)
         : Colors.white.withValues(alpha: 0.86);

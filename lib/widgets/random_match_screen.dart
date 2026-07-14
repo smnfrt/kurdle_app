@@ -25,6 +25,8 @@ class _RandomMatchScreenState extends State<RandomMatchScreen>
 
   String? _roomCode;
   StreamSubscription<MultiplayerRoom?>? _roomSub;
+  Timer? _retryTimer;
+  bool _retryingJoin = false;
 
   bool _found = false;
   String? _error;
@@ -51,6 +53,7 @@ class _RandomMatchScreenState extends State<RandomMatchScreen>
   void dispose() {
     _sonarCtrl.dispose();
     _dotCtrl.dispose();
+    _retryTimer?.cancel();
     _roomSub?.cancel();
     super.dispose();
   }
@@ -78,6 +81,7 @@ class _RandomMatchScreenState extends State<RandomMatchScreen>
       }
 
       setState(() => _roomCode = code);
+      _startRetryLoop(uid, name);
 
       _roomSub = MultiplayerService.instance.roomStream(code).listen((room) {
         if (!mounted || room == null) return;
@@ -90,7 +94,49 @@ class _RandomMatchScreenState extends State<RandomMatchScreen>
     }
   }
 
+  void _startRetryLoop(String uid, String name) {
+    _retryTimer?.cancel();
+    _retryTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+      if (!mounted || _found || _retryingJoin) return;
+      final myWaitingRoom = _roomCode;
+      if (myWaitingRoom == null) return;
+      _retryingJoin = true;
+      try {
+        final joinedCode =
+            await MultiplayerService.instance.tryJoinWaitingRandomRoom(
+          uid,
+          name,
+          excludeRoomCode: myWaitingRoom,
+        );
+        if (!mounted || _found || joinedCode == null) return;
+        await MultiplayerService.instance.cancelRandomSearch(myWaitingRoom);
+        _roomSub?.cancel();
+        final room =
+            await MultiplayerService.instance.roomStream(joinedCode).first;
+        if (!mounted || room == null) return;
+        if (room.status == 'active') {
+          _onMatched(joinedCode, room, uid);
+        } else {
+          setState(() => _roomCode = joinedCode);
+          _roomSub = MultiplayerService.instance
+              .roomStream(joinedCode)
+              .listen((updatedRoom) {
+            if (!mounted || updatedRoom == null) return;
+            if (updatedRoom.status == 'active') {
+              _onMatched(joinedCode, updatedRoom, uid);
+            }
+          });
+        }
+      } catch (_) {
+        // Bir deneme yarış koşuluna takılırsa sessizce sonraki periyodu bekle.
+      } finally {
+        _retryingJoin = false;
+      }
+    });
+  }
+
   void _onMatched(String code, MultiplayerRoom room, String myUid) {
+    _retryTimer?.cancel();
     _roomSub?.cancel();
     final isHost = room.hostUid == myUid;
     final opp = isHost ? (room.guestName ?? '') : room.hostName;

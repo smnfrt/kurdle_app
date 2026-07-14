@@ -32,9 +32,9 @@ class ChallengeWord {
   }
 
   Duration get stageDuration => switch (difficulty) {
-        ChallengeDifficulty.easy => const Duration(seconds: 5),
-        ChallengeDifficulty.medium => const Duration(seconds: 7),
-        ChallengeDifficulty.hard => const Duration(seconds: 10),
+        ChallengeDifficulty.easy => const Duration(seconds: 12),
+        ChallengeDifficulty.medium => const Duration(seconds: 18),
+        ChallengeDifficulty.hard => const Duration(seconds: 25),
       };
 
   int get stageIndex => difficulty.index;

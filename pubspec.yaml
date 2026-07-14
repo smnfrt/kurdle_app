@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+8
+version: 1.0.0+20
 
 environment:
   sdk: ^3.6.2
@@ -57,7 +57,6 @@ dependencies:
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   connectivity_plus: ^7.1.1
-  flutter_facebook_auth: ^7.1.6
 
 dev_dependencies:
   flutter_test:
@@ -74,7 +73,7 @@ dev_dependencies:
 
 # ── Marka iconları ────────────────────────────────────────────────
 # Üretim: dart run flutter_launcher_icons
-# Kaynak: assets/branding/ (tool/gen_brand_icon.py ile yenilenir)
+# Ana kaynak: assets/branding/icon-1024.png (tool/gen_brand_icon.py türevleri yeniler)
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
@@ -88,14 +87,14 @@ flutter_launcher_icons:
 # Üretim: dart run flutter_native_splash:create
 # Light + dark, Android 12+ destekli.
 flutter_native_splash:
-  color: "#0F1923"
+  color: "#F4F0D6"
   image: "assets/branding/splash-light.png"
-  color_dark: "#0F1923"
+  color_dark: "#F4F0D6"
   image_dark: "assets/branding/splash-dark.png"
   android_12:
-    color: "#0F1923"
+    color: "#F4F0D6"
     image: "assets/branding/splash-light.png"
-    color_dark: "#0F1923"
+    color_dark: "#F4F0D6"
     image_dark: "assets/branding/splash-dark.png"
   android: true
   ios: true
@@ -118,6 +117,7 @@ flutter:
     - assets/kurdish_dictionary.txt
     - assets/turkish_words.txt
     - assets/sounds/
+    - assets/branding/icon-1024.png
     - assets/ferheng/wordlist.txt.gz
     - assets/ferheng/entries.ndjson.gz
     - assets/ferheng/legacy_meanings.json

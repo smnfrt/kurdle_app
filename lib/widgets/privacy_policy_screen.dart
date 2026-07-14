@@ -3,9 +3,8 @@ import 'package:kurdle_app/services/app_locale.dart';
 
 /// Peyvok gizlilik politikası — uygulama içi sürüm.
 ///
-/// Aynı içerik repo kökündeki PRIVACY.md'de host'lanabilir (App Store /
-/// Google Play listing için). İki dilde TR + KMR; locale switch'e göre
-/// otomatik geçer.
+/// Web sürümü `docs/privacy/index.html` altında yayınlanır. Play Console
+/// gizlilik politikası ve Data Safety beyanları bu içerikle tutarlı kalmalı.
 class PrivacyPolicyScreen extends StatelessWidget {
   const PrivacyPolicyScreen({super.key});
 
@@ -94,32 +93,41 @@ class _Section {
 const _trSections = <_Section>[
   _Section(
     'Hangi verileri topluyoruz?',
-    'Peyvok yalnızca uygulamanın çalışması için gerekli en az veriyi toplar:\n'
-        '• Anonim kullanıcı kimliği (Firebase Auth) — oyun ilerlemenizi cihazlar arası senkronize etmek için.\n'
-        '• İsteğe bağlı profil adı — sadece kendi seçtiğiniz isim.\n'
-        '• Oyun istatistikleri — günlük oyun sonuçları, achievement (rozet) ilerlemeniz, leaderboard skorlarınız.\n'
-        '• Çok oyunculu oyun verileri — oda kodu, oyuncu UID\'leri, hamleler.\n'
-        '• Oyuncular arası chat mesajları ve mesaj raporları — kötüye kullanım incelemesi ve güvenlik için.\n'
-        '• Bildirim token\'ı (Firebase Messaging) — sadece bildirim izni verdiyseniz.\n'
-        '• Çökme raporları (Firebase Crashlytics) — uygulama çöktüğünde teknik bilgi (cihaz modeli, hata stack trace).\n'
-        '• Anonim kullanım metrikleri (Firebase Analytics) — hangi ekranların kullanıldığı.',
+    'Peyvok yalnızca oyun ve hesap özellikleri için gerekli verileri işler:\n'
+        '• Hesap ve kimlik bilgileri — anonim giriş, Google veya e-posta ile giriş ve ilerleme senkronizasyonu için.\n'
+        '• Profil bilgileri — oyuncu adı, avatar/profil görünümü ve oyun içi kimlik için.\n'
+        '• Oyun verileri — skorlar, günlük oyun ilerlemesi, rozetler, liderlik tablosu, hamleler ve oyun geçmişi için.\n'
+        '• Çok oyunculu veriler — davet, oda, eşleşme, sıra durumu ve oyun sonuçları için.\n'
+        '• Oyun içi sohbet mesajları — aynı maçtaki oyuncuların mesajlaşması ve kötüye kullanım incelemesi için.\n'
+        '• Bildirim token\'ı — sadece bildirim izni verildiğinde oyun sırası, davet ve hatırlatma bildirimleri için.\n'
+        '• Çökme, performans ve kullanım verileri — hataları bulmak ve uygulamayı iyileştirmek için.',
   ),
   _Section(
     'Hangi verileri toplamıyoruz?',
-    'Konum, kişiler, mikrofon, kamera, takvim ya da reklam kimliği (IDFA) gibi hiçbir hassas veriyi toplamıyoruz. '
-        'Google veya e-posta ile giriş yaparsanız sadece o sağlayıcının verdiği temel kimlik bilgileri kullanılır.',
+    'Kesin konum, rehber/kişiler, SMS, arama kayıtları, kamera, mikrofon, sağlık verileri, finansal bilgiler, '
+        'resmi kimlik bilgileri, fotoğraflar veya takvim verileri için erişim istemiyoruz.',
   ),
   _Section(
-    'Verilerinizi kiminle paylaşıyoruz?',
-    'Verileriniz yalnızca uygulamanın işleyişi için Firebase (Google) altyapısında saklanır. '
-        'Hiçbir verinizi reklam ağlarına, üçüncü taraf veri brokerlerine veya pazarlama şirketlerine satmıyor, '
-        'paylaşmıyoruz.',
+    'Verilerinizi nasıl kullanıyoruz?',
+    'Veriler oyun deneyimini çalıştırmak, hesap/ilerleme senkronizasyonu yapmak, çok oyunculu davet ve sohbeti yönetmek, '
+        'bildirim göndermek, güvenlik/kötüye kullanım sorunlarını incelemek ve hata/performans sorunlarını düzeltmek için kullanılır.',
   ),
   _Section(
-    'Verileriniz ne kadar saklanıyor?',
-    'Hesabınız aktif olduğu sürece. Hesabınızı silmek isterseniz uygulama içinden veya '
-        'destek e-postası üzerinden talep edebilirsiniz; profil, oyun geçmişi ve achievement\'larınız 30 gün '
-        'içinde tamamen silinir.',
+    'Verileriniz kiminle paylaşılır?',
+    'Peyvok temel altyapı için Google Firebase hizmetlerini kullanır: Firebase Authentication, Cloud Firestore, '
+        'Firebase Cloud Messaging, Firebase Crashlytics ve Firebase Analytics. Veriler reklam amaçlı satılmaz; '
+        'reklam ağlarına, veri brokerlerine veya pazarlama şirketlerine aktarılmaz.',
+  ),
+  _Section(
+    'Güvenlik',
+    'Veri aktarımı güvenli bağlantılar üzerinden yapılır. Firebase kimlik doğrulama, erişim kuralları ve güvenlik '
+        'kontrolleri kullanılır. Yine de internet üzerinden hiçbir veri aktarımı tamamen risksiz değildir.',
+  ),
+  _Section(
+    'Veri saklama ve silme',
+    'Hesap, oyun ilerlemesi, skor, davet, sohbet ve ilgili oyun verileri hesabınız aktif olduğu sürece saklanabilir. '
+        'Hesabınızı veya kişisel verilerinizi silmek için uygulama içinden ya da smnfrt@gmail.com adresinden talep gönderebilirsiniz. '
+        'Silme talebi doğrulandıktan sonra hesabınızla ilişkilendirilebilen kişisel veriler makul süre içinde silinir.',
   ),
   _Section(
     'Çocukların gizliliği',
@@ -128,8 +136,7 @@ const _trSections = <_Section>[
   ),
   _Section(
     'Politika güncellemeleri',
-    'Bu politika değişirse uygulama içinde bildirim göstereceğiz. Devam eden kullanım güncel politikayı kabul '
-        'ettiğiniz anlamına gelir.',
+    'Bu politika güncellenebilir. Önemli değişikliklerde uygulama içinde veya yayınlanan politika sayfasında bildirim yapılabilir.',
   ),
   _Section(
     'İletişim',
@@ -140,30 +147,40 @@ const _trSections = <_Section>[
 const _kmrSections = <_Section>[
   _Section(
     'Em kîjan daneyan kom dikin?',
-    'Peyvok tenê wan daneyan kom dike ku ji bo karkirina sepanê pêwîst in:\n'
-        '• Nasnameya bikarhênera anonîm (Firebase Auth) — ji bo senkronîzekirina pêşveçûna lîstikê di navbera amûran de.\n'
-        '• Navê profîlê yê bijartî — tenê navê ku tu hilbijêrî.\n'
-        '• Statîstîkên lîstikê — encamên rojane, pêşveçûna rozetan, pûanên leaderboard\'ê.\n'
-        '• Daneyên lîstika gelek-lîstikvan — koda odeyê, UID\'ên lîstikvanan, livên lîstikê.\n'
-        '• Peyamên chatê di navbera lîstikvanan de û raporên peyaman — ji bo ewlehî û lêkolîna xerab-bikaranînê.\n'
-        '• Token a agahdariyan (Firebase Messaging) — tenê eger destûr dabe.\n'
-        '• Raporên xeletiyê (Firebase Crashlytics) — gava sepan dikeve, agahdariya teknîkî.\n'
-        '• Metrîkên bikaranînê yên anonîm (Firebase Analytics) — kîjan ekran tê bikaranîn.',
+    'Peyvok tenê daneyên ji bo lîstik û hesabê pêwîst in diparêze:\n'
+        '• Agahiyên hesab û nasnameyê — ji bo têketina anonîm, Google an e-posta û senkronîzekirina pêşveçûnê.\n'
+        '• Agahiyên profîlê — navê lîstikvan, avatar/profîl û nasnameya nav lîstikê.\n'
+        '• Daneyên lîstikê — pûan, pêşveçûna rojane, rozet, tabloya pûanan, tevger û dîroka lîstikê.\n'
+        '• Daneyên gelek-lîstikvan — vexwendin, ode, hevrêzî, dora lîstikê û encam.\n'
+        '• Peyamên chatê — peyamên di navbera lîstikvanên heman maçê de û lêkolîna xerab-bikaranînê.\n'
+        '• Token a agahdariyan — tenê dema destûr hatiye dayîn.\n'
+        '• Daneyên xeletî, performans û bikaranînê — ji bo çaksazkirin û baştirkirina sepanê.',
   ),
   _Section(
     'Em kîjan daneyan kom nakin?',
-    'Em ti daneyên hesas wek cih, têkilî, mîkrofon, kamera, jimara reklamê (IDFA) kom nakin. '
-        'Eger bi Google an e-posta xwe têxin, tenê agahiyên kîmliyê yên ku ew dabe tê bikaranîn.',
+    'Em cihê rast, têkilî/rehber, SMS, tomarên bangê, kamera, mîkrofon, daneyên tenduristî, agahiyên darayî, '
+        'nasnameya fermî, wêne an salnameyê naxwazin.',
+  ),
+  _Section(
+    'Daneyên te çawa tê bikaranîn?',
+    'Daneyan ji bo xebitandina lîstikê, senkronîzekirina hesabê, vexwendin û chatê, agahdariyan, ewlehî, '
+        'lêkolîna xerab-bikaranînê û çaksazkirina xeletî/performance tê bikaranîn.',
   ),
   _Section(
     'Daneyên te bi kê re tê parvekirin?',
-    'Daneyên te tenê di binesaziya Firebase (Google) de têne hilanîn. Em ti daneyan nafiroşin, '
-        'bi torên reklamê, broker an pargîdaniyên bazariyê re parve nakin.',
+    'Peyvok ji bo binesaziyê xizmetên Google Firebase bikar tîne: Firebase Authentication, Cloud Firestore, '
+        'Firebase Cloud Messaging, Firebase Crashlytics û Firebase Analytics. Daneyên te ji bo reklamê nayên firotin '
+        'û bi torên reklamê, brokerên daneyan an pargîdaniyên bazariyê re nayên parvekirin.',
   ),
   _Section(
-    'Daneyên te çiqas tê hilanîn?',
-    'Heya hesabê te aktîf be. Eger bixwazî hesabê xwe jêbibî, ji nav sepanê yan e-posta '
-        'piştgiriyê dikarî daxwaz bikî; di nav 30 rojan de profîl, dîroka lîstikê û rozetên te bi temamî tê jêbirin.',
+    'Ewlehî',
+    'Veguhestina daneyan bi girêdanên ewle tê kirin. Nasnamekirin, rêgezên gihîştinê û kontrolên ewlehiyê yên Firebase têne bikaranîn. '
+        'Lê ti rêbazeke internetê bi temamî bê xeter nîne.',
+  ),
+  _Section(
+    'Hilanîn û jêbirina daneyan',
+    'Hesab, pêşveçûna lîstikê, pûan, vexwendin, chat û daneyên têkildar heta hesab aktîf be dikarin werin hilanîn. '
+        'Ji bo jêbirina hesab an daneyên kesane ji nav sepanê an ji smnfrt@gmail.com re daxwaz bişîne.',
   ),
   _Section(
     'Veşariya zarokan',
@@ -171,7 +188,7 @@ const _kmrSections = <_Section>[
   ),
   _Section(
     'Nûkirinên polîtîkayê',
-    'Eger ev polîtîka biguhere, em ê di nav sepanê de agahdariyê nîşan bidin. Bikaranîna berdewam tê wateya pejirandina polîtîkaya nûkirî.',
+    'Ev polîtîka dikare were nûkirin. Di guhertinên girîng de em dikarin di nav sepanê an li ser rûpela polîtîkayê agahdarî bidin.',
   ),
   _Section(
     'Têkilî',
