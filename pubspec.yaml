@@ -1,5 +1,5 @@
 name: kurdle_app
-description: "Peyvok — Kurmancî kelime oyunu. Günlük Wordle, AI ile Scrabble benzeri kelime savaşı, arkadaşlarla multiplayer, 216k+ entry'lik Ferheng sözlük."
+description: "Leyar — Kurmancî kelime oyunu. Günlük Wordle, AI ile Scrabble benzeri kelime savaşı, arkadaşlarla multiplayer, 216k+ entry'lik Ferheng sözlük."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -116,7 +116,17 @@ flutter:
     - assets/stats.json
     - assets/kurdish_dictionary.txt
     - assets/turkish_words.txt
-    - assets/sounds/
+    - assets/sounds/ai_turn.wav
+    - assets/sounds/lose.wav
+    - assets/sounds/pass_turn.wav
+    - assets/sounds/score_up.wav
+    - assets/sounds/tile_exchange.wav
+    - assets/sounds/tile_pickup.wav
+    - assets/sounds/tile_place.wav
+    - assets/sounds/tile_return.wav
+    - assets/sounds/win.wav
+    - assets/sounds/word_invalid.wav
+    - assets/sounds/word_valid.wav
     - assets/branding/icon-1024.png
     - assets/ferheng/wordlist.txt.gz
     - assets/ferheng/entries.ndjson.gz
