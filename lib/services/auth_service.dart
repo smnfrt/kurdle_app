@@ -132,9 +132,14 @@ class AuthService {
   }
 
   // ── Apple ile giriş ──────────────────────────────────────────────
-  Future<User?> signInWithApple() async {
+  Future<User?> signInWithApple() => _signInWithApple(allowRetry: true);
+
+  Future<User?> _signInWithApple({required bool allowRetry}) async {
     lastAppleSignInError = null;
     try {
+      if (isAnonymous && currentUser != null) {
+        await _auth.signOut();
+      }
       final rawNonce = _generateNonce();
       final nonce = _sha256ofString(rawNonce);
       final appleCredential = await SignInWithApple.getAppleIDCredential(
@@ -155,22 +160,8 @@ class AuthService {
       final credential = OAuthProvider('apple.com').credential(
         idToken: identityToken,
         rawNonce: rawNonce,
+        accessToken: appleCredential.authorizationCode,
       );
-
-      if (isAnonymous && currentUser != null) {
-        try {
-          final linked = await currentUser!.linkWithCredential(credential);
-          await _applyAppleProfileToUser(linked.user, appleCredential);
-          await _rememberAuthProvider(_providerApple);
-          return linked.user;
-        } on FirebaseAuthException catch (e) {
-          if (e.code != 'credential-already-in-use' &&
-              e.code != 'email-already-in-use') {
-            rethrow;
-          }
-          await _auth.signOut();
-        }
-      }
 
       final cred = await _auth.signInWithCredential(credential);
       await _applyAppleProfileToUser(cred.user, appleCredential);

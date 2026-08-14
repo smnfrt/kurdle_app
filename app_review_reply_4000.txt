@@ -6,7 +6,7 @@ Thank you for reviewing Leyar. Below is the additional information requested und
 A physical iPhone screen recording is attached. It starts with launching the app and shows the core user flow: opening Leyar, starting a Kurmanci word game, playing the daily Wordle-style mode, viewing the Ferheng dictionary, opening multiplayer/friend play, viewing sign-in options (Apple/Google/email/guest), profile/privacy access, and chat moderation controls such as message reporting and player blocking.
 
 2. Devices and operating systems tested
-- iPhone: [PHYSICAL DEVICE MODEL], iOS [IOS VERSION]
+- iPhone: iPhone 16 (iPhone17,3), iOS 26.6
 - iPhone simulator: iPhone 17 Pro Max, iOS 26.5
 - iPad simulator: iPad 13-inch, iPadOS 26.5
 
