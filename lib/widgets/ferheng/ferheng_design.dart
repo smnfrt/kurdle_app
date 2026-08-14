@@ -7,7 +7,7 @@ import 'package:kurdle_app/app_theme.dart' show themeNotifier;
 /// döner. Field access (FerhengDesign.bg) çağıranlarda const gerek olmadığı
 /// için getter pattern'i call site'ları bozmadan çalışır.
 class FerhengDesign {
-  // ── Dark palette (default — Peyvok karanlık tema ile uyumlu) ──────
+  // ── Dark palette (default — Leyar karanlık tema ile uyumlu) ──────
   static const Color _darkBg = Color(0xFF071018);
   static const Color _darkSurface = Color(0xFF121E2D);
   static const Color _darkSurfaceAlt = Color(0xFF17263A);

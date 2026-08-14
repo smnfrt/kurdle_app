@@ -1,0 +1,29 @@
+Hello App Review Team,
+
+Thank you for reviewing Leyar. Below is the additional information requested under Guideline 2.1.
+
+1. Physical device screen recording
+A physical iPhone screen recording is attached. It starts with launching the app and shows the core user flow: opening Leyar, starting a Kurmanci word game, playing the daily Wordle-style mode, viewing the Ferheng dictionary, opening multiplayer/friend play, viewing sign-in options (Apple/Google/email/guest), profile/privacy access, and chat moderation controls such as message reporting and player blocking.
+
+2. Devices and operating systems tested
+- iPhone: [PHYSICAL DEVICE MODEL], iOS [IOS VERSION]
+- iPhone simulator: iPhone 17 Pro Max, iOS 26.5
+- iPad simulator: iPad 13-inch, iPadOS 26.5
+
+3. App functions and target audience
+Leyar: Listika Peyvan is a Kurdish/Kurmanci word game for Kurdish speakers, Kurdish learners, and word-game players. It includes a Wordle-style daily challenge, Scrabble-like word battle gameplay, multiplayer/friend play, progress/achievements, and a Ferheng dictionary. It helps users practice Kurdish vocabulary, discover words, and play language-based games.
+
+4. Access instructions
+No purchase, subscription, sample file, or special setup is required. The reviewer can launch the app and continue as guest to access core gameplay. Optional account features are available through Apple Sign-In, Google Sign-In, or email registration. Suggested flow: launch app, continue as guest or sign in with Apple, start a game, try Daily Challenge, open Ferheng, open multiplayer/friend play, open chat moderation controls, and review profile/privacy/account options.
+
+5. External services used
+Leyar uses Firebase Authentication, Cloud Firestore, Firebase Cloud Messaging, Firebase Analytics, Firebase Crashlytics, Apple Sign-In, and Google Sign-In. Firestore supports profiles, progress, multiplayer rooms, chat, reports, blocks, leaderboards, and tournament data.
+
+6. Regional differences
+There are no regional differences. Leyar functions consistently across all available regions.
+
+7. Regulated industry / third-party material
+Leyar does not operate in a regulated industry and does not provide medical, financial, gambling, or legal services. It does not include protected third-party media or third-party copyrighted gameplay content.
+
+Additional moderation/privacy note
+Multiplayer chat is user-generated content. Users can report chat messages and block players. Blocking prevents further chat and matchmaking with that player where applicable. Account/data deletion requests can be made in-app or by contacting smnfrt@gmail.com.

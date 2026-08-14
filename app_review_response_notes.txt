@@ -1,0 +1,65 @@
+Hello App Review Team,
+
+Thank you for reviewing Leyar. We are providing the additional information requested under Guideline 2.1.
+
+1. Physical device screen recording
+
+A screen recording captured on a physical iPhone is attached to this App Review response. The recording starts with launching the app and demonstrates the normal user flow through the app's core features:
+- Opening Leyar
+- Starting a Kurmanci word game
+- Playing the daily Wordle-style mode
+- Viewing the Ferheng dictionary
+- Opening multiplayer/friend play features
+- Showing sign-in options, including Apple Sign-In and Google Sign-In
+- Showing account/profile access and account deletion/privacy support information
+- Showing user-generated content moderation controls in multiplayer chat, including reporting a message and blocking a player where applicable
+
+2. Devices and operating systems tested
+
+The app was tested before submission on:
+- iPhone: [ENTER PHYSICAL DEVICE MODEL], iOS [ENTER IOS VERSION]
+- iPad simulator: iPad 13-inch simulator, iPadOS 26.5
+- iPhone simulator: iPhone 17 Pro Max simulator, iOS 26.5
+
+3. App functions and target audience
+
+Leyar: Listika Peyvan is a Kurdish/Kurmanci word game for Kurdish speakers, learners, and word-game players. It provides a Wordle-style daily challenge, a Scrabble-like word battle mode, multiplayer/friend play, progress and achievements, and a Ferheng dictionary with Kurdish word meanings. The app helps users practice Kurdish vocabulary, discover words, and play language-based games in a modern mobile experience.
+
+4. Instructions for accessing the app's main features
+
+No paid subscription or purchase is required to use the app. The reviewer can open the app and continue as a guest to access the core gameplay. Optional account features are available through Apple Sign-In, Google Sign-In, or email registration.
+
+Suggested review flow:
+- Launch the app.
+- Continue as guest or sign in with Apple.
+- Tap the main play button and start a word game.
+- Try Daily Challenge for the Wordle-style mode.
+- Open Ferheng to search and inspect dictionary entries.
+- Open multiplayer/friend play to see invite/friend-based game flows.
+- In a multiplayer match, open chat to see message, report, and block controls.
+- Open profile/settings/privacy sections to review account and data options.
+
+If a signed-in test account is needed, please use Apple Sign-In on the review device. The app also supports guest access and does not require preloaded sample files.
+
+5. External services, tools, and platforms used
+
+Leyar uses the following external services for core functionality:
+- Firebase Authentication for Apple, Google, anonymous, and email authentication
+- Cloud Firestore for user profiles, game progress, multiplayer rooms, chat, reports, blocks, leaderboards, and tournament data
+- Firebase Cloud Messaging for notifications
+- Firebase Analytics for product analytics
+- Firebase Crashlytics for crash diagnostics
+- Apple Sign-In for iOS account authentication
+- Google Sign-In for optional account authentication
+
+6. Regional differences
+
+There are no regional differences in the app's features or content. Leyar functions consistently across all regions where it is available.
+
+7. Regulated industry or protected third-party material
+
+Leyar does not operate in a highly regulated industry and does not provide medical, financial, gambling, or legal services. The app does not include protected third-party media or third-party copyrighted gameplay content. Its vocabulary and dictionary experience are provided as language-learning and word-game content.
+
+Additional moderation and privacy details
+
+Leyar includes user-generated content in multiplayer chat. The app provides mechanisms to report chat messages and block players. Blocking prevents further chat and matchmaking with that player where applicable. Account and data deletion requests can be made through the app/privacy support flow or by contacting smnfrt@gmail.com.

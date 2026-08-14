@@ -1,4 +1,4 @@
-# Peyvok release keystore yapılandırması — örnek.
+# Leyar release keystore yapılandırması — örnek.
 #
 # 1. Bu dosyayı kopyala:  cp android/key.properties.example android/key.properties
 # 2. Aşağıdaki dört alanı kendi keystore bilgilerinle doldur.

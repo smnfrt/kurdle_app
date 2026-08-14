@@ -239,7 +239,7 @@ class NotificationService {
     try {
       await _local.zonedSchedule(
         0,
-        'Peyvok 🟩',
+        'Leyar 🟩',
         'Günün kelimesi hazır! Bugün kaç denemede bulacaksın?',
         scheduled,
         details,
@@ -254,7 +254,7 @@ class NotificationService {
       // Tam zamanlı alarm izni yok — yaklaşık zamanlı ile devam et
       await _local.zonedSchedule(
         0,
-        'Peyvok 🟩',
+        'Leyar 🟩',
         'Günün kelimesi hazır! Bugün kaç denemede bulacaksın?',
         scheduled,
         details,
@@ -288,7 +288,7 @@ class NotificationService {
     try {
       await _local.zonedSchedule(
         1,
-        'Peyvok 🔥',
+        'Leyar 🔥',
         'Streak\'ini koru — bugün bir oyun oyna!',
         scheduled,
         details,
@@ -302,7 +302,7 @@ class NotificationService {
       _debugExactAlarmFallback('streak', e);
       await _local.zonedSchedule(
         1,
-        'Peyvok 🔥',
+        'Leyar 🔥',
         'Streak\'ini koru — bugün bir oyun oyna!',
         scheduled,
         details,

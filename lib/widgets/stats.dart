@@ -140,7 +140,7 @@ class _StatsState extends State<StatsWidget> {
               ),
               const SizedBox(height: 2),
               Text(
-                'Peyvok ${widget.stats.gameNumber} • $guesses/6',
+                'Leyar ${widget.stats.gameNumber} • $guesses/6',
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.52),
                   fontSize: 12,
@@ -297,8 +297,8 @@ class _StatsState extends State<StatsWidget> {
                 final guesses =
                     widget.stats.lastGuess == -1 ? 'X' : widget.stats.lastGuess;
                 Share.share(
-                  'Peyvok ${widget.stats.gameNumber} $guesses/6\n${widget.stats.lastBoard}',
-                  subject: 'Peyvok $guesses/6',
+                  'Leyar ${widget.stats.gameNumber} $guesses/6\n${widget.stats.lastBoard}',
+                  subject: 'Leyar $guesses/6',
                 );
               },
               icon: const Icon(Icons.share_rounded, size: 19),

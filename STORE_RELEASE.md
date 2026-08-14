@@ -1,4 +1,4 @@
-# Peyvok — Mağaza Yayın Kontrol Listesi
+# Leyar — Mağaza Yayın Kontrol Listesi
 
 Bu doküman Google Play Store ve Apple App Store yayınına çıkarken kontrol edilmesi gerekenleri özetler.
 
@@ -7,19 +7,19 @@ Bu doküman Google Play Store ve Apple App Store yayınına çıkarken kontrol e
 ## 1. Mağaza listing metni
 
 ### App Name
-- **Google Play:** `Peyvok — Kurmancî Kelime Oyunu`
-- **App Store:** `Peyvok: Kurmancî Wordle`
+- **Google Play:** `Leyar: Listika Peyvan`
+- **App Store:** `Leyar: Listika Peyvan`
 
 ### Subtitle (App Store, max 30 karakter)
-`Wordle + Scrabble bi kurdî`
+`Listika Peyvan`
 
 ### Short description (Google Play, max 80 karakter)
-`Kurmancî Wordle, AI Scrabble ve 216k entry'lik sözlük. Her gün bir kelime!`
+`Leyar: Listika Peyvan. Wordle, kelime tahtası ve Ferheng.`
 
 ### Full description (Google Play / App Store, max 4000 / 4000 karakter)
 
 ```
-Peyvok — Kurmancî kelime oyunlarının buluştuğu yer.
+Leyar: Listika Peyvan — Kurmancî kelime oyunlarının buluştuğu yer.
 
 🎯 ÖZELLİKLER
 • Günün Kelimesi — her gün 5 harflik yeni Wordle
@@ -43,7 +43,7 @@ Konum, kişiler, mikrofon erişimi YOKTUR.
 Detay: [Gizlilik Politikası] uygulamada Settings → Gizlilik Politikası
 
 💚 KURMANCÎ DİLİNE DESTEK
-Peyvok, Kurmancî'yi oyun yoluyla öğrenmeyi ve canlı tutmayı amaçlar.
+Leyar, Kurmancî'yi oyun yoluyla öğrenmeyi ve canlı tutmayı amaçlar.
 ku.wiktionary, FreeDict ve Kurmancî Hunspell sözlüklerinin
 açık kaynak verisini kullanır (CC BY-SA 4.0, GPL-2.0+).
 ```
@@ -96,7 +96,7 @@ Tavsiye edilen 5-8 screenshot:
 - App Store: 1290×2796 (iPhone 6.7") en az 3 adet, max 10
 
 ### Feature Graphic (Google Play)
-1024×500 — App icon + Peyvok yazısı + "Kurmancî Wordle & Scrabble" subtitle
+1024×500 — App icon + Leyar yazısı + "Listika Peyvan" subtitle
 
 ---
 
@@ -154,7 +154,7 @@ Her yayında `pubspec.yaml`'da:
 Firebase plugin'leri kendi privacy manifest'lerini bundle eder. Manuel müdahale gerekmez.
 
 ### App Tracking Transparency
-Peyvok IDFA / cross-app tracking yapmaz → ATT prompt gerekmez. Info.plist'te `NSUserTrackingUsageDescription` yok.
+Leyar IDFA / cross-app tracking yapmaz → ATT prompt gerekmez. Info.plist'te `NSUserTrackingUsageDescription` yok.
 
 ### dSYM upload
 Release archive'da otomatik. Crashlytics symbol upload elle istenirse:
@@ -174,7 +174,7 @@ flutter build appbundle --release
 ```
 
 ### Manuel kontrol
-- [ ] App icon iki platformda da Peyvok logosu (Flutter logosu DEĞİL)
+- [ ] App icon iki platformda da Leyar logosu (Flutter logosu DEĞİL)
 - [ ] Splash native (Android 12+ ve eski) doğru görünüyor
 - [ ] Dil değişimi (TR ↔ KU) çalışıyor, layout taşmıyor
 - [ ] Light + dark mode geçişi tüm ekranlarda doğru

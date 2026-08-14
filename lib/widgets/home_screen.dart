@@ -63,13 +63,13 @@ void _showAboutDialog(BuildContext ctx) {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const PeyvokBrandMark(
+            const LeyarBrandMark(
               size: 72,
               radius: 20,
               elevation: 16,
             ),
             const SizedBox(height: 16),
-            Text('Peyvok',
+            Text('Leyar',
                 style: TextStyle(
                     color: titleColor,
                     fontSize: 22,
@@ -99,7 +99,7 @@ void _showAboutDialog(BuildContext ctx) {
               children: [
                 Text(L.aboutDev,
                     style: TextStyle(color: mutedColor, fontSize: 13)),
-                Text('Peyvok Team',
+                Text('Leyar Team',
                     style: TextStyle(
                         color: valueColor,
                         fontSize: 13,
@@ -5372,14 +5372,14 @@ class _HomeHeader extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    const PeyvokBrandMark(
+                    const LeyarBrandMark(
                       size: 36,
                       radius: 10,
                       elevation: 12,
                     ),
                     const SizedBox(width: 9),
                     Text(
-                      'Peyvok',
+                      'Leyar',
                       style: TextStyle(
                         color: titleColor,
                         fontSize: 21,

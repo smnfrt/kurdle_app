@@ -85,8 +85,8 @@ const List<LevelReward> kLevelRewards = [
   ),
   LevelReward(
     level: 10,
-    trTitle: 'Peyvok Ustası — prestij rozeti',
-    kuTitle: 'Hosta yê Peyvok — Rozetê Prestîj',
+    trTitle: 'Leyar Ustası — prestij rozeti',
+    kuTitle: 'Hosta yê Leyar — Rozetê Prestîj',
     icon: Icons.military_tech_rounded,
     accent: Color(0xFFB9F2FF),
   ),
@@ -109,7 +109,7 @@ bool hasDailyRetryUnlock(int level) => level >= 7;
 
 /// Multiplayer'da gösterilen ünvan ("Usta" L5+).
 String? mpTitleAtLevel(int level, {required bool isTr}) {
-  if (level >= 10) return isTr ? 'Peyvok Ustası' : 'Hosta yê Peyvok';
+  if (level >= 10) return isTr ? 'Leyar Ustası' : 'Hosta yê Leyar';
   if (level >= 5) return isTr ? 'Usta' : 'Hosta';
   return null;
 }

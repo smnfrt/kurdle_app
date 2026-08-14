@@ -231,7 +231,7 @@ class HowTo extends StatelessWidget {
                                       text: L.howToDaily,
                                       children: [
                                         const TextSpan(
-                                            text: 'KURDLE',
+                                            text: 'LEYAR',
                                             style: TextStyle(fontWeight: FontWeight.bold)),
                                         TextSpan(text: L.howToDailySuffix),
                                       ],

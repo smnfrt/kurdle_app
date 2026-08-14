@@ -1,4 +1,4 @@
-# Peyvok Store Release Checklist
+# Leyar Store Release Checklist
 
 Bu kontrol listesi Android ve iOS yayını için son kapı olarak kullanılmalı.
 

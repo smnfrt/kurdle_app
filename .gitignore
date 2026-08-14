@@ -28,6 +28,10 @@ tools/ferheng_pipeline/__pycache__/
 tools/ferheng_pipeline/**/__pycache__/
 tools/ferheng_pipeline/.pytest_cache/
 tools/ferheng_pipeline/pipeline.log
+# Large generated dictionary snapshots. The app bundles the compressed .gz
+# assets instead.
+assets/ferheng/entries.ndjson
+docs/assets/assets/ferheng/entries.ndjson
 .DS_Store
 .atom/
 .build/

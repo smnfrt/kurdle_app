@@ -15,7 +15,6 @@ class FerhengCategoryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final categories = FerhengService.instance.categories();
     return Scaffold(
       backgroundColor: FerhengDesign.bg,
       appBar: AppBar(
@@ -24,31 +23,64 @@ class FerhengCategoryScreen extends StatelessWidget {
         title: Text(L.ferhengCategories),
         elevation: 0,
       ),
-      body: ListView.separated(
-        itemCount: categories.length,
-        separatorBuilder: (_, __) => Divider(
-          color: FerhengDesign.divider,
-          height: 1,
-        ),
-        itemBuilder: (context, i) {
-          final cat = categories[i];
-          final isTr = L.current == AppLocale.tr;
-          final label = (isTr ? cat['label_tr'] : cat['label_kmr']) ?? '';
-          return ListTile(
-            title: Text(label, style: FerhengDesign.bodyMd),
-            trailing: Icon(Icons.chevron_right_rounded,
-                color: FerhengDesign.textFaint),
-            onTap: () => Navigator.of(context).push(
-              appRoute(_CategoryListScreen(
-                categoryId: cat['id']!,
-                title: label,
-                controller: controller,
-              )),
+      body: FutureBuilder<void>(
+        future: FerhengService.instance.init(),
+        builder: (context, snapshot) {
+          final categories = FerhengService.instance.categories();
+          if (snapshot.connectionState != ConnectionState.done &&
+              categories.isEmpty) {
+            return const Center(
+              child: CircularProgressIndicator(color: FerhengDesign.primary),
+            );
+          }
+          return ListView.separated(
+            itemCount: categories.length,
+            separatorBuilder: (_, __) => Divider(
+              color: FerhengDesign.divider,
+              height: 1,
             ),
+            itemBuilder: (context, i) {
+              final cat = categories[i];
+              final id = cat['id'] ?? '';
+              final label = _localizedCategoryLabel(cat);
+              return ListTile(
+                title: Text(label, style: FerhengDesign.bodyMd),
+                trailing: Icon(Icons.chevron_right_rounded,
+                    color: FerhengDesign.textFaint),
+                onTap: () => Navigator.of(context).push(
+                  appRoute(_CategoryListScreen(
+                    categoryId: id,
+                    title: label,
+                    controller: controller,
+                  )),
+                ),
+              );
+            },
           );
         },
       ),
     );
+  }
+
+  static String _localizedCategoryLabel(Map<String, String> category) {
+    final isTr = L.current == AppLocale.tr;
+    final id = category['id'] ?? '';
+    if (isTr) return category['label_tr'] ?? '';
+
+    const kmrOverrides = <String, String>{
+      'animals': 'Ajal',
+      'animal': 'Ajal',
+      'letters': 'Tîp',
+      'letter': 'Tîp',
+      'alphabet': 'Tîp',
+      'abc': 'Tîp',
+      'body': 'Endamên laş',
+      'numbers': 'Hejmar',
+      'colors': 'Reng',
+      'verbs_common': 'Lêkerên berbelav',
+      'religion_culture': 'Ol û çand',
+    };
+    return kmrOverrides[id] ?? category['label_kmr'] ?? '';
   }
 }
 

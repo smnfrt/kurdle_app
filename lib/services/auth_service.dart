@@ -1,8 +1,13 @@
+import 'dart:convert';
+import 'dart:math';
+
+import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
 class AuthService {
   AuthService._();
@@ -10,15 +15,25 @@ class AuthService {
 
   static const _lastAuthProviderKey = 'last_auth_provider';
   static const _providerGoogle = 'google';
+  static const _providerApple = 'apple';
   static const _providerEmail = 'email';
 
   FirebaseAuth get _auth => FirebaseAuth.instance;
   final _google = GoogleSignIn();
 
   String? _guestUid;
+  String? lastAppleSignInError;
 
   // Mevcut oturum akışı — null ise giriş yapılmamış
-  Stream<User?> get userStream => _auth.authStateChanges();
+  Stream<User?> get userStream {
+    try {
+      return _auth.authStateChanges();
+    } catch (e) {
+      _log('userStream', e.toString());
+      return Stream<User?>.value(null);
+    }
+  }
+
   // FirebaseAuth.instance Firebase init edilmemişse fırlatır. Test ortamı
   // ve offline cold-start için null'a düş — caller code zaten null'ı yönetir.
   User? get currentUser {
@@ -116,6 +131,66 @@ class AuthService {
     }
   }
 
+  // ── Apple ile giriş ──────────────────────────────────────────────
+  Future<User?> signInWithApple() async {
+    lastAppleSignInError = null;
+    try {
+      final rawNonce = _generateNonce();
+      final nonce = _sha256ofString(rawNonce);
+      final appleCredential = await SignInWithApple.getAppleIDCredential(
+        scopes: [
+          AppleIDAuthorizationScopes.email,
+          AppleIDAuthorizationScopes.fullName,
+        ],
+        nonce: nonce,
+      );
+
+      final identityToken = appleCredential.identityToken;
+      if (identityToken == null || identityToken.isEmpty) {
+        lastAppleSignInError = 'Apple kimlik tokeni alınamadı.';
+        _log('signInWithApple', lastAppleSignInError!);
+        return null;
+      }
+
+      final credential = OAuthProvider('apple.com').credential(
+        idToken: identityToken,
+        rawNonce: rawNonce,
+      );
+
+      if (isAnonymous && currentUser != null) {
+        try {
+          final linked = await currentUser!.linkWithCredential(credential);
+          await _applyAppleProfileToUser(linked.user, appleCredential);
+          await _rememberAuthProvider(_providerApple);
+          return linked.user;
+        } on FirebaseAuthException catch (e) {
+          if (e.code != 'credential-already-in-use' &&
+              e.code != 'email-already-in-use') {
+            rethrow;
+          }
+          await _auth.signOut();
+        }
+      }
+
+      final cred = await _auth.signInWithCredential(credential);
+      await _applyAppleProfileToUser(cred.user, appleCredential);
+      await _rememberAuthProvider(_providerApple);
+      return cred.user;
+    } on FirebaseAuthException catch (e) {
+      lastAppleSignInError = '${e.code}: ${e.message ?? e.toString()}';
+      _log('signInWithApple', lastAppleSignInError!);
+      return null;
+    } on SignInWithAppleAuthorizationException catch (e) {
+      lastAppleSignInError = '${e.code.name}: ${e.message}';
+      _log('signInWithApple', lastAppleSignInError!);
+      return null;
+    } catch (e) {
+      lastAppleSignInError = e.toString();
+      _log('signInWithApple', lastAppleSignInError!);
+      return null;
+    }
+  }
+
   /// Firebase Auth normalde native persistence ile kullanıcıyı korur. Bazı
   /// Android release/AAB kurulumlarında bu state boş dönerse, Google oturumunu
   /// sessizce tekrar Firebase credential'a çevirerek hesabı geri yükle.
@@ -147,7 +222,9 @@ class AuthService {
 
   Future<bool> hasRememberedAccount() async {
     final provider = await _lastAuthProvider();
-    return provider == _providerGoogle || provider == _providerEmail;
+    return provider == _providerGoogle ||
+        provider == _providerApple ||
+        provider == _providerEmail;
   }
 
   /// Google profilini Firebase Auth user'ına yansıt — link sonrası
@@ -177,6 +254,28 @@ class AuthService {
       await user.reload();
     } catch (e) {
       _log('applyGoogleProfile', e.toString());
+    }
+  }
+
+  Future<void> _applyAppleProfileToUser(
+    User? user,
+    AuthorizationCredentialAppleID appleCredential,
+  ) async {
+    if (user == null) return;
+    final appleName = [
+      appleCredential.givenName?.trim(),
+      appleCredential.familyName?.trim(),
+    ].where((part) => part != null && part.isNotEmpty).join(' ');
+    final isAuto = (user.displayName ?? '').startsWith('Misafir ') ||
+        (user.displayName ?? '').startsWith('Mêvan ') ||
+        (user.displayName ?? '').trim().isEmpty;
+    try {
+      if (appleName.isNotEmpty && (isAuto || user.displayName != appleName)) {
+        await user.updateDisplayName(appleName);
+      }
+      await user.reload();
+    } catch (e) {
+      _log('applyAppleProfile', e.toString());
     }
   }
 
@@ -294,7 +393,7 @@ class AuthService {
       case 'credential-already-in-use':
         return 'Bu hesap zaten başka bir kullanıcıya bağlı.';
       case 'operation-not-allowed':
-        return 'E-posta ile giriş şu an kapalı. Lütfen Google ile giriş yapın.';
+        return 'Bu giriş yöntemi şu an kapalı. Lütfen Firebase ayarlarını kontrol edin.';
       case 'network-request-failed':
         return 'İnternet bağlantısı yok.';
       case 'user-disabled':
@@ -321,5 +420,21 @@ class AuthService {
   Future<void> _clearRememberedAuthProvider() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_lastAuthProviderKey);
+  }
+
+  String _generateNonce([int length = 32]) {
+    const charset =
+        '0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._';
+    final random = Random.secure();
+    return List.generate(
+      length,
+      (_) => charset[random.nextInt(charset.length)],
+    ).join();
+  }
+
+  String _sha256ofString(String input) {
+    final bytes = utf8.encode(input);
+    final digest = sha256.convert(bytes);
+    return digest.toString();
   }
 }

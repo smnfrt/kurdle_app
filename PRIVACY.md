@@ -1,14 +1,22 @@
-# Peyvok — Gizlilik Politikası
+# Leyar: Listika Peyvan — Gizlilik Politikası
 
-**Son güncelleme:** 16 Mayıs 2026
+**Son güncelleme:** 5 Ağustos 2026
 
-Bu metnin Kurmancî sürümü için aşağıya bakın · [Kurmancî](#peyvok--polîtîkaya-veşartiyê)
+Bu gizlilik politikası Google Play'de **Leyar: Listika Peyvan** adıyla
+yayınlanan **Leyar** uygulaması için geçerlidir.
+
+- **Uygulama adı:** Leyar: Listika Peyvan
+- **Paket adı:** com.kurdle.kurdle_app
+- **Geliştirici/Yayıncı:** Leyar geliştiricileri
+- **Destek ve gizlilik iletişimi:** smnfrt@gmail.com
+
+Bu metnin Kurmancî sürümü için aşağıya bakın · [Kurmancî](#leyar--polîtîkaya-veşartiyê)
 
 ---
 
 ## 1. Hangi verileri topluyoruz?
 
-Peyvok yalnızca uygulamanın çalışması için gerekli en az veriyi toplar:
+Leyar yalnızca uygulamanın çalışması için gerekli en az veriyi toplar:
 
 - **Anonim kullanıcı kimliği** (Firebase Authentication) — oyun ilerlemenizi cihazlar arası senkronize etmek için.
 - **İsteğe bağlı profil adı** — sadece kendi seçtiğiniz isim.
@@ -33,7 +41,7 @@ Hesabınız aktif olduğu sürece. Hesabınızı silmek isterseniz uygulama içi
 
 ## 5. Çocukların gizliliği
 
-Peyvok 13 yaş altı çocukları aktif olarak hedeflemez. 13 yaş altı bir kullanıcının veri girdiğini fark edersek verileri sileriz.
+Leyar 13 yaş altı çocukları aktif olarak hedeflemez. 13 yaş altı bir kullanıcının veri girdiğini fark edersek verileri sileriz.
 
 ## 6. Politika güncellemeleri
 
@@ -41,17 +49,27 @@ Bu politika değişirse uygulama içinde bildirim göstereceğiz. Devam eden kul
 
 ## 7. İletişim
 
-Sorularınız için: **smnfrt@gmail.com**
+Gizlilik, veri erişimi, veri silme veya hesap silme talepleri için Leyar
+geliştiricileri ile şu adresten iletişime geçebilirsiniz:
+**smnfrt@gmail.com**
 
 ---
 
-# Peyvok — Polîtîkaya Veşartiyê
+# Leyar: Listika Peyvan — Polîtîkaya Veşartiyê
 
-**Nûkirina dawî:** 16 Gulan 2026
+**Nûkirina dawî:** 5 Tebax 2026
+
+Ev polîtîkaya veşartiyê ji bo sepana **Leyar** e ku li Google Play bi navê
+**Leyar: Listika Peyvan** tê weşandin.
+
+- **Navê sepanê:** Leyar: Listika Peyvan
+- **Navê pakêtê:** com.kurdle.kurdle_app
+- **Pêşvebir/Weşanger:** Leyar geliştiricileri
+- **Têkiliya piştgirî û veşartiyê:** smnfrt@gmail.com
 
 ## 1. Em kîjan daneyan kom dikin?
 
-Peyvok tenê wan daneyan kom dike ku ji bo karkirina sepanê pêwîst in:
+Leyar tenê wan daneyan kom dike ku ji bo karkirina sepanê pêwîst in:
 
 - **Nasnameya bikarhênera anonîm** (Firebase Authentication) — ji bo senkronîzekirina pêşveçûna lîstikê di navbera amûran de.
 - **Navê profîlê yê bijartî** — tenê navê ku tu hilbijêrî.
@@ -76,7 +94,7 @@ Heya hesabê te aktîf be. Eger bixwazî hesabê xwe jêbibî, ji nav sepanê ya
 
 ## 5. Veşariya zarokan
 
-Peyvok zarokên di bin 13 saliyê de ne armanc dike. Ger em fêr bibin ku bikarhênerek di bin 13 saliyê de daneyan dixe, em wan daneyan jê dibin.
+Leyar zarokên di bin 13 saliyê de ne armanc dike. Ger em fêr bibin ku bikarhênerek di bin 13 saliyê de daneyan dixe, em wan daneyan jê dibin.
 
 ## 6. Nûkirinên polîtîkayê
 
@@ -84,4 +102,6 @@ Eger ev polîtîka biguhere, em ê di nav sepanê de agahdariyê nîşan bidin. 
 
 ## 7. Têkilî
 
-Ji bo pirsên xwe: **smnfrt@gmail.com**
+Ji bo daxwazên veşartiyê, gihîştina daneyan, jêbirina daneyan an jêbirina
+hesabê, bi Leyar geliştiricileri re ji vê navnîşanê têkilî daynin:
+**smnfrt@gmail.com**

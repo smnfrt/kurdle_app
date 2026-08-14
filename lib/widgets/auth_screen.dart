@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/firestore_service.dart';
@@ -82,6 +83,33 @@ class _AuthScreenState extends State<AuthScreen>
     } else {
       setState(() {
         _error = 'Google girişi iptal edildi.';
+        _loading = false;
+      });
+    }
+  }
+
+  // ── Apple ────────────────────────────────────────────────────────
+  Future<void> _appleSignIn() async {
+    setState(() {
+      _loading = true;
+      _error = '';
+    });
+    final user = await AuthService.instance.signInWithApple();
+    if (!mounted) return;
+    if (user != null) {
+      try {
+        await FirestoreService.instance.createUserIfNotExists(user);
+      } catch (e) {
+        Log.warn('AuthScreen',
+            'createUserIfNotExists after Apple sign-in failed', e);
+      }
+      _finish();
+    } else {
+      final details = AuthService.instance.lastAppleSignInError;
+      setState(() {
+        _error = details == null || details.isEmpty
+            ? 'Apple girişi tamamlanamadı.'
+            : 'Apple girişi tamamlanamadı: $details';
         _loading = false;
       });
     }
@@ -247,6 +275,9 @@ class _AuthScreenState extends State<AuthScreen>
         ? Colors.white12
         : const Color(0xFF74838C).withValues(alpha: 0.55);
     final fieldIconColor = isDark ? Colors.white38 : const Color(0xFF4A5963);
+    final showAppleSignIn = !kIsWeb &&
+        (defaultTargetPlatform == TargetPlatform.iOS ||
+            defaultTargetPlatform == TargetPlatform.macOS);
 
     return Scaffold(
       backgroundColor: isDark ? _kBg : _kLightBgBottom,
@@ -277,13 +308,13 @@ class _AuthScreenState extends State<AuthScreen>
                     Center(
                       child: Column(
                         children: [
-                          const PeyvokBrandMark(
+                          const LeyarBrandMark(
                             size: 76,
                             radius: 20,
                             elevation: 20,
                           ),
                           const SizedBox(height: 14),
-                          Text('Peyvok',
+                          Text('Leyar',
                               style: TextStyle(
                                   color: titleColor,
                                   fontSize: 26,
@@ -320,6 +351,10 @@ class _AuthScreenState extends State<AuthScreen>
 
                     // ── Google butonu ────────────────────────────────
                     _GoogleBtn(onTap: _loading ? null : _googleSignIn),
+                    if (showAppleSignIn) ...[
+                      const SizedBox(height: 12),
+                      _AppleBtn(onTap: _loading ? null : _appleSignIn),
+                    ],
 
                     const SizedBox(height: 18),
 
@@ -599,6 +634,59 @@ class _AuthScreenState extends State<AuthScreen>
             child: const Text('Gönder'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ── Apple butonu ──────────────────────────────────────────────────
+
+class _AppleBtn extends StatelessWidget {
+  final VoidCallback? onTap;
+  const _AppleBtn({this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedOpacity(
+        opacity: onTap == null ? 0.5 : 1.0,
+        duration: const Duration(milliseconds: 150),
+        child: Container(
+          height: 52,
+          decoration: BoxDecoration(
+            color: Colors.black,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.16)
+                  : Colors.black.withValues(alpha: 0.12),
+            ),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.15),
+                  blurRadius: 8,
+                  offset: const Offset(0, 3)),
+            ],
+          ),
+          child: const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.apple, color: Colors.white, size: 22),
+              SizedBox(width: 12),
+              Text(
+                'Apple ile Giriş Yap',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

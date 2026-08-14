@@ -872,6 +872,8 @@ class MultiplayerService {
         'finishReason': 'timeout',
         'finishedBy': timedOutUid,
         'finishedAt': FieldValue.serverTimestamp(),
+        'turnStartedAt': null,
+        'turnDeadlineAt': null,
       });
     return true;
   }

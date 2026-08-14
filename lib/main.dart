@@ -5,6 +5,7 @@ import 'package:kurdle_app/app_theme.dart';
 import 'package:kurdle_app/domain.dart';
 import 'package:kurdle_app/services/app_warmup_service.dart';
 import 'package:kurdle_app/services/app_locale.dart';
+import 'package:kurdle_app/services/firebase_service.dart';
 import 'package:kurdle_app/services/settings_service.dart';
 import 'package:kurdle_app/services/version_service.dart';
 import 'package:kurdle_app/widgets/offline_banner.dart';
@@ -15,9 +16,18 @@ void main() async {
   final settings = await _loadInitialSettings();
   themeNotifier.value = settings.isDarkMode ? ThemeMode.dark : ThemeMode.light;
   L.set(settings.appLocale);
+  runApp(const MyApp());
+  unawaited(_finishStartupServices());
+}
+
+Future<void> _finishStartupServices() async {
+  try {
+    await FirebaseService.init().timeout(const Duration(seconds: 8));
+  } catch (e) {
+    debugPrint('Firebase startup skipped: $e');
+  }
   unawaited(_loadVersionSafely());
   unawaited(AppWarmupService.instance.initConnectivity());
-  runApp(const MyApp());
 }
 
 Future<Settings> _loadInitialSettings() async {
@@ -57,7 +67,7 @@ class MyApp extends StatelessWidget {
       builder: (_, __, ___) => ValueListenableBuilder<ThemeMode>(
         valueListenable: themeNotifier,
         builder: (_, mode, __) => MaterialApp(
-          title: 'Peyvok',
+          title: 'Leyar',
           debugShowCheckedModeBanner: false,
           showSemanticsDebugger: false,
           theme: AppTheme.lightTheme,

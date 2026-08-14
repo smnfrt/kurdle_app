@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Peyvok — Release build + Crashlytics symbol upload
+# Leyar — Release build + Crashlytics symbol upload
 #
 # Kullanım:
 #   tool/upload_symbols.sh

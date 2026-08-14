@@ -228,6 +228,18 @@ service cloud.firestore {
           && (
             request.resource.data.status != 'finished'
             || request.resource.data.finishReason == 'forfeit'
+            || (
+              request.resource.data.finishReason == 'timeout'
+              && resource.data.turnDeadlineAt is timestamp
+              && request.time >= resource.data.turnDeadlineAt
+              && request.resource.data.finishedBy == resource.data.currentTurnUid
+              && (
+                (resource.data.currentTurnUid == resource.data.hostUid
+                  && request.resource.data.winner == 'guest')
+                || (resource.data.currentTurnUid == resource.data.guestUid
+                  && request.resource.data.winner == 'host')
+              )
+            )
             || request.resource.data.winner == 'draw'
             || (request.resource.data.winner == 'host'
               && request.resource.data.hostScore >= request.resource.data.guestScore)

@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
-const peyvokBrandIconAsset = 'assets/branding/icon-1024.png';
+const leyarBrandIconAsset = 'assets/branding/icon-1024.png';
 
-class PeyvokBrandMark extends StatelessWidget {
+class LeyarBrandMark extends StatelessWidget {
   final double size;
   final double radius;
   final double elevation;
 
-  const PeyvokBrandMark({
+  const LeyarBrandMark({
     super.key,
     required this.size,
     this.radius = 22,
@@ -32,7 +32,7 @@ class PeyvokBrandMark extends StatelessWidget {
       ),
       clipBehavior: Clip.antiAlias,
       child: Image.asset(
-        peyvokBrandIconAsset,
+        leyarBrandIconAsset,
         width: size,
         height: size,
         fit: BoxFit.cover,

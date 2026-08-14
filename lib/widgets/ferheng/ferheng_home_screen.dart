@@ -98,9 +98,8 @@ class _FerhengHomeScreenState extends State<FerhengHomeScreen> {
                   const SizedBox(height: 16),
                   _WotdCard(entry: _wotd, loading: _wotdLoading, onTap: _open),
                   const SizedBox(height: 20),
-                  _SectionTitle(L.current == AppLocale.tr
-                      ? 'Alfabe ile gez'
-                      : 'Bi alfabe geriyê'),
+                  _SectionTitle(
+                      L.current == AppLocale.tr ? 'Alfabe ile gez' : 'Tîp'),
                   const SizedBox(height: 8),
                 ],
               ),

@@ -26,6 +26,7 @@ import 'package:kurdle_app/widgets/letter_rack_widget.dart';
 import 'package:kurdle_app/widgets/scrabble_board_widget.dart';
 import 'package:kurdle_app/widgets/steal_banner_widget.dart';
 import 'package:kurdle_app/services/haptic_service.dart';
+import 'package:share_plus/share_plus.dart';
 
 // ── Design tokens ───────────────────────────────────────────────
 const _kBgDark = Color(0xFF070D16);
@@ -80,7 +81,7 @@ class _GameLoadingShell extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  'Peyvok',
+                  'Leyar',
                   style: TextStyle(
                     color: isDark ? Colors.white : const Color(0xFF18242C),
                     fontSize: 18,
@@ -448,6 +449,20 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
     } catch (_) {
       return 1;
     }
+  }
+
+  void _goHome() {
+    Navigator.of(context).maybePop();
+  }
+
+  void _shareGameResult() {
+    final ctrl = _controller;
+    if (ctrl == null) return;
+    final won = ctrl.playerScore >= ctrl.aiScore;
+    Share.share(
+      L.scrabbleResultShare(ctrl.playerScore, ctrl.aiScore, won),
+      subject: 'Leyar',
+    );
   }
 
   bool _levelUpShown = false;
@@ -868,6 +883,8 @@ class _ScrabbleGameScreenState extends State<ScrabbleGameScreen>
                   : null,
               onSubmit: _onSubmit,
               onRestart: _loadGame,
+              onHome: _goHome,
+              onShare: _shareGameResult,
               isInStealMode: ctrl.isInStealMode,
               playerStealsLeft: ctrl.playerStealsLeft,
               onStealToggle: isPlayer
@@ -1580,6 +1597,8 @@ class _BottomPanel extends StatelessWidget {
   final VoidCallback? onPass;
   final VoidCallback onSubmit;
   final VoidCallback onRestart;
+  final VoidCallback onHome;
+  final VoidCallback onShare;
   final VoidCallback? onMenuTap;
   final bool isInStealMode;
   final int playerStealsLeft;
@@ -1601,6 +1620,8 @@ class _BottomPanel extends StatelessWidget {
     this.onPass,
     required this.onSubmit,
     required this.onRestart,
+    required this.onHome,
+    required this.onShare,
     this.onMenuTap,
     this.isInStealMode = false,
     this.playerStealsLeft = 2,
@@ -1818,9 +1839,12 @@ class _BottomPanel extends StatelessWidget {
 
           if (phase == GamePhase.gameOver)
             _GameOverBanner(
-                playerScore: playerScore,
-                aiScore: aiScore,
-                onRestart: onRestart),
+              playerScore: playerScore,
+              aiScore: aiScore,
+              onRestart: onRestart,
+              onHome: onHome,
+              onShare: onShare,
+            ),
         ],
       ),
     );
@@ -2575,52 +2599,186 @@ class _GameOverBanner extends StatelessWidget {
   final int playerScore;
   final int aiScore;
   final VoidCallback onRestart;
+  final VoidCallback onHome;
+  final VoidCallback onShare;
 
-  const _GameOverBanner(
-      {required this.playerScore,
-      required this.aiScore,
-      required this.onRestart});
+  const _GameOverBanner({
+    required this.playerScore,
+    required this.aiScore,
+    required this.onRestart,
+    required this.onHome,
+    required this.onShare,
+  });
 
   @override
   Widget build(BuildContext context) {
     final won = playerScore >= aiScore;
+    final accent = won ? const Color(0xFF55D17B) : const Color(0xFFFF7A70);
+    final accentDark = won ? const Color(0xFF1F8F46) : const Color(0xFFD83B33);
     return Container(
       width: double.infinity,
-      margin: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: won
-              ? [const Color(0xFF1B5E20), const Color(0xFF2E7D32)]
-              : [const Color(0xFF7B0000), const Color(0xFFB71C1C)],
+        color: const Color(0xFF111A26),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: accent.withValues(alpha: 0.30),
+          width: 1,
         ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        children: [
-          Text(
-            won ? L.won : L.lost,
-            style: const TextStyle(
-                color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
-          Text('$playerScore - $aiScore',
-              style: const TextStyle(color: Colors.white60, fontSize: 14)),
-          const SizedBox(height: 12),
-          ElevatedButton(
-            onPressed: onRestart,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor:
-                  won ? const Color(0xFF2E7D32) : const Color(0xFFB71C1C),
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 10),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
-            ),
-            child: Text(L.newGameBtn,
-                style: const TextStyle(fontWeight: FontWeight.bold)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.32),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
           ),
         ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(
+                  won ? Icons.emoji_events_rounded : Icons.flag_rounded,
+                  color: accent,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      won ? L.won : L.lost,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$playerScore - $aiScore',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.62),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                flex: 5,
+                child: _GameOverActionButton(
+                  icon: Icons.replay_rounded,
+                  label: L.playAgain,
+                  onTap: onRestart,
+                  foreground: Colors.white,
+                  background: accentDark,
+                  borderColor: accent.withValues(alpha: 0.36),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 3,
+                child: _GameOverActionButton(
+                  icon: Icons.home_rounded,
+                  label: L.homeShort,
+                  onTap: onHome,
+                  foreground: Colors.white.withValues(alpha: 0.88),
+                  background: Colors.white.withValues(alpha: 0.08),
+                  borderColor: Colors.white.withValues(alpha: 0.12),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 4,
+                child: _GameOverActionButton(
+                  icon: Icons.ios_share_rounded,
+                  label: L.shareResult,
+                  onTap: onShare,
+                  foreground: Colors.white.withValues(alpha: 0.88),
+                  background: Colors.white.withValues(alpha: 0.08),
+                  borderColor: Colors.white.withValues(alpha: 0.12),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GameOverActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final Color foreground;
+  final Color background;
+  final Color borderColor;
+
+  const _GameOverActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    required this.foreground,
+    required this.background,
+    required this.borderColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: background,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          height: 48,
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: borderColor),
+          ),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: foreground, size: 20),
+                const SizedBox(width: 7),
+                Text(
+                  label,
+                  maxLines: 1,
+                  style: TextStyle(
+                    color: foreground,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

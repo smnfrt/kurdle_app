@@ -39,7 +39,7 @@ class FerhengLearningScreen extends StatelessWidget {
             label: L.ferhengCategories,
             subtitle: L.current == AppLocale.tr
                 ? 'Konuya göre keşfet — hayvanlar, vücut, doğa...'
-                : 'Li gor mijaran kêş bike — heywan, beden, xweza...',
+                : 'Li gor mijaran kêş bike — ajal, endamên laş, xweza...',
             onTap: () => Navigator.of(context)
                 .push(appRoute(FerhengCategoryScreen(controller: controller))),
           ),

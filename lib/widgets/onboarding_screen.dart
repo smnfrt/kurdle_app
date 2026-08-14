@@ -3,7 +3,7 @@ import 'package:kurdle_app/services/app_locale.dart';
 import 'package:kurdle_app/services/onboarding_service.dart';
 import 'package:kurdle_app/widgets/brand_mark.dart';
 
-/// Peyvok onboarding — 6 sayfada tüm oyun modları tanıtılır,
+/// Leyar onboarding — 6 sayfada tüm oyun modları tanıtılır,
 /// son sayfada büyük "Hemen Oyna" CTA'sı.
 ///
 /// Sayfalar: Welcome → Wordle → Scrabble → Multiplayer → Ferheng → CTA.
@@ -210,7 +210,7 @@ class _LogoVisual extends StatelessWidget {
   const _LogoVisual();
   @override
   Widget build(BuildContext context) {
-    return const PeyvokBrandMark(
+    return const LeyarBrandMark(
       size: 112,
       radius: 28,
       elevation: 28,

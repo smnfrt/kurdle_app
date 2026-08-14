@@ -1,24 +1,30 @@
-# Peyvok — Google Play Listeleme Paketi
+# Leyar — Google Play Listeleme Paketi
 
 Bu dosyadaki metinleri Play Console'da ilgili alanlara kopyalayabilirsin.
 
 ## Uygulama Bilgileri
 
 Uygulama adı:
-`Peyvok`
+`Leyar: Listika Peyvan`
+
+Geliştirici/yayıncı adı:
+`Leyar geliştiricileri`
+
+Paket adı:
+`com.kurdle.kurdle_app`
 
 Kısa açıklama:
-`Kurmancî Wordle, kelime tahtası, multiplayer ve Ferheng sözlük.`
+`Leyar: Listika Peyvan. Wordle, kelime tahtası ve Ferheng.`
 
 Uzun açıklama:
 ```text
-Peyvok, Kurmancî kelimelerle oynayabileceğin günlük kelime oyunu, tahta oyunu, multiplayer ve sözlük deneyimini tek uygulamada birleştirir.
+Leyar: Listika Peyvan, Kurmancî kelimelerle oynayabileceğin günlük kelime oyunu, tahta oyunu, multiplayer ve sözlük deneyimini tek uygulamada birleştirir.
 
 Günün Kelimesi bölümünde her gün yeni bir kelimeyi bulmaya çalış. Harflerin doğru yerde olup olmadığını gör, serini koru ve ilerlemeni takip et.
 
 Kelime tahtasında harflerini sürükleyerek yeni kelimeler oluştur. AI'ya karşı oynayabilir, arkadaşlarınla eşleşebilir veya rastgele rakip bulabilirsin. Puan kareleri, kelime geliştirme sistemi ve farklı oyun modlarıyla her maç yeni bir strateji ister.
 
-Ferheng sözlük sayesinde oynadığın kelimelerin anlamına uygulama içinde bakabilirsin. Peyvok sadece oyun değil, Kurmancî kelime öğrenmek için de pratik bir yardımcıdır.
+Ferheng sözlük sayesinde oynadığın kelimelerin anlamına uygulama içinde bakabilirsin. Leyar sadece oyun değil, Kurmancî kelime öğrenmek için de pratik bir yardımcıdır.
 
 Öne çıkan özellikler:
 
@@ -31,7 +37,7 @@ Ferheng sözlük sayesinde oynadığın kelimelerin anlamına uygulama içinde b
 - Türkçe ve Kurmancî arayüz
 - Google ile giriş
 
-Peyvok, Kurmancî kelimeleri oyunla öğrenmek, hatırlamak ve paylaşmak isteyen herkes için tasarlandı.
+Leyar, Kurmancî kelimeleri oyunla öğrenmek, hatırlamak ve paylaşmak isteyen herkes için tasarlandı.
 ```
 
 Kategori:
@@ -44,18 +50,20 @@ Destek e-postası:
 `smnfrt@gmail.com`
 
 Gizlilik politikası:
-Play Console bir URL ister. Mevcut metin uygulamada ve projede var: `PRIVACY.md`. Bunu herkese açık bir linke koymak gerekiyor.
+Play Console bir URL ister. Yayınlanan sayfada şu bilgiler aynı şekilde görünmeli:
+`Leyar: Listika Peyvan`, `com.kurdle.kurdle_app`, `Leyar geliştiricileri`, `smnfrt@gmail.com`.
+Mevcut kaynak metin `PRIVACY.md`, herkese açık sayfa ise `docs/privacy/index.html`.
 
 ## Dahili Test Notu
 
 Test açıklaması:
 ```text
-Peyvok dahili test sürümü. Google ile giriş, günlük kelime, kelime tahtası, multiplayer, sıralama ve Ferheng sözlük akışları test ediliyor.
+Leyar dahili test sürümü. Google ile giriş, günlük kelime, kelime tahtası, multiplayer, sıralama ve Ferheng sözlük akışları test ediliyor.
 ```
 
 Testçilere gönderilecek mesaj:
 ```text
-Merhaba, Peyvok dahili testine katılmak için bu linki Play Store'da kullandığın Google hesabıyla aç. Önce teste katıl butonuna bas, sonra uygulamayı indir veya güncelle. Google ile giriş, Günün Kelimesi, kelime tahtası ve multiplayer bölümlerini denersen çok iyi olur.
+Merhaba, Leyar dahili testine katılmak için bu linki Play Store'da kullandığın Google hesabıyla aç. Önce teste katıl butonuna bas, sonra uygulamayı indir veya güncelle. Google ile giriş, Günün Kelimesi, kelime tahtası ve multiplayer bölümlerini denersen çok iyi olur.
 ```
 
 ## Veri Güvenliği Formu İçin Kısa Cevaplar
@@ -123,7 +131,8 @@ Play Console'a yüklenecek önerilen ekran görüntüleri:
 - Testçi Gmail adresleri eklendi mi?
 - Katılım linki doğru hesapla açılıyor mu?
 - Google ile giriş çalışıyor mu?
-- Uygulama adı Play Console'da `Peyvok` mi?
+- Uygulama adı Play Console'da `Leyar: Listika Peyvan` mi?
+- Geliştirici adı Play Console'da ve gizlilik politikasında `Leyar geliştiricileri` olarak aynı mı?
 - Yeni AAB sürüm kodu önceki sürümden yüksek mi?
 - Gizlilik politikası URL'si girildi mi?
 - Veri güvenliği formu tamamlandı mı?

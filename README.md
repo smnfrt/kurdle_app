@@ -1,4 +1,4 @@
-# Peyvok
+# Leyar
 
 **Kurmancî kelime oyunu.** Günlük Wordle, AI ile Scrabble benzeri savaş, arkadaşlarla multiplayer, 216k+ entry'lik gömülü Ferheng sözlük.
 

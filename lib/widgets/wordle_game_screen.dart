@@ -390,7 +390,7 @@ class _WordleGameScreenState extends State<WordleGameScreen> {
       builder: (BuildContext context, AsyncSnapshot<bool> snapshot) {
         if (!snapshot.hasData) {
           return Scaffold(
-            appBar: AppBar(title: const Text('Peyvok')),
+            appBar: AppBar(title: const Text('Leyar')),
             body: Center(
               child: CircularProgressIndicator(
                 color: Theme.of(context).colorScheme.secondary,
@@ -560,7 +560,7 @@ class _WordleTitle extends StatelessWidget {
         ),
         SizedBox(height: 1),
         Text(
-          'Peyvok',
+          'Leyar',
           style: TextStyle(
             color: Color(0xFFB7C0CD),
             fontSize: 10,

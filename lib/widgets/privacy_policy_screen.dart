@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:kurdle_app/services/app_locale.dart';
 
-/// Peyvok gizlilik politikası — uygulama içi sürüm.
+/// Leyar gizlilik politikası — uygulama içi sürüm.
 ///
 /// Web sürümü `docs/privacy/index.html` altında yayınlanır. Play Console
 /// gizlilik politikası ve Data Safety beyanları bu içerikle tutarlı kalmalı.
@@ -15,8 +15,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? _kBgDark : const Color(0xFFF4F8FA);
     final textColor = isDark ? Colors.white : const Color(0xFF18242C);
-    final mutedColor =
-        isDark ? Colors.white70 : const Color(0xFF52636E);
+    final mutedColor = isDark ? Colors.white70 : const Color(0xFF52636E);
     final accent = const Color(0xFF4CAF50);
     final sections = L.current == AppLocale.tr ? _trSections : _kmrSections;
 
@@ -92,8 +91,13 @@ class _Section {
 
 const _trSections = <_Section>[
   _Section(
+    'Uygulama ve geliştirici bilgileri',
+    'Bu politika Google Play\'de Leyar: Listika Peyvan adıyla yayınlanan Leyar uygulaması için geçerlidir. '
+        'Paket adı: com.kurdle.kurdle_app. Geliştirici/yayıncı: Leyar geliştiricileri.',
+  ),
+  _Section(
     'Hangi verileri topluyoruz?',
-    'Peyvok yalnızca oyun ve hesap özellikleri için gerekli verileri işler:\n'
+    'Leyar yalnızca oyun ve hesap özellikleri için gerekli verileri işler:\n'
         '• Hesap ve kimlik bilgileri — anonim giriş, Google veya e-posta ile giriş ve ilerleme senkronizasyonu için.\n'
         '• Profil bilgileri — oyuncu adı, avatar/profil görünümü ve oyun içi kimlik için.\n'
         '• Oyun verileri — skorlar, günlük oyun ilerlemesi, rozetler, liderlik tablosu, hamleler ve oyun geçmişi için.\n'
@@ -114,7 +118,7 @@ const _trSections = <_Section>[
   ),
   _Section(
     'Verileriniz kiminle paylaşılır?',
-    'Peyvok temel altyapı için Google Firebase hizmetlerini kullanır: Firebase Authentication, Cloud Firestore, '
+    'Leyar temel altyapı için Google Firebase hizmetlerini kullanır: Firebase Authentication, Cloud Firestore, '
         'Firebase Cloud Messaging, Firebase Crashlytics ve Firebase Analytics. Veriler reklam amaçlı satılmaz; '
         'reklam ağlarına, veri brokerlerine veya pazarlama şirketlerine aktarılmaz.',
   ),
@@ -131,7 +135,7 @@ const _trSections = <_Section>[
   ),
   _Section(
     'Çocukların gizliliği',
-    'Peyvok 13 yaş altı çocukları aktif olarak hedeflemez. 13 yaş altı bir kullanıcının veri girdiğini fark edersek '
+    'Leyar 13 yaş altı çocukları aktif olarak hedeflemez. 13 yaş altı bir kullanıcının veri girdiğini fark edersek '
         'verileri sileriz.',
   ),
   _Section(
@@ -140,14 +144,20 @@ const _trSections = <_Section>[
   ),
   _Section(
     'İletişim',
-    'Sorularınız için: smnfrt@gmail.com',
+    'Gizlilik, veri erişimi, veri silme veya hesap silme talepleri için Leyar geliştiricileri ile '
+        'smnfrt@gmail.com adresinden iletişime geçebilirsiniz.',
   ),
 ];
 
 const _kmrSections = <_Section>[
   _Section(
+    'Agahiyên sepanê û pêşvebir',
+    'Ev polîtîka ji bo sepana Leyar e ku li Google Play bi navê Leyar: Listika Peyvan tê weşandin. '
+        'Navê pakêtê: com.kurdle.kurdle_app. Pêşvebir/weşanger: Leyar geliştiricileri.',
+  ),
+  _Section(
     'Em kîjan daneyan kom dikin?',
-    'Peyvok tenê daneyên ji bo lîstik û hesabê pêwîst in diparêze:\n'
+    'Leyar tenê daneyên ji bo lîstik û hesabê pêwîst in diparêze:\n'
         '• Agahiyên hesab û nasnameyê — ji bo têketina anonîm, Google an e-posta û senkronîzekirina pêşveçûnê.\n'
         '• Agahiyên profîlê — navê lîstikvan, avatar/profîl û nasnameya nav lîstikê.\n'
         '• Daneyên lîstikê — pûan, pêşveçûna rojane, rozet, tabloya pûanan, tevger û dîroka lîstikê.\n'
@@ -168,7 +178,7 @@ const _kmrSections = <_Section>[
   ),
   _Section(
     'Daneyên te bi kê re tê parvekirin?',
-    'Peyvok ji bo binesaziyê xizmetên Google Firebase bikar tîne: Firebase Authentication, Cloud Firestore, '
+    'Leyar ji bo binesaziyê xizmetên Google Firebase bikar tîne: Firebase Authentication, Cloud Firestore, '
         'Firebase Cloud Messaging, Firebase Crashlytics û Firebase Analytics. Daneyên te ji bo reklamê nayên firotin '
         'û bi torên reklamê, brokerên daneyan an pargîdaniyên bazariyê re nayên parvekirin.',
   ),
@@ -184,7 +194,7 @@ const _kmrSections = <_Section>[
   ),
   _Section(
     'Veşariya zarokan',
-    'Peyvok zarokên di bin 13 saliyê de ne armanc dike. Ger em fêr bibin ku bikarhênerek di bin 13 saliyê de daneyan dixe, em wan daneyan jê dibin.',
+    'Leyar zarokên di bin 13 saliyê de ne armanc dike. Ger em fêr bibin ku bikarhênerek di bin 13 saliyê de daneyan dixe, em wan daneyan jê dibin.',
   ),
   _Section(
     'Nûkirinên polîtîkayê',
@@ -192,6 +202,7 @@ const _kmrSections = <_Section>[
   ),
   _Section(
     'Têkilî',
-    'Ji bo pirsên xwe: smnfrt@gmail.com',
+    'Ji bo daxwazên veşartiyê, gihîştina daneyan, jêbirina daneyan an jêbirina hesabê, '
+        'bi Leyar geliştiricileri re ji smnfrt@gmail.com têkilî daynin.',
   ),
 ];

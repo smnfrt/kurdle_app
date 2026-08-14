@@ -1,4 +1,4 @@
-# Peyvok — release build için ProGuard / R8 kuralları.
+# Leyar — release build için ProGuard / R8 kuralları.
 #
 # AGP 8.x release build'de R8 minification default davranışla çalışıyor.
 # Aşağıdaki kurallar bir sürüm bug'unu önler:

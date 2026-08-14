@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Google Play feature graphic üretici (1024x500).
 
-Layout: sol yarıda Peyvok app icon, sağ yarıda büyük "Peyvok" yazısı ve
-tagline "Kurmancî Kelime Oyunu". Arkaplan: koyu yeşil → siyah gradient.
+Layout: sol yarıda Leyar app icon, sağ yarıda büyük "Leyar" yazısı ve
+tagline "Listika Peyvan". Arkaplan: eski feature graphic dilini koruyan açık
+yeşil oyun tahtası yüzeyi.
 
 Çıktı: assets/branding/feature-graphic-1024x500.png
 """
@@ -12,7 +13,9 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "assets" / "branding" / "feature-graphic-1024x500.png"
+BRAND = ROOT / "assets" / "branding"
+OUT = BRAND / "feature-graphic-1024x500.png"
+ICON = BRAND / "icon-1024.png"
 
 
 def _find_font(size: int) -> ImageFont.FreeTypeFont:
@@ -43,79 +46,76 @@ def _gradient_h(width: int, height: int, c1, c2) -> Image.Image:
 
 def make_feature_graphic() -> Image.Image:
     W, H = 1024, 500
-    img = _gradient_h(W, H, (15, 25, 35), (27, 94, 32))  # bg → primary green
+    img = _gradient_h(W, H, (223, 239, 211), (247, 244, 213)).convert("RGBA")
     draw = ImageDraw.Draw(img)
 
-    # Sol: app icon kompakt logo (P disk)
-    icon_size = 280
-    icon_x = 80
-    icon_y = (H - icon_size) // 2
-    # Disk gradient
-    disk = Image.new("RGBA", (icon_size, icon_size), (0, 0, 0, 0))
-    dd = ImageDraw.Draw(disk)
-    # Outer subtle glow
-    for i in range(10):
-        r = icon_size // 2 + i * 2
-        cx = icon_size // 2
-        dd.ellipse(
-            (cx - r, cx - r, cx + r, cx + r),
-            outline=(76, 175, 80, max(0, 24 - i * 2)),
-            width=1,
-        )
-    # Yeşil disk
-    grad = _gradient_h(icon_size, icon_size, (76, 175, 80), (27, 94, 32))
-    mask = Image.new("L", (icon_size, icon_size), 0)
-    ImageDraw.Draw(mask).ellipse((0, 0, icon_size, icon_size), fill=255)
-    disk.paste(grad, (0, 0), mask)
-    # "P"
-    font_p = _find_font(int(icon_size * 0.7))
-    p_text = "P"
-    bbox = dd.textbbox((0, 0), p_text, font=font_p)
-    tw = bbox[2] - bbox[0]
-    th = bbox[3] - bbox[1]
-    dd.text(
-        ((icon_size - tw) / 2 - bbox[0], (icon_size - th) / 2 - bbox[1] - 6),
-        p_text,
-        font=font_p,
-        fill=(255, 255, 255, 255),
+    # Hafif oyun tahtası çizgileri.
+    for x in range(-80, W, 120):
+        draw.line((x, 0, x + 120, H), fill=(65, 115, 68, 34), width=2)
+    for y in range(60, H, 110):
+        draw.line((0, y, W, y - 80), fill=(255, 255, 255, 36), width=2)
+
+    # Sol: mevcut ana ikon.
+    icon_size = 315
+    icon_x = 68
+    icon_y = 92
+    draw.rounded_rectangle(
+        (45, 70, 405, 430),
+        radius=78,
+        fill=(242, 247, 224, 230),
     )
-    img.paste(disk, (icon_x, icon_y), disk)
+    with Image.open(ICON) as source_icon:
+        app_icon = source_icon.convert("RGBA").resize(
+            (icon_size, icon_size), Image.LANCZOS
+        )
+    img.alpha_composite(app_icon, (icon_x, icon_y))
 
     # Sağ: başlık + tagline
-    text_x = icon_x + icon_size + 60
-    title_font = _find_font(80)
-    sub_font = _find_font(28)
-    tag_font = _find_font(22)
-
-    # Peyvok
-    draw.text(
-        (text_x, 130),
-        "Peyvok",
-        font=title_font,
-        fill=(255, 255, 255, 255),
+    text_x = 455
+    draw.rounded_rectangle(
+        (420, 30, 1005, 470),
+        radius=24,
+        fill=(229, 242, 217, 245),
+        outline=(43, 105, 51, 210),
+        width=3,
     )
-    # Kurmancî Kelime Oyunu
+    title_font = _find_font(76)
+    sub_font = _find_font(31)
+    chip_font = _find_font(25)
+    line_font = _find_font(29)
+
+    draw.text((text_x, 92), "Leyar", font=title_font, fill=(18, 29, 29, 255))
     draw.text(
-        (text_x, 230),
-        "Kurmancî Kelime Oyunu",
+        (text_x, 178),
+        "Listika Peyvan",
         font=sub_font,
-        fill=(200, 230, 201, 255),
-    )
-    # Tag — alt satırlar
-    draw.text(
-        (text_x, 290),
-        "Wordle  ·  Scrabble  ·  216k Ferheng",
-        font=tag_font,
-        fill=(255, 255, 255, 220),
-    )
-    draw.text(
-        (text_x, 325),
-        "TR + KMR  ·  AI ve arkadaşlarla",
-        font=tag_font,
-        fill=(200, 230, 201, 220),
+        fill=(34, 112, 56, 255),
     )
 
-    return img
+    def chip(x: int, y: int, label: str, color) -> int:
+        bbox = draw.textbbox((0, 0), label, font=chip_font)
+        width = bbox[2] - bbox[0] + 40
+        draw.rounded_rectangle(
+            (x, y, x + width, y + 43),
+            radius=22,
+            fill=color,
+            outline=(255, 255, 255, 240),
+            width=2,
+        )
+        draw.text((x + 20, y + 6), label, font=chip_font, fill=(255, 255, 255))
+        return width
+
+    first_chip = chip(text_x, 260, "Kelime tahtası", (34, 112, 56, 255))
+    chip(text_x + first_chip + 22, 260, "Ferheng", (34, 112, 56, 255))
+    chip(text_x, 322, "Günün meydan okuması", (217, 156, 38, 255))
+    draw.text(
+        (text_x, 397),
+        "TR + KMR  •  AI ve arkadaşlarla oyun",
+        font=line_font,
+        fill=(49, 63, 60, 255),
+    )
+
+    return img.convert("RGB")
 
 
 if __name__ == "__main__":

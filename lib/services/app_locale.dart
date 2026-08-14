@@ -14,8 +14,7 @@ class L {
   }
 
   // ── Genel ──────────────────────────────────────────────────────
-  static String get appSubtitle =>
-      _s('Kürmanci Kelime Oyunu', 'Lîstika Peyvan');
+  static String get appSubtitle => _s('Listika Peyvan', 'Listika Peyvan');
   static String get wordOfDay => _s('Günün Kelimesi', 'Peyvê Roja');
   static String get revealMeaning => _s('Anlamı?', 'Wateya?');
   static String get meaningLabel => _s('Türkçe anlamı', 'Wateya Tirkî');
@@ -71,8 +70,7 @@ class L {
   static String get privacyPolicy =>
       _s('Gizlilik Politikası', 'Polîtîkaya Veşartiyê');
   static String get privacyPolicyUpdated =>
-      _s('Son güncelleme: 28 Haziran 2026',
-          'Nûkirina dawî: 28 Hezîran 2026');
+      _s('Son güncelleme: 5 Ağustos 2026', 'Nûkirina dawî: 5 Tebax 2026');
 
   // ── Onboarding ─────────────────────────────────────────────────
   static String get onboardingSkip => _s('Atla', 'Derbas bike');
@@ -80,7 +78,7 @@ class L {
   static String get onboardingStart => _s('Hemen Oyna', 'Niha Bilîze');
 
   static String get onboardingWelcomeTitle =>
-      _s('Peyvok\'ye Hoş Geldin!', 'Bi Xêr Hatî Peyvok!');
+      _s('Leyar\'ye Hoş Geldin!', 'Bi Xêr Hatî Leyar!');
   static String get onboardingWelcomeSubtitle => _s(
       'Kurmancî kelime oyunları artık tek uygulamada — Wordle, Scrabble, multiplayer.',
       'Lîstikên peyvên Kurmancî di yek sepanê de — Wordle, Scrabble, gelek lîstikvan.');
@@ -154,8 +152,8 @@ class L {
   static String get shareCode => _s('Paylaş', 'Parve bike');
   static String get codeCopied => _s('Kod kopyalandı!', 'Kod hat kopîkirin!');
   static String shareInviteMessage(String code) => _s(
-        'Peyvok oda kodu: $code\nBenimle oynamak için kodu uygulamaya gir.',
-        'Koda odeya Peyvok: $code\nJi bo ku bi min re bilîzî, kodê têxe sepanê.',
+        'Leyar oda kodu: $code\nBenimle oynamak için kodu uygulamaya gir.',
+        'Koda odeya Leyar: $code\nJi bo ku bi min re bilîzî, kodê têxe sepanê.',
       );
   static String get cancelRoom => _s('İptal Et', 'Betal bike');
   static String get myScore => _s('Senin Skorun', 'Xala te');
@@ -210,6 +208,14 @@ class L {
   static String get recall => _s('Geri Al', 'Vegerîne');
   static String get shuffle => _s('Karıştır', 'Tevlihev bike');
   static String get newGameBtn => _s('Yeni Oyun', 'Lîstika Nû');
+  static String get playAgain => _s('Tekrar Oyna', 'Dîsa Bilîze');
+  static String get homeShort => _s('Ana Sayfa', 'Mal');
+  static String get shareResult => _s('Paylaş', 'Parve Bike');
+  static String scrabbleResultShare(int playerScore, int aiScore, bool won) =>
+      _s(
+        'Leyar skorun: $playerScore - $aiScore. ${won ? 'Kazandın!' : 'Kaybettin.'}',
+        'Skora te ya Leyar: $playerScore - $aiScore. ${won ? 'Tu serketî!' : 'Tu winda kir.'}',
+      );
   static String get won => _s('🎉 Kazandın!', '🎉 Tu bûyî!');
   static String get lost => _s('😔 Kaybettin', '😔 Tu lê xwar!');
   static String get placeTile =>
@@ -326,7 +332,7 @@ class L {
 
   // ── Nasıl Oynanır ekranı ───────────────────────────────────────
   static String get howToTitle => _s('NASIL OYNANIR', 'ÇAWA TÊTE LÎSTIN');
-  static String get howToIntro => _s('KURDLE', 'KURDLE');
+  static String get howToIntro => _s('LEYAR', 'LEYAR');
   static String get howToIntroSuffix =>
       _s("'ı altı denemede bul.", "'yê di şeş hewlan de texmîn bike.");
   static String get howToRule1 => _s(
@@ -364,9 +370,8 @@ class L {
   static String get noScoreYet => _s('Henüz skor yok', 'Hîn xal tune');
   static String levelXp(int lvl, int xp) =>
       _s('Seviye $lvl · $xp XP', 'Asta $lvl · $xp XP');
-  static String get aboutAppName => 'Peyvok';
-  static String get aboutTagline =>
-      _s('Kürmanci Kelime Oyunu', 'Lîstika Peyvan');
+  static String get aboutAppName => 'Leyar';
+  static String get aboutTagline => _s('Listika Peyvan', 'Listika Peyvan');
   static String get aboutDev => _s('Geliştirici', 'Pêşdebir');
   static String get darkModeOff => _s('Açık Mod', 'Mod Ronî');
   static String get totalGames => _s('Toplam Oyun', 'Hemû Lîstik');
@@ -418,7 +423,7 @@ class L {
           'Uzman',
           'Şampiyon',
           'Efsane',
-          'Peyvok Ustası',
+          'Leyar Ustası',
         ]
       : const [
           'Destpêker',
@@ -430,7 +435,7 @@ class L {
           'Pispor',
           'Şampiyon',
           'Efsane',
-          'Hosta yê Peyvok',
+          'Hosta yê Leyar',
         ];
 
   // ── HowToPlayScreen ────────────────────────────────────────────

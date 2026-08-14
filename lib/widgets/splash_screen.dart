@@ -66,7 +66,7 @@ class _SplashScreenState extends State<SplashScreen>
               builder: (_, __) {
                 return Transform.scale(
                   scale: _logoScale.value,
-                  child: const PeyvokBrandMark(
+                  child: const LeyarBrandMark(
                     size: 138,
                     radius: 34,
                     elevation: 42,
@@ -88,9 +88,7 @@ class _SplashBackdrop extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = constraints.maxWidth;
         final height = constraints.maxHeight;
-        final ghostSize = (width * 1.34).clamp(430.0, 760.0);
 
         return Stack(
           children: [
@@ -106,37 +104,9 @@ class _SplashBackdrop extends StatelessWidget {
                 child: CustomPaint(painter: _OverheadLightPainter()),
               ),
             ),
-            Positioned(
-              left: (width - ghostSize) / 2,
-              top: height * 0.18,
+            Positioned.fill(
               child: IgnorePointer(
-                child: Image.asset(
-                  peyvokBrandIconAsset,
-                  width: ghostSize,
-                  height: ghostSize,
-                  fit: BoxFit.cover,
-                  filterQuality: FilterQuality.high,
-                  opacity: const AlwaysStoppedAnimation(0.075),
-                ),
-              ),
-            ),
-            Positioned(
-              left: width * 0.14,
-              right: width * 0.14,
-              top: height * 0.35,
-              height: height * 0.22,
-              child: IgnorePointer(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF315C20).withValues(alpha: 0.14),
-                        blurRadius: 90,
-                        spreadRadius: 14,
-                      ),
-                    ],
-                  ),
-                ),
+                child: CustomPaint(painter: _SoftTileBackdropPainter()),
               ),
             ),
           ],
@@ -244,4 +214,99 @@ class _BoardTexturePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _BoardTexturePainter oldDelegate) => false;
+}
+
+class _SoftTileBackdropPainter extends CustomPainter {
+  const _SoftTileBackdropPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final tileSize = (size.width * 0.28).clamp(92.0, 132.0);
+    final tiles = <({double x, double y, Color color, double alpha, double rot})>[
+      (
+        x: -0.08,
+        y: 0.13,
+        color: const Color(0xFF2E7D32),
+        alpha: 0.12,
+        rot: -0.12,
+      ),
+      (
+        x: 0.72,
+        y: 0.16,
+        color: const Color(0xFFE3AA2C),
+        alpha: 0.13,
+        rot: 0.10,
+      ),
+      (
+        x: 0.08,
+        y: 0.61,
+        color: const Color(0xFFE3AA2C),
+        alpha: 0.11,
+        rot: 0.08,
+      ),
+      (
+        x: 0.70,
+        y: 0.64,
+        color: const Color(0xFF2E7D32),
+        alpha: 0.12,
+        rot: -0.10,
+      ),
+      (
+        x: 0.38,
+        y: 0.78,
+        color: const Color(0xFF86A65A),
+        alpha: 0.08,
+        rot: 0.04,
+      ),
+    ];
+
+    for (final tile in tiles) {
+      canvas.save();
+      final center = Offset(
+        size.width * tile.x + tileSize / 2,
+        size.height * tile.y + tileSize / 2,
+      );
+      canvas.translate(center.dx, center.dy);
+      canvas.rotate(tile.rot);
+
+      final rect = Rect.fromCenter(
+        center: Offset.zero,
+        width: tileSize,
+        height: tileSize,
+      );
+      final rrect = RRect.fromRectAndRadius(
+        rect,
+        Radius.circular(tileSize * 0.18),
+      );
+      final glowPaint = Paint()
+        ..color = tile.color.withValues(alpha: tile.alpha)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 24);
+      canvas.drawRRect(rrect.inflate(tileSize * 0.08), glowPaint);
+
+      final fillPaint = Paint()
+        ..color = tile.color.withValues(alpha: tile.alpha * 0.72)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7);
+      canvas.drawRRect(rrect, fillPaint);
+      canvas.restore();
+    }
+
+    final centerGlow = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          Colors.white.withValues(alpha: 0.48),
+          _kWarmLight.withValues(alpha: 0.18),
+          Colors.transparent,
+        ],
+        stops: const [0, 0.42, 1],
+      ).createShader(
+        Rect.fromCircle(
+          center: Offset(size.width / 2, size.height * 0.46),
+          radius: size.width * 0.54,
+        ),
+      );
+    canvas.drawRect(Offset.zero & size, centerGlow);
+  }
+
+  @override
+  bool shouldRepaint(covariant _SoftTileBackdropPainter oldDelegate) => false;
 }

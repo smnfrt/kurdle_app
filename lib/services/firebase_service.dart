@@ -16,13 +16,16 @@ class FirebaseService {
   static const _profileBootstrapTimeout = Duration(milliseconds: 1200);
 
   static bool _initialized = false;
+  static Future<void>? _initFuture;
   static bool get isAvailable => _initialized;
 
   /// Analytics observer'ı home/route widget'larında kullanmak için.
   /// init() çağrıldıktan sonra erişilebilir.
   static FirebaseAnalytics? analytics;
 
-  static Future<void> init() async {
+  static Future<void> init() => _initFuture ??= _init();
+
+  static Future<void> _init() async {
     try {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,

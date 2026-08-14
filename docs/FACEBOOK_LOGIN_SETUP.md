@@ -1,4 +1,4 @@
-# Peyvok Facebook Giriş Kurulumu
+# Leyar Facebook Giriş Kurulumu
 
 Kod tarafı eklendi. Girişin gerçekten çalışması için aşağıdaki panel ayarları yapılmalı.
 
@@ -29,7 +29,7 @@ package name, Play'e yüklenen AAB içindeki gerçek `applicationId` ile birebir
 ## 1. Meta Developer
 
 1. https://developers.facebook.com/apps adresinden yeni uygulama oluştur.
-2. Uygulama adı: `Peyvok`
+2. Uygulama adı: `Leyar`
 3. Use case / ürün: `Facebook Login`
 4. Android platformu ekle.
 5. Package name:
@@ -86,7 +86,7 @@ iOS:
 <key>FacebookClientToken</key>
 <string>CLIENT_TOKEN</string>
 <key>FacebookDisplayName</key>
-<string>Peyvok</string>
+<string>Leyar</string>
 ```
 
 `CFBundleURLSchemes` içinde de `fbAPP_ID` olmalı.

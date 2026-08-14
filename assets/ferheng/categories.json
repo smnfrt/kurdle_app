@@ -2,8 +2,8 @@
   "_version": "1.0.0",
   "_note": "Stable category IDs. Labels are localized client-side in app_locale.dart. ID changes require migration.",
   "categories": [
-    { "id": "animals",         "label_tr": "Hayvanlar",         "label_kmr": "Heywan" },
-    { "id": "body",            "label_tr": "Vücut",             "label_kmr": "Beden" },
+    { "id": "animals",         "label_tr": "Hayvanlar",         "label_kmr": "Ajal" },
+    { "id": "body",            "label_tr": "Vücut",             "label_kmr": "Endamên laş" },
     { "id": "family",          "label_tr": "Aile",              "label_kmr": "Malbat" },
     { "id": "food",            "label_tr": "Yemek",             "label_kmr": "Xwarin" },
     { "id": "nature",          "label_tr": "Doğa",              "label_kmr": "Xweza" },
