@@ -241,6 +241,46 @@ class FirestoreService {
         'displayNameLower': name.toLowerCase(),
       });
 
+  Future<void> deleteAccountData(String uid) async {
+    try {
+      await Future.wait([
+        _deleteUserSubcollection(uid, 'dailyWordPlays'),
+        _deleteUserSubcollection(uid, 'dailyChallengePlays'),
+        _deleteUserSubcollection(uid, 'achievements'),
+        _deleteUserSubcollection(uid, 'ferhengFavorites'),
+        _deleteQuery(_games.where('playerUid', isEqualTo: uid)),
+      ]);
+
+      await Future.wait([
+        _weeklyLB(uid).delete().catchError((_) {}),
+        _allTimeLB(uid).delete().catchError((_) {}),
+        _db.collection('playerPrivacy').doc(uid).delete().catchError((_) {}),
+      ]);
+
+      await _users.doc(uid).delete();
+    } catch (e) {
+      Log.warn('FirestoreService', 'deleteAccountData failed', e);
+      rethrow;
+    }
+  }
+
+  Future<void> _deleteUserSubcollection(String uid, String collection) {
+    return _deleteQuery(_users.doc(uid).collection(collection));
+  }
+
+  Future<void> _deleteQuery(Query query) async {
+    while (true) {
+      final snap = await query.limit(400).get();
+      if (snap.docs.isEmpty) return;
+      final batch = _db.batch();
+      for (final doc in snap.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+      if (snap.docs.length < 400) return;
+    }
+  }
+
   Future<List<UserProfile>> searchUsersByName(String query,
       {String? excludeUid}) async {
     final q = query.trim().toLowerCase();

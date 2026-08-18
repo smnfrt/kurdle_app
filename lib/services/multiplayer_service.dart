@@ -1015,6 +1015,80 @@ class MultiplayerService {
     });
   }
 
+  Future<void> exchangeTiles({
+    required String roomCode,
+    required bool isHost,
+    required List<String> selectedLetters,
+    required String nextTurnUid,
+  }) async {
+    if (selectedLetters.isEmpty) return;
+
+    final ref = _rooms.doc(roomCode);
+    await _db.runTransaction((tx) async {
+      final snap = await tx.get(ref);
+      if (!snap.exists) return;
+      final d = snap.data() as Map<String, dynamic>;
+      if (d['status'] != 'active') {
+        _debugLog(
+            'exchangeTiles REDDEDİLDİ room=$roomCode (status=${d['status']})');
+        return;
+      }
+      final timeoutUpdate = <String, dynamic>{};
+      if (_applyTimeoutIfNeeded(d, timeoutUpdate)) {
+        tx.update(ref, timeoutUpdate);
+        _debugLog('exchangeTiles REDDEDİLDİ room=$roomCode (süre doldu)');
+        return;
+      }
+
+      final expectedTurnUid = isHost ? d['hostUid'] : d['guestUid'];
+      if (d['currentTurnUid'] != expectedTurnUid) {
+        _debugLog(
+            'exchangeTiles REDDEDİLDİ room=$roomCode (sıra bu oyuncuda değil)');
+        return;
+      }
+
+      final rackKey = isHost ? 'hostRack' : 'guestRack';
+      final rack = List<String>.from(d[rackKey] ?? []);
+      final bag = List<String>.from(d['bagLetters'] ?? []);
+      if (bag.length < selectedLetters.length) {
+        _debugLog(
+            'exchangeTiles REDDEDİLDİ room=$roomCode (torbada yeterli harf yok)');
+        return;
+      }
+
+      final newRack = List<String>.from(rack);
+      final returned = <String>[];
+      for (final letter in selectedLetters) {
+        final index = newRack.indexOf(letter);
+        if (index == -1) {
+          _debugLog(
+              'exchangeTiles REDDEDİLDİ room=$roomCode (raf harfi bulunamadı)');
+          return;
+        }
+        returned.add(newRack.removeAt(index));
+      }
+
+      final draw = bag.take(selectedLetters.length).toList();
+      bag.removeRange(0, draw.length);
+      newRack.addAll(draw);
+
+      final newBag = <String>[...bag, ...returned]..shuffle(Random());
+      tx.update(ref, {
+        rackKey: newRack,
+        'bagLetters': newBag,
+        'currentTurnUid': nextTurnUid,
+        'lastMoveAt': FieldValue.serverTimestamp(),
+        'lastMoveScore': 0,
+        'lastMoveBy': isHost ? 'host' : 'guest',
+        'lastMoveWords': [],
+        'lastMoveCells': [],
+        ..._nextTurnTimerUpdate(d),
+      });
+      _debugLog(
+          'exchangeTiles room=$roomCode count=${selectedLetters.length} next=$nextTurnUid');
+    });
+  }
+
   Future<void> passTurn({
     required String roomCode,
     required String nextTurnUid,

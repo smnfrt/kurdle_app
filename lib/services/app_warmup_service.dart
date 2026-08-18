@@ -20,7 +20,7 @@ class AppWarmupService {
 
   static const _notificationWarmupTimeout = Duration(milliseconds: 1200);
   static const _settingsWarmupTimeout = Duration(milliseconds: 700);
-  static const _tokenSyncTimeout = Duration(milliseconds: 1200);
+  static const _tokenSyncTimeout = Duration(seconds: 4);
 
   Future<void>? _connectivityFuture;
   Future<void>? _runtimeFuture;

@@ -2178,6 +2178,7 @@ class _WordPreviewBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final validWords = words.where((e) => e.valid).toList(growable: false);
+    final invalidWords = words.where((e) => !e.valid).toList(growable: false);
     final hasInvalid = words.any((e) => !e.valid);
     final hasWords = words.isNotEmpty;
     final totalScore =
@@ -2193,13 +2194,17 @@ class _WordPreviewBar extends StatelessWidget {
         isDark ? Colors.white.withValues(alpha: 0.68) : const Color(0xFF52645A);
     final statusText = !hasWords
         ? (L.current == AppLocale.tr ? 'Kelime bekleniyor' : 'Li bendê ye')
-        : hasInvalid
-            ? (L.current == AppLocale.tr
-                ? 'Geçersiz kelime'
-                : 'Peyv ne derbasdar e')
+        : invalidWords.isEmpty
+            ? (validWords.length == 1
+                ? (L.current == AppLocale.tr
+                    ? 'Geçerli kelime'
+                    : 'Peyv derbasdar e')
+                : (L.current == AppLocale.tr
+                    ? '${validWords.length} kelime geçerli'
+                    : '${validWords.length} peyv derbasdar in'))
             : (L.current == AppLocale.tr
-                ? 'Geçerli kelime'
-                : 'Peyv derbasdar e');
+                ? '${validWords.length} geçerli · ${invalidWords.length} geçersiz'
+                : '${validWords.length} derbasdar · ${invalidWords.length} nederbasdar');
     final wordText = hasWords
         ? words.map((e) => e.word).join(' + ')
         : (L.current == AppLocale.tr

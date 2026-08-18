@@ -155,13 +155,10 @@ class _RandomMatchScreenState extends State<RandomMatchScreen>
     });
   }
 
-  Future<void> _cancel() async {
-    HapticFeedback.mediumImpact();
+  void _leaveInBackground() {
+    HapticFeedback.selectionClick();
     _roomSub?.cancel();
-    final code = _roomCode;
-    if (code != null) {
-      await MultiplayerService.instance.cancelRandomSearch(code);
-    }
+    _retryTimer?.cancel();
     if (mounted) Navigator.pop(context);
   }
 
@@ -182,7 +179,7 @@ class _RandomMatchScreenState extends State<RandomMatchScreen>
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) async {
-        if (!didPop) await _cancel();
+        if (!didPop) _leaveInBackground();
       },
       child: Scaffold(
         backgroundColor: bg,
@@ -219,7 +216,7 @@ class _RandomMatchScreenState extends State<RandomMatchScreen>
                 child: Row(
                   children: [
                     GestureDetector(
-                      onTap: _found ? null : _cancel,
+                      onTap: _found ? null : _leaveInBackground,
                       child: Container(
                         width: 40,
                         height: 40,
@@ -276,7 +273,12 @@ class _RandomMatchScreenState extends State<RandomMatchScreen>
               if (!_found && _error == null)
                 Padding(
                   padding: EdgeInsets.fromLTRB(24, 0, 24, bottom + 28),
-                  child: _CancelBtn(onTap: _cancel),
+                  child: _CancelBtn(
+                    label: L.current == AppLocale.tr
+                        ? 'Arka planda ara'
+                        : 'Li paşxanê bigere',
+                    onTap: _leaveInBackground,
+                  ),
                 ),
             ],
           ),
@@ -465,9 +467,12 @@ class _RandomMatchScreenState extends State<RandomMatchScreen>
                 textAlign: TextAlign.center,
                 style: TextStyle(color: mutedColor, fontSize: 15)),
             const SizedBox(height: 28),
-            _CancelBtn(onTap: () {
-              if (mounted) Navigator.pop(context);
-            }),
+            _CancelBtn(
+              label: L.cancel,
+              onTap: () {
+                if (mounted) Navigator.pop(context);
+              },
+            ),
           ],
         ),
       ),
@@ -557,7 +562,12 @@ class _SearchTimerState extends State<_SearchTimer> {
 
 class _CancelBtn extends StatelessWidget {
   final VoidCallback onTap;
-  const _CancelBtn({required this.onTap});
+  final String label;
+
+  const _CancelBtn({
+    required this.onTap,
+    required this.label,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -576,7 +586,7 @@ class _CancelBtn extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 15),
           textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
         ),
-        child: Text(L.cancel),
+        child: Text(label),
       ),
     );
   }

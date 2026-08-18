@@ -5563,6 +5563,7 @@ class _SettingsSheetState extends State<_SettingsSheet> {
   bool _haptic = true;
   bool _notifs = true;
   bool _darkMode = true;
+  bool _deletingAccount = false;
 
   @override
   void initState() {
@@ -5603,6 +5604,9 @@ class _SettingsSheetState extends State<_SettingsSheet> {
           settings.authorizationStatus == AuthorizationStatus.authorized ||
               settings.authorizationStatus == AuthorizationStatus.provisional;
       s.notifsEnabled = granted;
+      if (granted) {
+        unawaited(NotificationService.instance.syncFcmTokenToFirestore());
+      }
       if (!mounted) return;
       setState(() => _notifs = granted);
     } else {
@@ -5646,6 +5650,58 @@ class _SettingsSheetState extends State<_SettingsSheet> {
   }
 
   void _showAbout(BuildContext ctx) => _showAboutDialog(ctx);
+
+  Future<void> _confirmAndDeleteAccount(BuildContext ctx) async {
+    final confirmed = await showDialog<bool>(
+      context: ctx,
+      builder: (dialogCtx) {
+        final theme = Theme.of(dialogCtx);
+        final isDark = theme.brightness == Brightness.dark;
+        final textColor = isDark ? Colors.white : const Color(0xFF172033);
+        final mutedColor = isDark ? Colors.white70 : const Color(0xFF52636E);
+        return AlertDialog(
+          backgroundColor: theme.dialogTheme.backgroundColor,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: Text(L.deleteAccountTitle,
+              style: TextStyle(color: textColor, fontWeight: FontWeight.w800)),
+          content: Text(L.deleteAccountWarning,
+              style: TextStyle(color: mutedColor, height: 1.35)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx, false),
+              child: Text(L.cancel),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogCtx, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFEF5350),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              child: Text(L.deleteAccountConfirm),
+            ),
+          ],
+        );
+      },
+    );
+    if (confirmed != true || !mounted || _deletingAccount) return;
+
+    setState(() => _deletingAccount = true);
+    final error = await AuthService.instance.deleteAccount();
+    if (!mounted || !ctx.mounted) return;
+    setState(() => _deletingAccount = false);
+
+    final messenger = ScaffoldMessenger.of(ctx);
+    if (error == null) {
+      Navigator.pop(ctx);
+      messenger.showSnackBar(SnackBar(content: Text(L.deleteAccountSuccess)));
+      setState(() {});
+    } else {
+      messenger.showSnackBar(SnackBar(content: Text(error)));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -5750,19 +5806,42 @@ class _SettingsSheetState extends State<_SettingsSheet> {
                           _showAuthScreen(context);
                         },
                       )
-                    else
+                    else ...[
                       _SettingsTile(
                         icon: Icons.logout_rounded,
                         iconColor: const Color(0xFFEF5350),
                         label: L.signOut,
-                        onTap: () async {
-                          await AuthService.instance.signOut();
-                          if (context.mounted) {
-                            Navigator.pop(context);
-                            setState(() {});
-                          }
-                        },
+                        onTap: _deletingAccount
+                            ? null
+                            : () async {
+                                await AuthService.instance.signOut();
+                                if (context.mounted) {
+                                  Navigator.pop(context);
+                                  setState(() {});
+                                }
+                              },
                       ),
+                      _SettingsTile(
+                        icon: Icons.delete_forever_rounded,
+                        iconColor: const Color(0xFFE53935),
+                        label: _deletingAccount
+                            ? (L.current == AppLocale.tr
+                                ? 'Hesap siliniyor...'
+                                : 'Hesab tê jêbirin...')
+                            : L.deleteAccount,
+                        trailing: _deletingAccount
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : null,
+                        onTap: _deletingAccount
+                            ? null
+                            : () => _confirmAndDeleteAccount(context),
+                      ),
+                    ],
 
                     const SizedBox(height: 24),
 

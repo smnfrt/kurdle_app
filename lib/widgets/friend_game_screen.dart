@@ -118,6 +118,8 @@ class _FriendGameScreenState extends State<FriendGameScreen>
 
   // ── Pending words ─────────────────────────────────────────────────
   List<({String word, int score, bool valid})> _pendingWords = [];
+  Timer? _emptyWordHintTimer;
+  bool _showEmptyWordHint = true;
 
   // ── Game over ─────────────────────────────────────────────────────
   bool _gameOverShown = false;
@@ -173,6 +175,7 @@ class _FriendGameScreenState extends State<FriendGameScreen>
     NotificationService.instance.clearRoomForeground(widget.roomCode);
     _turnTimeoutTimer?.cancel();
     _turnClockTimer?.cancel();
+    _emptyWordHintTimer?.cancel();
     _sub?.cancel();
     _chatUnreadSub?.cancel();
     _turnBannerCtrl?.dispose();
@@ -234,6 +237,19 @@ class _FriendGameScreenState extends State<FriendGameScreen>
 
   // ── Pending word preview ──────────────────────────────────────────
 
+  void _showEmptyWordHintBriefly() {
+    _emptyWordHintTimer?.cancel();
+    if (mounted && !_showEmptyWordHint) {
+      setState(() => _showEmptyWordHint = true);
+    } else {
+      _showEmptyWordHint = true;
+    }
+    _emptyWordHintTimer = Timer(const Duration(milliseconds: 1800), () {
+      if (!mounted || _pendingWords.isNotEmpty) return;
+      setState(() => _showEmptyWordHint = false);
+    });
+  }
+
   void _computePendingWords() {
     if (_scorer == null || _validator == null) return;
     final words = _scorer!.calculateNewWords(_localBoard);
@@ -241,6 +257,10 @@ class _FriendGameScreenState extends State<FriendGameScreen>
         .map((w) =>
             (word: w.word, score: w.score, valid: _validator!.isValid(w.word)))
         .toList();
+    if (_pendingWords.isNotEmpty) {
+      _emptyWordHintTimer?.cancel();
+      _showEmptyWordHint = true;
+    }
   }
 
   List<Map<String, dynamic>> _serializeMoveWords(List<PlacedWord> words) {
@@ -555,6 +575,7 @@ class _FriendGameScreenState extends State<FriendGameScreen>
   void _syncFromRoom(MultiplayerRoom room) {
     final isHost = room.hostUid == widget.myUid;
     final letters = isHost ? room.hostRack : room.guestRack;
+    final isMyTurn = room.currentTurnUid == widget.myUid;
     setState(() {
       _localBoard = room.toWordBoard();
       _myRack = MultiplayerRoom.toRack(letters);
@@ -563,6 +584,7 @@ class _FriendGameScreenState extends State<FriendGameScreen>
       _isInStealMode = false;
       _error = '';
     });
+    if (isMyTurn) _showEmptyWordHintBriefly();
   }
 
   // ── Board interactions ────────────────────────────────────────────
@@ -649,6 +671,7 @@ class _FriendGameScreenState extends State<FriendGameScreen>
       _pendingWords = [];
       _error = '';
     });
+    if (_isMyTurn) _showEmptyWordHintBriefly();
     if (recalled.isNotEmpty) HapticFeedback.lightImpact();
   }
 
@@ -891,6 +914,75 @@ class _FriendGameScreenState extends State<FriendGameScreen>
         hostScore: room.hostScore,
         guestScore: room.guestScore,
       );
+    } catch (e) {
+      if (mounted) {
+        setState(() => _error = L.errorPrefix(_cleanError(e)));
+      }
+    }
+    if (mounted) setState(() => _submitting = false);
+  }
+
+  void _showGameMenu() {
+    if (!_isMyTurn || _room == null || _submitting) return;
+    final room = _room!;
+    showAppModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _FriendGameMenuSheet(
+        tilesLeft: room.bagLetters.length,
+        passesLeft: math.max(0, 4 - room.passCount),
+        rack: _myRack,
+        onPass: () {
+          Navigator.pop(context);
+          unawaited(_pass());
+        },
+        onExchange: (tiles) {
+          Navigator.pop(context);
+          unawaited(_exchangeTiles(tiles));
+        },
+      ),
+    );
+  }
+
+  Future<void> _exchangeTiles(List<GameTile> tiles) async {
+    if (!_isMyTurn || _submitting || _room == null) return;
+    if (tiles.isEmpty) {
+      _setError(L.selectTile);
+      return;
+    }
+
+    final room = _room!;
+    if (room.bagLetters.length < tiles.length) {
+      _setError(L.notEnoughTiles);
+      return;
+    }
+
+    _recallAll();
+    setState(() {
+      _submitting = true;
+      _error = '';
+    });
+    try {
+      final isHost = room.hostUid == widget.myUid;
+      final oppUid = isHost ? (room.guestUid ?? '') : room.hostUid;
+      if (oppUid.isEmpty) {
+        _setError(L.errorPrefix('Rakip bulunamadı'));
+      } else {
+        await MultiplayerService.instance.exchangeTiles(
+          roomCode: widget.roomCode,
+          isHost: isHost,
+          selectedLetters: tiles.map((t) => t.letter).toList(),
+          nextTurnUid: oppUid,
+        );
+        if (mounted) {
+          SoundService.instance.play(SFX.tileExchange);
+          HapticFeedback.lightImpact();
+          setState(() {
+            _selectedTile = null;
+            _error = L.exchanged(tiles.length);
+          });
+        }
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _error = L.errorPrefix(_cleanError(e)));
@@ -1217,7 +1309,26 @@ class _FriendGameScreenState extends State<FriendGameScreen>
                                 top: 6,
                                 left: 10,
                                 right: 10,
-                                child: _WordPreviewBar(words: _pendingWords),
+                                child: AnimatedSlide(
+                                  duration: const Duration(milliseconds: 260),
+                                  curve: Curves.easeOutCubic,
+                                  offset: _pendingWords.isNotEmpty ||
+                                          (myTurn && _showEmptyWordHint)
+                                      ? Offset.zero
+                                      : const Offset(0, -1.25),
+                                  child: AnimatedOpacity(
+                                    duration: const Duration(milliseconds: 220),
+                                    opacity: _pendingWords.isNotEmpty ||
+                                            (myTurn && _showEmptyWordHint)
+                                        ? 1
+                                        : 0,
+                                    child: IgnorePointer(
+                                      ignoring: _pendingWords.isEmpty,
+                                      child:
+                                          _WordPreviewBar(words: _pendingWords),
+                                    ),
+                                  ),
+                                ),
                               ),
                             ],
                           );
@@ -1291,9 +1402,9 @@ class _FriendGameScreenState extends State<FriendGameScreen>
                                 ),
                                 const SizedBox(width: 8),
                                 _SmallBtn(
-                                  label: L.passTurn,
-                                  icon: Icons.skip_next_rounded,
-                                  onTap: _submitting ? null : _pass,
+                                  label: L.options,
+                                  icon: Icons.tune_rounded,
+                                  onTap: _submitting ? null : _showGameMenu,
                                 ),
                                 const SizedBox(width: 8),
                                 _SmallBtn(
@@ -2333,6 +2444,334 @@ class _TurnStateBand extends StatelessWidget {
   }
 }
 
+// ── Game menu bottom sheet ───────────────────────────────────────
+
+class _FriendGameMenuSheet extends StatefulWidget {
+  final int tilesLeft;
+  final int passesLeft;
+  final List<GameTile> rack;
+  final VoidCallback onPass;
+  final void Function(List<GameTile>) onExchange;
+
+  const _FriendGameMenuSheet({
+    required this.tilesLeft,
+    required this.passesLeft,
+    required this.rack,
+    required this.onPass,
+    required this.onExchange,
+  });
+
+  @override
+  State<_FriendGameMenuSheet> createState() => _FriendGameMenuSheetState();
+}
+
+class _FriendGameMenuSheetState extends State<_FriendGameMenuSheet> {
+  final Set<String> _selected = {};
+  bool _exchangeMode = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).padding.bottom;
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF1E2A3A),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: EdgeInsets.fromLTRB(20, 16, 20, bottom + 20),
+      child: _exchangeMode ? _buildExchangeView() : _buildMainView(),
+    );
+  }
+
+  Widget _buildMainView() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 40,
+          height: 4,
+          decoration: BoxDecoration(
+            color: Colors.white12,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(height: 20),
+        Text(
+          L.options,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 20),
+        _FriendSheetOption(
+          icon: Icons.skip_next_rounded,
+          iconColor: const Color(0xFF64B5F6),
+          title: L.passTurn,
+          subtitle: widget.passesLeft > 0
+              ? '${L.passTurnSub}  •  ${L.passesLeft(widget.passesLeft)}'
+              : L.noPassLeft,
+          enabled: widget.passesLeft > 0,
+          onTap: widget.passesLeft > 0 ? widget.onPass : null,
+        ),
+        const SizedBox(height: 10),
+        _FriendSheetOption(
+          icon: Icons.swap_horiz_rounded,
+          iconColor: const Color(0xFFFFB74D),
+          title: L.exchangeTiles,
+          subtitle: widget.tilesLeft > 0
+              ? '${L.tilesLeft}: ${widget.tilesLeft} - ${L.exchangeSub}'
+              : L.noTilesInBag,
+          enabled: widget.tilesLeft > 0,
+          onTap: widget.tilesLeft > 0
+              ? () => setState(() => _exchangeMode = true)
+              : null,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildExchangeView() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 40,
+          height: 4,
+          decoration: BoxDecoration(
+            color: Colors.white12,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            GestureDetector(
+              onTap: () => setState(() {
+                _exchangeMode = false;
+                _selected.clear();
+              }),
+              child: const Icon(
+                Icons.arrow_back_ios_new_rounded,
+                color: Colors.white54,
+                size: 18,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                L.exchangeTitle,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          L.exchangeSub,
+          style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.4), fontSize: 12),
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          alignment: WrapAlignment.center,
+          spacing: 6,
+          runSpacing: 8,
+          children: widget.rack.map((tile) {
+            final isSelected = _selected.contains(tile.id);
+            return GestureDetector(
+              onTap: () => setState(() {
+                if (isSelected) {
+                  _selected.remove(tile.id);
+                } else {
+                  _selected.add(tile.id);
+                }
+              }),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: 42,
+                height: 50,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: isSelected
+                        ? [const Color(0xFFFFEE58), const Color(0xFFFFC107)]
+                        : [const Color(0xFFFFF8E1), const Color(0xFFE8C46A)],
+                  ),
+                  borderRadius: BorderRadius.circular(7),
+                  border: Border.all(
+                    color: isSelected
+                        ? const Color(0xFFFF8F00)
+                        : const Color(0xFFB8860B),
+                    width: isSelected ? 2.5 : 1.2,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: isSelected
+                          ? const Color(0xFFFFC107).withValues(alpha: 0.6)
+                          : Colors.black.withValues(alpha: 0.3),
+                      blurRadius: isSelected ? 8 : 3,
+                      offset: const Offset(1, 2),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Text(
+                    tile.letter,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF3E2723),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 20),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => setState(() {
+                  _exchangeMode = false;
+                  _selected.clear();
+                }),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white54,
+                  side: const BorderSide(color: Colors.white24),
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Text(L.cancel),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 2,
+              child: ElevatedButton(
+                onPressed: _selected.isEmpty
+                    ? null
+                    : () {
+                        final tiles = widget.rack
+                            .where((t) => _selected.contains(t.id))
+                            .toList();
+                        widget.onExchange(tiles);
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFB74D),
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: Colors.grey.shade800,
+                  padding: const EdgeInsets.symmetric(vertical: 13),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: Text(
+                  _selected.isEmpty ? L.selectTile : L.exchangeConfirm,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _FriendSheetOption extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final VoidCallback? onTap;
+  final bool enabled;
+
+  const _FriendSheetOption({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    this.onTap,
+    this.enabled = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        splashColor: Colors.white.withValues(alpha: 0.08),
+        highlightColor: Colors.white.withValues(alpha: 0.04),
+        child: AnimatedOpacity(
+          opacity: enabled ? 1.0 : 0.4,
+          duration: const Duration(milliseconds: 150),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: iconColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: iconColor, size: 22),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: TextStyle(
+                          color: enabled ? Colors.white : Colors.white54,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        style: const TextStyle(
+                            color: Colors.white38, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: Colors.white.withValues(alpha: 0.2),
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 // ── Small action button (icon + label, equal width) ──────────────
 
 class _SmallBtn extends StatefulWidget {
@@ -2462,11 +2901,14 @@ class _WordPreviewBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final validWords = words.where((e) => e.valid).toList(growable: false);
+    final invalidWords = words.where((e) => !e.valid).toList(growable: false);
     final hasInvalid = words.any((e) => !e.valid);
     final hasWords = words.isNotEmpty;
     final totalScore =
         hasInvalid ? 0 : validWords.fold<int>(0, (sum, e) => sum + e.score);
     final accent = hasInvalid ? _kError : _kPrimary;
+    final invalidWordColor = const Color(0xFFFF6B6B);
+    final validWordColor = isDark ? const Color(0xFF8FE3B0) : _kPrimary;
     final surface = isDark
         ? const Color(0xFF101A25).withValues(alpha: 0.88)
         : Colors.white.withValues(alpha: 0.92);
@@ -2475,18 +2917,29 @@ class _WordPreviewBar extends StatelessWidget {
         isDark ? Colors.white.withValues(alpha: 0.68) : const Color(0xFF52645A);
     final statusText = !hasWords
         ? (L.current == AppLocale.tr ? 'Kelime bekleniyor' : 'Li bendê ye')
-        : hasInvalid
-            ? (L.current == AppLocale.tr
-                ? 'Geçersiz kelime'
-                : 'Peyv ne derbasdar e')
+        : invalidWords.isEmpty
+            ? (validWords.length == 1
+                ? (L.current == AppLocale.tr
+                    ? 'Geçerli kelime'
+                    : 'Peyv derbasdar e')
+                : (L.current == AppLocale.tr
+                    ? '${validWords.length} kelime geçerli'
+                    : '${validWords.length} peyv derbasdar in'))
             : (L.current == AppLocale.tr
-                ? 'Geçerli kelime'
-                : 'Peyv derbasdar e');
+                ? '${validWords.length} geçerli · ${invalidWords.length} geçersiz'
+                : '${validWords.length} derbasdar · ${invalidWords.length} nederbasdar');
     final wordText = hasWords
         ? words.map((e) => e.word).join(' + ')
         : (L.current == AppLocale.tr
             ? 'Tahtaya kelime yerleştir'
             : 'Peyvê li textê deyne');
+    final wordTextStyle = TextStyle(
+      color: primaryText,
+      fontSize: 15,
+      fontWeight: FontWeight.w900,
+      letterSpacing: 0,
+      height: 1.05,
+    );
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 220),
@@ -2559,18 +3012,39 @@ class _WordPreviewBar extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 3),
-                Text(
-                  wordText,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: primaryText,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0,
-                    height: 1.05,
-                  ),
-                ),
+                hasWords
+                    ? Text.rich(
+                        TextSpan(
+                          children: [
+                            for (var i = 0; i < words.length; i++) ...[
+                              if (i > 0)
+                                TextSpan(
+                                  text: ' + ',
+                                  style: wordTextStyle.copyWith(
+                                    color: secondaryText,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              TextSpan(
+                                text: words[i].word,
+                                style: wordTextStyle.copyWith(
+                                  color: words[i].valid
+                                      ? validWordColor
+                                      : invalidWordColor,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      )
+                    : Text(
+                        wordText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: wordTextStyle,
+                      ),
               ],
             ),
           ),

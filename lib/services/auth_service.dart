@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:kurdle_app/services/app_locale.dart';
+import 'package:kurdle_app/services/firestore_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 
@@ -324,6 +325,81 @@ class AuthService {
     await _google.signOut();
     await _auth.signOut();
     await _clearRememberedAuthProvider();
+  }
+
+  // ── Hesap silme ─────────────────────────────────────────────────
+  Future<String?> deleteAccount() async {
+    final user = currentUser;
+    if (user == null) return 'Önce giriş yapmalısınız.';
+
+    final reauthError = await _reauthenticateForAccountDeletion(user);
+    if (reauthError != null) return reauthError;
+
+    try {
+      final uid = user.uid;
+      await FirestoreService.instance.deleteAccountData(uid);
+      await user.delete();
+      await _google.signOut();
+      await _clearRememberedAuthProvider();
+      return null;
+    } on FirebaseAuthException catch (e) {
+      _log('deleteAccount', '${e.code}: ${e.message}');
+      if (e.code == 'requires-recent-login') {
+        return 'Güvenlik için tekrar giriş yapıp silme işlemini yeniden deneyin.';
+      }
+      return _friendlyError(e.code);
+    } catch (e) {
+      _log('deleteAccount', e.toString());
+      return 'Hesap silinemedi. Lütfen tekrar deneyin.';
+    }
+  }
+
+  Future<String?> _reauthenticateForAccountDeletion(User user) async {
+    if (user.isAnonymous) return null;
+    final providerIds = user.providerData.map((p) => p.providerId).toSet();
+
+    try {
+      if (providerIds.contains('google.com')) {
+        final googleUser = await _google.signIn();
+        if (googleUser == null) return 'Silme işlemi iptal edildi.';
+        final googleAuth = await googleUser.authentication;
+        final credential = GoogleAuthProvider.credential(
+          accessToken: googleAuth.accessToken,
+          idToken: googleAuth.idToken,
+        );
+        await user.reauthenticateWithCredential(credential);
+      } else if (providerIds.contains('apple.com')) {
+        final rawNonce = _generateNonce();
+        final nonce = _sha256ofString(rawNonce);
+        final appleCredential = await SignInWithApple.getAppleIDCredential(
+          scopes: [
+            AppleIDAuthorizationScopes.email,
+            AppleIDAuthorizationScopes.fullName,
+          ],
+          nonce: nonce,
+        );
+        final identityToken = appleCredential.identityToken;
+        if (identityToken == null || identityToken.isEmpty) {
+          return 'Apple kimlik tokeni alınamadı.';
+        }
+        final credential = OAuthProvider('apple.com').credential(
+          idToken: identityToken,
+          rawNonce: rawNonce,
+          accessToken: appleCredential.authorizationCode,
+        );
+        await user.reauthenticateWithCredential(credential);
+      }
+      return null;
+    } on FirebaseAuthException catch (e) {
+      _log('reauthenticateForDeletion', '${e.code}: ${e.message}');
+      return _friendlyError(e.code);
+    } on SignInWithAppleAuthorizationException catch (e) {
+      _log('reauthenticateForDeletion', '${e.code.name}: ${e.message}');
+      return 'Silme işlemi iptal edildi.';
+    } catch (e) {
+      _log('reauthenticateForDeletion', e.toString());
+      return 'Kimlik doğrulama tamamlanamadı.';
+    }
   }
 
   // ── E-posta doğrulama gönder ─────────────────────────────────────

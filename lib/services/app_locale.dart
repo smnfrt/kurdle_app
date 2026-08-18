@@ -381,6 +381,16 @@ class L {
   static String get accountProfile => _s('Hesap & Profil', 'Hesab & Profîl');
   static String get editProfile => _s('Profili Düzenle', 'Profîlê Biguherîne');
   static String get signOut => _s('Çıkış Yap', 'Derkeve');
+  static String get deleteAccount => _s('Hesabı Sil', 'Hesabê Jê Bibe');
+  static String get deleteAccountTitle =>
+      _s('Hesabı sil?', 'Hesab were jêbirin?');
+  static String get deleteAccountWarning => _s(
+      'Bu işlem hesabını ve profil verilerini kalıcı olarak siler. Bu işlem geri alınamaz.',
+      'Ev kiryar hesab û daneyên profîla te bi awayekî mayînde jê dibe. Ev kiryar nayê vegerandin.');
+  static String get deleteAccountConfirm =>
+      _s('Kalıcı olarak sil', 'Bi mayînde jê bibe');
+  static String get deleteAccountSuccess =>
+      _s('Hesabın silindi.', 'Hesabê te hate jêbirin.');
   static String get gameSettings => _s('Oyun Ayarları', 'Mîhengên Lîstikê');
   static String get sound => _s('Ses Efektleri', 'Dengên Lîstikê');
   static String get haptic => _s('Titreşim', 'Lerizîn');

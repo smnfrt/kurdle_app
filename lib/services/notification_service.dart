@@ -1,7 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, debugPrint, defaultTargetPlatform, kDebugMode;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
@@ -47,6 +48,11 @@ class NotificationService {
 
   int _turnReminderId(String roomCode, int slot) =>
       'turn-reminder-$roomCode-$slot'.hashCode;
+
+  String _tokenPreview(String token, int length) {
+    if (token.length <= length) return token;
+    return '${token.substring(0, length)}...';
+  }
 
   void _debugExactAlarmFallback(String reminderName, Object error) {
     if (kDebugMode) {
@@ -138,6 +144,11 @@ class NotificationService {
     // Plugin başlat
     const initSettings = InitializationSettings(
       android: AndroidInitializationSettings('@mipmap/launcher_icon'),
+      iOS: DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      ),
     );
     await _local.initialize(
       initSettings,
@@ -147,6 +158,12 @@ class NotificationService {
           _dispatchInviteTap(payload);
         }
       },
+    );
+
+    await _fcm.setForegroundNotificationPresentationOptions(
+      alert: true,
+      badge: true,
+      sound: true,
     );
 
     // App kapalıyken bildirime basıp açıldıysa, payload'ı bekleyen koda kaydet.
@@ -182,6 +199,11 @@ class NotificationService {
             _channelName,
             importance: Importance.high,
             priority: Priority.high,
+          ),
+          iOS: DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
           ),
         ),
         payload: payload,
@@ -234,6 +256,11 @@ class NotificationService {
         importance: Importance.high,
         priority: Priority.high,
       ),
+      iOS: DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
     );
 
     try {
@@ -283,6 +310,11 @@ class NotificationService {
         _channelName,
         importance: Importance.high,
         priority: Priority.high,
+      ),
+      iOS: DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
       ),
     );
     try {
@@ -363,6 +395,11 @@ class NotificationService {
         priority: Priority.high,
         ticker: 'Hamle zamanı',
       ),
+      iOS: DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
     );
 
     final uniqueTimes = <DateTime>[];
@@ -423,6 +460,11 @@ class NotificationService {
         importance: Importance.max,
         priority: Priority.high,
       ),
+      iOS: DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      ),
     );
     final tzTime = tz.TZDateTime.from(reminderTime, tz.local);
 
@@ -452,7 +494,35 @@ class NotificationService {
     }
   }
 
-  Future<String?> getFcmToken() => _fcm.getToken();
+  Future<String?> getFcmToken() async {
+    await _waitForApnsToken();
+    return _fcm.getToken();
+  }
+
+  Future<String?> _waitForApnsToken() async {
+    if (defaultTargetPlatform != TargetPlatform.iOS &&
+        defaultTargetPlatform != TargetPlatform.macOS) {
+      return null;
+    }
+
+    for (var i = 0; i < 5; i++) {
+      final token = await _fcm.getAPNSToken();
+      if (token != null && token.isNotEmpty) {
+        if (kDebugMode) {
+          debugPrint(
+            '[NotificationService] APNs token ready '
+            '(${_tokenPreview(token, 8)})',
+          );
+        }
+        return token;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    }
+    if (kDebugMode) {
+      debugPrint('[NotificationService] APNs token not available yet');
+    }
+    return null;
+  }
 
   Future<String> _deviceId() async {
     final prefs = await SharedPreferences.getInstance();
@@ -472,6 +542,7 @@ class NotificationService {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
+      await _waitForApnsToken();
       final token = await _fcm.getToken();
       if (token == null || token.isEmpty) return;
       final deviceId = await _deviceId();
@@ -479,10 +550,18 @@ class NotificationService {
         {
           'fcmToken': token,
           'fcmTokens': {deviceId: token},
+          'fcmTokenPlatform': defaultTargetPlatform.name,
           'lastSeen': FieldValue.serverTimestamp(),
         },
         SetOptions(merge: true),
       );
+      if (kDebugMode) {
+        debugPrint(
+          '[NotificationService] FCM token synced '
+          'platform=${defaultTargetPlatform.name} '
+          'device=$deviceId token=${_tokenPreview(token, 12)}',
+        );
+      }
     } catch (e) {
       if (kDebugMode) {
         debugPrint('[NotificationService] syncFcmTokenToFirestore failed: $e');
@@ -506,6 +585,11 @@ class NotificationService {
             importance: Importance.max,
             priority: Priority.high,
             ticker: 'Davet',
+          ),
+          iOS: DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
           ),
         ),
         payload: roomCode.startsWith('invite:') ? roomCode : 'invite:$roomCode',
@@ -545,6 +629,11 @@ class NotificationService {
             importance: Importance.high,
             priority: Priority.high,
             ticker: 'Hamle',
+          ),
+          iOS: DarwinNotificationDetails(
+            presentAlert: true,
+            presentBadge: true,
+            presentSound: true,
           ),
         ),
         payload: 'room:$roomCode',
