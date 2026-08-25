@@ -2189,7 +2189,6 @@ class _WordPreviewBar extends StatelessWidget {
     final surface = isDark
         ? const Color(0xFF101A25).withValues(alpha: 0.88)
         : Colors.white.withValues(alpha: 0.92);
-    final primaryText = isDark ? Colors.white : const Color(0xFF16251D);
     final secondaryText =
         isDark ? Colors.white.withValues(alpha: 0.68) : const Color(0xFF52645A);
     final statusText = !hasWords
@@ -2210,8 +2209,8 @@ class _WordPreviewBar extends StatelessWidget {
         : (L.current == AppLocale.tr
             ? 'Tahtaya kelime yerleştir'
             : 'Peyvê li textê deyne');
-    final wordTextStyle = TextStyle(
-      color: primaryText,
+    final hintTextStyle = TextStyle(
+      color: isDark ? Colors.white : const Color(0xFF16251D),
       fontSize: 15,
       fontWeight: FontWeight.w900,
       letterSpacing: 0,
@@ -2290,37 +2289,19 @@ class _WordPreviewBar extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 hasWords
-                    ? Text.rich(
-                        TextSpan(
-                          children: [
-                            for (var i = 0; i < words.length; i++) ...[
-                              if (i > 0)
-                                TextSpan(
-                                  text: ' + ',
-                                  style: wordTextStyle.copyWith(
-                                    color: secondaryText,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              TextSpan(
-                                text: words[i].word,
-                                style: wordTextStyle.copyWith(
-                                  color: words[i].valid
-                                      ? validWordColor
-                                      : invalidWordColor,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                    ? _WordStatusStrip(
+                        words: words,
+                        validColor: validWordColor,
+                        invalidColor: invalidWordColor,
+                        textColor:
+                            isDark ? Colors.white : const Color(0xFF16251D),
+                        mutedColor: secondaryText,
                       )
                     : Text(
                         wordText,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: wordTextStyle,
+                        style: hintTextStyle,
                       ),
               ],
             ),
@@ -2378,6 +2359,84 @@ class _WordPreviewBar extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _WordStatusStrip extends StatelessWidget {
+  final List<({String word, int score, bool valid})> words;
+  final Color validColor;
+  final Color invalidColor;
+  final Color textColor;
+  final Color mutedColor;
+
+  const _WordStatusStrip({
+    required this.words,
+    required this.validColor,
+    required this.invalidColor,
+    required this.textColor,
+    required this.mutedColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 28,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: words.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 6),
+        itemBuilder: (context, index) {
+          final item = words[index];
+          final color = item.valid ? validColor : invalidColor;
+          return Container(
+            constraints: const BoxConstraints(maxWidth: 132),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.13),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: color.withValues(alpha: 0.48)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  item.valid
+                      ? Icons.check_circle_rounded
+                      : Icons.cancel_rounded,
+                  color: color,
+                  size: 14,
+                ),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    item.word,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w900,
+                      height: 1,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  item.valid ? '${item.score}' : '0',
+                  style: TextStyle(
+                    color: item.valid ? mutedColor : color,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    height: 1,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }

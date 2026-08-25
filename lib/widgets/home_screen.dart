@@ -702,6 +702,14 @@ class _HomeScreenState extends State<HomeScreen>
                             height: _kHomeWideCardHeight,
                             child: _GununKelimesiCard(),
                           )),
+                      const SizedBox(height: 12),
+                      _stagger(
+                        4,
+                        _FerhengHomeButton(
+                          onTap: () => Navigator.of(context)
+                              .push(appRoute(const FerhengHomeScreen())),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -977,27 +985,45 @@ class _SiralamalarCardState extends State<_SiralamalarCard> {
               children: [
                 const Icon(Icons.leaderboard_rounded, color: _kGold, size: 18),
                 const SizedBox(width: 8),
-                Text(L.ranking,
+                Expanded(
+                  child: Text(
+                    L.ranking,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                         color: titleColor,
                         fontSize: 14,
-                        fontWeight: FontWeight.bold)),
-                const Spacer(),
-                _TabBtn(
-                    label: L.weekly,
-                    active: _tab == 0,
-                    onTap: () {
-                      setState(() => _tab = 0);
-                      _load();
-                    }),
-                const SizedBox(width: 6),
-                _TabBtn(
-                    label: L.allTime,
-                    active: _tab == 1,
-                    onTap: () {
-                      setState(() => _tab = 1);
-                      _load();
-                    }),
+                        fontWeight: FontWeight.bold),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  flex: 3,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Flexible(
+                        child: _TabBtn(
+                            label: L.weekly,
+                            active: _tab == 0,
+                            onTap: () {
+                              setState(() => _tab = 0);
+                              _load();
+                            }),
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: _TabBtn(
+                            label: L.allTime,
+                            active: _tab == 1,
+                            onTap: () {
+                              setState(() => _tab = 1);
+                              _load();
+                            }),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -1041,6 +1067,8 @@ class _SiralamalarCardState extends State<_SiralamalarCard> {
                                 const SizedBox(width: 6),
                                 Expanded(
                                   child: Text(entry.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
                                         color: entry.isMe
                                             ? _kPrimary
@@ -1053,6 +1081,8 @@ class _SiralamalarCardState extends State<_SiralamalarCard> {
                                       )),
                                 ),
                                 Text(_fmtScore(entry.score),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
                                         color: mutedColor, fontSize: 11)),
                               ],
@@ -1084,6 +1114,8 @@ class _SiralamalarCardState extends State<_SiralamalarCard> {
                         if (myRank == null)
                           Text(
                             L.noScoreYet,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(color: mutedColor, fontSize: 12),
                           )
                         else
@@ -1119,22 +1151,26 @@ class _SiralamalarCardState extends State<_SiralamalarCard> {
                                     ],
                                   ),
                                   const SizedBox(height: 4),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 2),
-                                    decoration: BoxDecoration(
-                                      color: _kPrimary.withValues(alpha: 0.1),
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                          color:
-                                              _kPrimary.withValues(alpha: 0.3)),
+                                  Flexible(
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: _kPrimary.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(8),
+                                        border: Border.all(
+                                            color: _kPrimary.withValues(
+                                                alpha: 0.3)),
+                                      ),
+                                      child: Text(
+                                          '${_fmtScore(myScore!)} ${L.points}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                              color: _kPrimary,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600)),
                                     ),
-                                    child: Text(
-                                        '${_fmtScore(myScore!)} ${L.points}',
-                                        style: const TextStyle(
-                                            color: _kPrimary,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w600)),
                                   ),
                                 ],
                               ),
@@ -1178,7 +1214,7 @@ class _TabBtn extends StatelessWidget {
         highlightColor: _kGold.withValues(alpha: 0.08),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
           decoration: BoxDecoration(
             color: active ? _kGold.withValues(alpha: 0.15) : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
@@ -1187,16 +1223,21 @@ class _TabBtn extends StatelessWidget {
                     ? _kGold.withValues(alpha: 0.5)
                     : Colors.transparent),
           ),
-          child: Text(label,
-              style: TextStyle(
-                color: active
-                    ? _kGold
-                    : isDark
-                        ? Colors.white.withValues(alpha: 0.35)
-                        : const Color(0xFF69747C),
-                fontSize: 10,
-                fontWeight: active ? FontWeight.bold : FontWeight.normal,
-              )),
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(label,
+                maxLines: 1,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: active
+                      ? _kGold
+                      : isDark
+                          ? Colors.white.withValues(alpha: 0.35)
+                          : const Color(0xFF69747C),
+                  fontSize: 10,
+                  fontWeight: active ? FontWeight.bold : FontWeight.normal,
+                )),
+          ),
         ),
       ),
     );
@@ -1591,6 +1632,101 @@ class _StagePreview extends StatelessWidget {
                         : const Color(0xFF6B747D),
                     fontSize: 9)),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FerhengHomeButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _FerhengHomeButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : const Color(0xFF13241A);
+    final mutedColor =
+        isDark ? Colors.white.withValues(alpha: 0.58) : const Color(0xFF4C5C53);
+    final borderColor = isDark
+        ? _kPrimary.withValues(alpha: 0.32)
+        : const Color(0xFF6EA47E).withValues(alpha: 0.55);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          onTap();
+        },
+        borderRadius: BorderRadius.circular(16),
+        splashColor: _kPrimary.withValues(alpha: 0.12),
+        highlightColor: _kPrimary.withValues(alpha: 0.06),
+        child: Ink(
+          height: 58,
+          decoration: BoxDecoration(
+            color: isDark
+                ? _kPrimary.withValues(alpha: 0.10)
+                : _kPrimary.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: borderColor, width: 1.1),
+          ),
+          child: Row(
+            children: [
+              const SizedBox(width: 16),
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: _kPrimary.withValues(alpha: isDark ? 0.20 : 0.16),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.menu_book_rounded,
+                  color: _kPrimary,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      L.ferheng,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: textColor,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      L.ferhengSearchHint,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: mutedColor,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.arrow_forward_ios_rounded,
+                color: mutedColor,
+                size: 16,
+              ),
+              const SizedBox(width: 16),
+            ],
+          ),
         ),
       ),
     );

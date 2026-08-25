@@ -61,7 +61,8 @@ class _RandomMatchScreenState extends State<RandomMatchScreen>
   // ── Arama mantığı ────────────────────────────────────────────────
 
   Future<void> _startSearch() async {
-    final uid = AuthService.instance.effectiveUid;
+    final user = await AuthService.instance.ensureFirebaseUser();
+    final uid = user?.uid;
     final name = AuthService.instance.effectiveDisplayName;
     if (uid == null) {
       if (mounted) setState(() => _error = L.needSignIn);
@@ -90,7 +91,7 @@ class _RandomMatchScreenState extends State<RandomMatchScreen>
         }
       });
     } catch (e) {
-      if (mounted) setState(() => _error = L.searchError);
+      if (mounted) setState(() => _error = '${L.searchError}: $e');
     }
   }
 

@@ -34,6 +34,8 @@ class MultiplayerRoom {
   final String? lastMoveBy; // 'host' | 'guest'
   final List<Map<String, dynamic>> lastMoveWords;
   final List<String> lastMoveCells;
+  final List<Map<String, dynamic>> wordHistory;
+  final int turnNumber;
   final DateTime? lastMoveAt;
   final int? turnTimeLimitSeconds;
   final DateTime? turnStartedAt;
@@ -67,6 +69,8 @@ class MultiplayerRoom {
     this.lastMoveBy,
     this.lastMoveWords = const [],
     this.lastMoveCells = const [],
+    this.wordHistory = const [],
+    this.turnNumber = 0,
     this.lastMoveAt,
     this.turnTimeLimitSeconds,
     this.turnStartedAt,
@@ -102,6 +106,8 @@ class MultiplayerRoom {
       lastMoveBy: d['lastMoveBy'] as String?,
       lastMoveWords: List<Map<String, dynamic>>.from(d['lastMoveWords'] ?? []),
       lastMoveCells: List<String>.from(d['lastMoveCells'] ?? []),
+      wordHistory: List<Map<String, dynamic>>.from(d['wordHistory'] ?? []),
+      turnNumber: (d['turnNumber'] as num?)?.toInt() ?? 0,
       lastMoveAt: (d['lastMoveAt'] as Timestamp?)?.toDate(),
       turnTimeLimitSeconds: (d['turnTimeLimitSeconds'] as num?)?.toInt(),
       turnStartedAt: (d['turnStartedAt'] as Timestamp?)?.toDate(),
@@ -280,6 +286,8 @@ class MultiplayerService {
       'passCount': 0,
       'hostStealsLeft': 2,
       'guestStealsLeft': 2,
+      'wordHistory': [],
+      'turnNumber': 0,
       'createdAt': FieldValue.serverTimestamp(),
       'lastMoveAt': FieldValue.serverTimestamp(),
       if (status == 'active') ...{
@@ -333,6 +341,8 @@ class MultiplayerService {
       'passCount': 0,
       'hostStealsLeft': 2,
       'guestStealsLeft': 2,
+      'wordHistory': [],
+      'turnNumber': 0,
       'createdAt': FieldValue.serverTimestamp(),
       'lastMoveAt': FieldValue.serverTimestamp(),
       'turnStartedAt': null,
@@ -455,6 +465,8 @@ class MultiplayerService {
       'passCount': 0,
       'hostStealsLeft': 2,
       'guestStealsLeft': 2,
+      'wordHistory': [],
+      'turnNumber': 0,
       'createdAt': FieldValue.serverTimestamp(),
       'lastMoveAt': FieldValue.serverTimestamp(),
     });
@@ -539,6 +551,8 @@ class MultiplayerService {
       'passCount': 0,
       'hostStealsLeft': 2,
       'guestStealsLeft': 2,
+      'wordHistory': [],
+      'turnNumber': 0,
       'createdAt': FieldValue.serverTimestamp(),
       'lastMoveAt': FieldValue.serverTimestamp(),
       'turnStartedAt': null,
@@ -952,6 +966,7 @@ class MultiplayerService {
     int? moveScore,
     List<Map<String, dynamic>> lastMoveWords = const [],
     List<String> lastMoveCells = const [],
+    List<Map<String, dynamic>>? wordHistory,
   }) async {
     // Transaction + sıra-sahipliği doğrulaması: eşzamanlı/bayat hamlelerin
     // skoru/sırayı/kazananı bozmasını engeller (yarış koşulu koruması).
@@ -984,11 +999,13 @@ class MultiplayerService {
         'bagLetters': newBagLetters,
         'currentTurnUid': nextTurnUid,
         'passCount': 0,
+        'turnNumber': ((d['turnNumber'] as num?)?.toInt() ?? 0) + 1,
         'lastMoveAt': FieldValue.serverTimestamp(),
         'lastMoveScore': moveScore,
         'lastMoveBy': isHost ? 'host' : 'guest',
         'lastMoveWords': lastMoveWords,
         'lastMoveCells': lastMoveCells,
+        if (wordHistory != null) 'wordHistory': wordHistory,
         ..._nextTurnTimerUpdate(d),
       };
       if (isHost) {
@@ -1077,6 +1094,7 @@ class MultiplayerService {
         rackKey: newRack,
         'bagLetters': newBag,
         'currentTurnUid': nextTurnUid,
+        'turnNumber': ((d['turnNumber'] as num?)?.toInt() ?? 0) + 1,
         'lastMoveAt': FieldValue.serverTimestamp(),
         'lastMoveScore': 0,
         'lastMoveBy': isHost ? 'host' : 'guest',
@@ -1120,6 +1138,7 @@ class MultiplayerService {
       final update = <String, dynamic>{
         'currentTurnUid': nextTurnUid,
         'passCount': newCount,
+        'turnNumber': ((d['turnNumber'] as num?)?.toInt() ?? 0) + 1,
         'lastMoveAt': FieldValue.serverTimestamp(),
         'lastMoveWords': [],
         'lastMoveCells': [],

@@ -29,11 +29,12 @@ class StatsService {
 
   /// Son hamle sonucunda kazanılan ödüller (UI level-up overlay için).
   /// `updateStats` çağrısı tamamlandığında set olur.
-  final ValueNotifier<({int oldLevel, int newLevel, int xpGained, int peyvGained})?>
+  final ValueNotifier<
+          ({int oldLevel, int newLevel, int xpGained, int peyvGained})?>
       lastReward = ValueNotifier(null);
 
-  Future<Stats> updateStats(
-      Stats stats, bool won, int index, String Function(int n) getSharable, int gameNumber,
+  Future<Stats> updateStats(Stats stats, bool won, int index,
+      String Function(int n) getSharable, int gameNumber,
       {String word = ''}) async {
     if (won) {
       stats.guessDistribution[index] += 1;
@@ -75,7 +76,7 @@ class StatsService {
     final uid = AuthService.instance.currentUser?.uid;
     if (uid == null || !FirebaseService.isAvailable) return;
     // XP/Peyv ödülü DailyWordService.recordResult içinde verilir.
-    // Wordle "skor" konsepti kaldırıldı; sadece played/won güncelle.
+    // Wordle skorsuzdur; played/won ve galibiyet bonusu leaderboard'a işlenir.
     FirestoreService.instance.recordPlayStats(
       uid: uid,
       playerScore: 0,
@@ -85,6 +86,7 @@ class StatsService {
 
   Future<void> saveStats(Stats stats) async {
     final directory = await getApplicationDocumentsDirectory();
-    await File("${directory.path}/stats.json").writeAsString(json.encode(stats.toJson()));
+    await File("${directory.path}/stats.json")
+        .writeAsString(json.encode(stats.toJson()));
   }
 }

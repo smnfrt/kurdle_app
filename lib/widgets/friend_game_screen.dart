@@ -120,6 +120,7 @@ class _FriendGameScreenState extends State<FriendGameScreen>
   List<({String word, int score, bool valid})> _pendingWords = [];
   Timer? _emptyWordHintTimer;
   bool _showEmptyWordHint = true;
+  String? _lastSyncedTurnUid;
 
   // ── Game over ─────────────────────────────────────────────────────
   bool _gameOverShown = false;
@@ -576,6 +577,8 @@ class _FriendGameScreenState extends State<FriendGameScreen>
     final isHost = room.hostUid == widget.myUid;
     final letters = isHost ? room.hostRack : room.guestRack;
     final isMyTurn = room.currentTurnUid == widget.myUid;
+    final becameMyTurn = isMyTurn && _lastSyncedTurnUid != room.currentTurnUid;
+    _lastSyncedTurnUid = room.currentTurnUid;
     setState(() {
       _localBoard = room.toWordBoard();
       _myRack = MultiplayerRoom.toRack(letters);
@@ -583,8 +586,11 @@ class _FriendGameScreenState extends State<FriendGameScreen>
       _pendingWords = [];
       _isInStealMode = false;
       _error = '';
+      if (!isMyTurn) {
+        _showEmptyWordHint = false;
+      }
     });
-    if (isMyTurn) _showEmptyWordHintBriefly();
+    if (becameMyTurn) _showEmptyWordHintBriefly();
   }
 
   // ── Board interactions ────────────────────────────────────────────
@@ -684,19 +690,147 @@ class _FriendGameScreenState extends State<FriendGameScreen>
         : _room!.guestStealsLeft;
   }
 
-  StealResult? _detectSteal(List<PlacedWord> words) {
+  List<_MpWordRecord> _roomWordHistory(MultiplayerRoom room) {
+    final stored = room.wordHistory
+        .map(_MpWordRecord.fromMap)
+        .whereType<_MpWordRecord>()
+        .toList(growable: false);
+    if (stored.isNotEmpty) return stored;
+    return _historyFromLastMove(room);
+  }
+
+  List<_MpWordRecord> _historyFromLastMove(MultiplayerRoom room) {
+    final owner = room.lastMoveBy;
+    if (owner == null) return const [];
+    return room.lastMoveWords
+        .map((map) => _MpWordRecord.fromLastMoveMap(
+              map,
+              owner: owner,
+              turnPlaced: room.turnNumber,
+            ))
+        .whereType<_MpWordRecord>()
+        .toList(growable: false);
+  }
+
+  _StealCheck _detectSteal(List<PlacedWord> words) {
+    final room = _room;
+    if (room == null) {
+      return _StealCheck.fail(L.noStealTarget);
+    }
+    final history = _roomWordHistory(room);
+    if (history.isEmpty) {
+      return _StealCheck.fail(L.noStealTarget);
+    }
+    final myOwner = room.hostUid == widget.myUid ? 'host' : 'guest';
+
+    _StealCheck? firstFailure;
     for (final word in words) {
-      final lockedLetters =
-          word.cells.where((c) => c.isLocked).map((c) => c.letter).join();
-      if (lockedLetters.isEmpty) continue;
+      final target = _findExtendedRecord(word, history, excludedOwner: myOwner);
+      if (target == null) continue;
+      final protectedTurns = room.turnNumber - target.turnPlaced;
+      if (protectedTurns <= 1) {
+        firstFailure ??= _StealCheck.fail(L.wordProtected, target: target);
+        continue;
+      }
+
       final steal = _stealSvc.canSteal(
-        lockedLetters,
+        target.word,
         word.word,
         isValidWord: _validator!.isValid,
+        currentSteals: target.stealCount,
       );
-      if (steal.success) return steal;
+      if (steal.success) {
+        return _StealCheck.ok(steal, target: target, word: word);
+      }
+      firstFailure ??= _StealCheck.fail(steal.reason, target: target);
     }
-    return null;
+    return firstFailure ?? _StealCheck.fail(L.noStealTarget);
+  }
+
+  _MpWordRecord? _findExtendedRecord(
+    PlacedWord word,
+    List<_MpWordRecord> history, {
+    String? excludedOwner,
+  }) {
+    if (word.cells.length < 2) return null;
+    final isHorizontal = word.cells.first.row == word.cells.last.row;
+    final fixedLine =
+        isHorizontal ? word.cells.first.row : word.cells.first.column;
+    final positions = word.cells
+        .map((c) => isHorizontal ? c.column : c.row)
+        .toList(growable: false)
+      ..sort();
+    final start = positions.first;
+    final end = positions.last;
+
+    _MpWordRecord? best;
+    for (final record in history) {
+      if (excludedOwner != null && record.owner == excludedOwner) continue;
+      if (!record.isExtendedBy(
+        horizontal: isHorizontal,
+        line: fixedLine,
+        newStart: start,
+        newEnd: end,
+      )) {
+        continue;
+      }
+      if (best == null ||
+          (record.endPos - record.startPos) > (best.endPos - best.startPos)) {
+        best = record;
+      }
+    }
+    return best;
+  }
+
+  List<Map<String, dynamic>> _nextWordHistory({
+    required MultiplayerRoom room,
+    required List<PlacedWord> words,
+    required bool isHost,
+    _StealCheck? stealCheck,
+  }) {
+    final owner = isHost ? 'host' : 'guest';
+    final nextTurnNumber = room.turnNumber + 1;
+    final history = _roomWordHistory(room).toList();
+
+    for (final word in words) {
+      if (word.cells.length < 2) continue;
+      final isHorizontal = word.cells.first.row == word.cells.last.row;
+      final fixedLine =
+          isHorizontal ? word.cells.first.row : word.cells.first.column;
+      final positions = word.cells
+          .map((c) => isHorizontal ? c.column : c.row)
+          .toList(growable: false)
+        ..sort();
+      final start = positions.first;
+      final end = positions.last;
+
+      _MpWordRecord? extended;
+      history.removeWhere((record) {
+        final hit = record.isExtendedBy(
+          horizontal: isHorizontal,
+          line: fixedLine,
+          newStart: start,
+          newEnd: end,
+        );
+        if (hit) extended = record;
+        return hit;
+      });
+
+      final stoleThisWord =
+          stealCheck?.success == true && identical(stealCheck?.word, word);
+      history.add(_MpWordRecord(
+        word: word.word,
+        isHorizontal: isHorizontal,
+        fixedLine: fixedLine,
+        startPos: start,
+        endPos: end,
+        owner: owner,
+        turnPlaced: nextTurnNumber,
+        stealCount: (extended?.stealCount ?? 0) + (stoleThisWord ? 1 : 0),
+      ));
+    }
+
+    return history.map((record) => record.toMap()).toList(growable: false);
   }
 
   // ── Submit ────────────────────────────────────────────────────────
@@ -739,11 +873,13 @@ class _FriendGameScreenState extends State<FriendGameScreen>
     }
 
     // Çal modu: steal denemesi
+    _StealCheck? stealCheck;
     if (_isInStealMode) {
-      final steal = _detectSteal(words);
-      if (steal == null || _myStealsLeft <= 0) {
+      stealCheck = _detectSteal(words);
+      if (!stealCheck.success || _myStealsLeft <= 0) {
         // Başarısız çalma — ceza
         const penalty = 5;
+        final reason = _myStealsLeft <= 0 ? L.noStealLeft : stealCheck.reason;
         _isInStealMode = false;
         _recallAll();
         setState(() => _submitting = true);
@@ -780,7 +916,7 @@ class _FriendGameScreenState extends State<FriendGameScreen>
         if (mounted) {
           setState(() {
             _submitting = false;
-            _error = L.stealFailedPenalty(penalty);
+            _error = '${L.stealFailedPenalty(penalty)} $reason';
           });
         }
         return;
@@ -788,12 +924,10 @@ class _FriendGameScreenState extends State<FriendGameScreen>
       // Başarılı çalma — devam et (steal.bonusScore eklenir aşağıda)
     }
 
-    if (!_isInStealMode) {
-      final invalid = words.where((w) => !_validator!.isValid(w.word)).toList();
-      if (invalid.isNotEmpty) {
-        _setError(L.invalidWords(invalid.map((w) => w.word).join(', ')));
-        return;
-      }
+    final invalid = words.where((w) => !_validator!.isValid(w.word)).toList();
+    if (invalid.isNotEmpty) {
+      _setError(L.invalidWords(invalid.map((w) => w.word).join(', ')));
+      return;
     }
 
     setState(() {
@@ -809,7 +943,7 @@ class _FriendGameScreenState extends State<FriendGameScreen>
       // Çalma bonusu
       int? newStealsLeft;
       if (_isInStealMode) {
-        final steal = _detectSteal(words)!;
+        final steal = (stealCheck ?? _detectSteal(words)).result!;
         score += steal.bonusScore;
         newStealsLeft = _myStealsLeft - 1;
         _isInStealMode = false;
@@ -821,6 +955,12 @@ class _FriendGameScreenState extends State<FriendGameScreen>
       final myNewScore = myCurrentScore + score;
       final lastMoveWords = _serializeMoveWords(words);
       final lastMoveCells = _moveWordCells(lastMoveWords);
+      final nextWordHistory = _nextWordHistory(
+        room: room,
+        words: words,
+        isHost: isHost,
+        stealCheck: stealCheck,
+      );
 
       // Commit board
       final newBoard = _localBoard.commitPending();
@@ -864,6 +1004,7 @@ class _FriendGameScreenState extends State<FriendGameScreen>
         moveScore: score,
         lastMoveWords: lastMoveWords,
         lastMoveCells: lastMoveCells,
+        wordHistory: nextWordHistory,
       );
       if (mounted) {
         setState(() {
@@ -1305,31 +1446,6 @@ class _FriendGameScreenState extends State<FriendGameScreen>
                                   ),
                                 ),
                               ),
-                              Positioned(
-                                top: 6,
-                                left: 10,
-                                right: 10,
-                                child: AnimatedSlide(
-                                  duration: const Duration(milliseconds: 260),
-                                  curve: Curves.easeOutCubic,
-                                  offset: _pendingWords.isNotEmpty ||
-                                          (myTurn && _showEmptyWordHint)
-                                      ? Offset.zero
-                                      : const Offset(0, -1.25),
-                                  child: AnimatedOpacity(
-                                    duration: const Duration(milliseconds: 220),
-                                    opacity: _pendingWords.isNotEmpty ||
-                                            (myTurn && _showEmptyWordHint)
-                                        ? 1
-                                        : 0,
-                                    child: IgnorePointer(
-                                      ignoring: _pendingWords.isEmpty,
-                                      child:
-                                          _WordPreviewBar(words: _pendingWords),
-                                    ),
-                                  ),
-                                ),
-                              ),
                             ],
                           );
                         },
@@ -1374,13 +1490,25 @@ class _FriendGameScreenState extends State<FriendGameScreen>
                       ),
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 4, 10, 6),
-                    child: _TurnStateBand(
-                      isMyTurn: myTurn,
-                      opponentName: oppName,
-                      timeLabel: turnTimeLabel,
-                    ),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 220),
+                    switchInCurve: Curves.easeOutCubic,
+                    switchOutCurve: Curves.easeInCubic,
+                    child: _pendingWords.isNotEmpty ||
+                            (myTurn && _showEmptyWordHint)
+                        ? Padding(
+                            key: const ValueKey('word-preview-bottom'),
+                            padding: const EdgeInsets.fromLTRB(10, 4, 10, 6),
+                            child: _WordPreviewBar(
+                              words: _pendingWords,
+                              isMyTurn: myTurn,
+                              opponentName: oppName,
+                              timeLabel: turnTimeLabel,
+                            ),
+                          )
+                        : const SizedBox.shrink(
+                            key: ValueKey('word-preview-empty'),
+                          ),
                   ),
                   // Action buttons — opponent turn'ünde de göster ama
                   // submit/pass/steal disabled. Recall her zaman aktif
@@ -2301,149 +2429,6 @@ class _FloatingDeltaState extends State<_FloatingDelta>
   }
 }
 
-class _TurnStateBand extends StatelessWidget {
-  final bool isMyTurn;
-  final String opponentName;
-  final String? timeLabel;
-
-  const _TurnStateBand({
-    required this.isMyTurn,
-    required this.opponentName,
-    required this.timeLabel,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final accent = isMyTurn ? const Color(0xFF66E093) : const Color(0xFF64B5F6);
-    final bg = isDark
-        ? const Color(0xFF101A25).withValues(alpha: 0.92)
-        : Colors.white.withValues(alpha: 0.86);
-    final textColor = isDark ? Colors.white : const Color(0xFF17251E);
-    final muted =
-        isDark ? Colors.white.withValues(alpha: 0.56) : const Color(0xFF5E6D64);
-    final title = isMyTurn
-        ? (L.current == AppLocale.tr ? 'Sıra sende' : 'Dor li te ye')
-        : (L.current == AppLocale.tr
-            ? '$opponentName düşünüyor'
-            : '$opponentName difikire');
-    final subtitle = isMyTurn
-        ? (L.current == AppLocale.tr
-            ? 'Kelime kur, puanı gör ve hamleni oyna'
-            : 'Peyvê ava bike, pûanê bibîne û bilîze')
-        : (L.current == AppLocale.tr
-            ? 'İstersen taşlarını deneyip hamleni hazırlayabilirsin'
-            : 'Tu dikarî tîpan biceribînî û tevgera xwe amade bikî');
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-      decoration: BoxDecoration(
-        color: bg,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: accent.withValues(alpha: 0.34)),
-        boxShadow: [
-          BoxShadow(
-            color: accent.withValues(alpha: isMyTurn ? 0.18 : 0.10),
-            blurRadius: isMyTurn ? 18 : 10,
-            spreadRadius: isMyTurn ? 0.6 : 0,
-          ),
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.20 : 0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  accent.withValues(alpha: 0.30),
-                  accent.withValues(alpha: 0.10),
-                ],
-              ),
-              border: Border.all(color: accent.withValues(alpha: 0.42)),
-            ),
-            child: Icon(
-              isMyTurn ? Icons.play_arrow_rounded : Icons.hourglass_top_rounded,
-              color: accent,
-              size: 21,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: textColor,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 0,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: muted,
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (timeLabel != null) ...[
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-              decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: accent.withValues(alpha: 0.30)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.timer_rounded, color: accent, size: 13),
-                  const SizedBox(width: 4),
-                  Text(
-                    timeLabel!,
-                    style: TextStyle(
-                      color: accent,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
 // ── Game menu bottom sheet ───────────────────────────────────────
 
 class _FriendGameMenuSheet extends StatefulWidget {
@@ -2894,8 +2879,16 @@ class _SmallBtnState extends State<_SmallBtn> {
 
 class _WordPreviewBar extends StatelessWidget {
   final List<({String word, int score, bool valid})> words;
+  final bool isMyTurn;
+  final String opponentName;
+  final String? timeLabel;
 
-  const _WordPreviewBar({required this.words});
+  const _WordPreviewBar({
+    required this.words,
+    required this.isMyTurn,
+    required this.opponentName,
+    required this.timeLabel,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -2912,11 +2905,14 @@ class _WordPreviewBar extends StatelessWidget {
     final surface = isDark
         ? const Color(0xFF101A25).withValues(alpha: 0.88)
         : Colors.white.withValues(alpha: 0.92);
-    final primaryText = isDark ? Colors.white : const Color(0xFF16251D);
     final secondaryText =
         isDark ? Colors.white.withValues(alpha: 0.68) : const Color(0xFF52645A);
     final statusText = !hasWords
-        ? (L.current == AppLocale.tr ? 'Kelime bekleniyor' : 'Li bendê ye')
+        ? (isMyTurn
+            ? (L.current == AppLocale.tr ? 'Sıra sende' : 'Dor li te ye')
+            : (L.current == AppLocale.tr
+                ? '$opponentName düşünüyor'
+                : '$opponentName difikire'))
         : invalidWords.isEmpty
             ? (validWords.length == 1
                 ? (L.current == AppLocale.tr
@@ -2930,11 +2926,15 @@ class _WordPreviewBar extends StatelessWidget {
                 : '${validWords.length} derbasdar · ${invalidWords.length} nederbasdar');
     final wordText = hasWords
         ? words.map((e) => e.word).join(' + ')
-        : (L.current == AppLocale.tr
-            ? 'Tahtaya kelime yerleştir'
-            : 'Peyvê li textê deyne');
-    final wordTextStyle = TextStyle(
-      color: primaryText,
+        : (isMyTurn
+            ? (L.current == AppLocale.tr
+                ? 'Tahtaya kelime yerleştir'
+                : 'Peyvê li textê deyne')
+            : (L.current == AppLocale.tr
+                ? 'İstersen taşlarını deneyip hamleni hazırlayabilirsin'
+                : 'Tu dikarî tîpan biceribînî û tevgera xwe amade bikî'));
+    final hintTextStyle = TextStyle(
+      color: isDark ? Colors.white : const Color(0xFF16251D),
       fontSize: 15,
       fontWeight: FontWeight.w900,
       letterSpacing: 0,
@@ -3013,37 +3013,19 @@ class _WordPreviewBar extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 hasWords
-                    ? Text.rich(
-                        TextSpan(
-                          children: [
-                            for (var i = 0; i < words.length; i++) ...[
-                              if (i > 0)
-                                TextSpan(
-                                  text: ' + ',
-                                  style: wordTextStyle.copyWith(
-                                    color: secondaryText,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              TextSpan(
-                                text: words[i].word,
-                                style: wordTextStyle.copyWith(
-                                  color: words[i].valid
-                                      ? validWordColor
-                                      : invalidWordColor,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                    ? _WordStatusStrip(
+                        words: words,
+                        validColor: validWordColor,
+                        invalidColor: invalidWordColor,
+                        textColor:
+                            isDark ? Colors.white : const Color(0xFF16251D),
+                        mutedColor: secondaryText,
                       )
                     : Text(
                         wordText,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: wordTextStyle,
+                        style: hintTextStyle,
                       ),
               ],
             ),
@@ -3100,7 +3082,120 @@ class _WordPreviewBar extends StatelessWidget {
               ],
             ),
           ),
+          if (timeLabel != null) ...[
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+              decoration: BoxDecoration(
+                color: (hasWords ? accent : secondaryText)
+                    .withValues(alpha: hasWords ? 0.12 : 0.08),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(
+                  color: (hasWords ? accent : secondaryText)
+                      .withValues(alpha: hasWords ? 0.30 : 0.18),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.timer_rounded,
+                    color: hasWords ? accent : secondaryText,
+                    size: 12,
+                  ),
+                  const SizedBox(width: 3),
+                  Text(
+                    timeLabel!,
+                    style: TextStyle(
+                      color: hasWords ? accent : secondaryText,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+}
+
+class _WordStatusStrip extends StatelessWidget {
+  final List<({String word, int score, bool valid})> words;
+  final Color validColor;
+  final Color invalidColor;
+  final Color textColor;
+  final Color mutedColor;
+
+  const _WordStatusStrip({
+    required this.words,
+    required this.validColor,
+    required this.invalidColor,
+    required this.textColor,
+    required this.mutedColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 28,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: words.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 6),
+        itemBuilder: (context, index) {
+          final item = words[index];
+          final color = item.valid ? validColor : invalidColor;
+          return Container(
+            constraints: const BoxConstraints(maxWidth: 132),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.13),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: color.withValues(alpha: 0.48)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  item.valid
+                      ? Icons.check_circle_rounded
+                      : Icons.cancel_rounded,
+                  color: color,
+                  size: 14,
+                ),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    item.word,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w900,
+                      height: 1,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  item.valid ? '${item.score}' : '0',
+                  style: TextStyle(
+                    color: item.valid ? mutedColor : color,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    height: 1,
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -3114,6 +3209,144 @@ class _MeaningTabEntry {
     required this.word,
     required this.meaning,
   });
+}
+
+class _StealCheck {
+  final bool success;
+  final StealResult? result;
+  final _MpWordRecord? target;
+  final PlacedWord? word;
+  final String reason;
+
+  const _StealCheck._({
+    required this.success,
+    this.result,
+    this.target,
+    this.word,
+    this.reason = '',
+  });
+
+  factory _StealCheck.ok(
+    StealResult result, {
+    required _MpWordRecord target,
+    required PlacedWord word,
+  }) =>
+      _StealCheck._(
+        success: true,
+        result: result,
+        target: target,
+        word: word,
+      );
+
+  factory _StealCheck.fail(String reason, {_MpWordRecord? target}) =>
+      _StealCheck._(success: false, reason: reason, target: target);
+}
+
+class _MpWordRecord {
+  final String word;
+  final bool isHorizontal;
+  final int fixedLine;
+  final int startPos;
+  final int endPos;
+  final String owner;
+  final int turnPlaced;
+  final int stealCount;
+
+  const _MpWordRecord({
+    required this.word,
+    required this.isHorizontal,
+    required this.fixedLine,
+    required this.startPos,
+    required this.endPos,
+    required this.owner,
+    required this.turnPlaced,
+    required this.stealCount,
+  });
+
+  static _MpWordRecord? fromMap(Map<String, dynamic> map) {
+    final word = map['word'] as String?;
+    final owner = map['owner'] as String?;
+    final isHorizontal = map['isHorizontal'] as bool?;
+    final fixedLine = (map['fixedLine'] as num?)?.toInt();
+    final startPos = (map['startPos'] as num?)?.toInt();
+    final endPos = (map['endPos'] as num?)?.toInt();
+    if (word == null ||
+        owner == null ||
+        isHorizontal == null ||
+        fixedLine == null ||
+        startPos == null ||
+        endPos == null) {
+      return null;
+    }
+    return _MpWordRecord(
+      word: word,
+      isHorizontal: isHorizontal,
+      fixedLine: fixedLine,
+      startPos: startPos,
+      endPos: endPos,
+      owner: owner,
+      turnPlaced: (map['turnPlaced'] as num?)?.toInt() ?? 0,
+      stealCount: (map['stealCount'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  static _MpWordRecord? fromLastMoveMap(
+    Map<String, dynamic> map, {
+    required String owner,
+    required int turnPlaced,
+  }) {
+    final word = map['word'] as String?;
+    final rawCells = map['cells'] as List?;
+    if (word == null || rawCells == null || rawCells.length < 2) return null;
+
+    final positions = <({int row, int col})>[];
+    for (final raw in rawCells) {
+      final parts = raw.toString().split(':');
+      if (parts.length != 2) return null;
+      final row = int.tryParse(parts[0]);
+      final col = int.tryParse(parts[1]);
+      if (row == null || col == null) return null;
+      positions.add((row: row, col: col));
+    }
+    final isHorizontal = positions.first.row == positions.last.row;
+    final fixedLine = isHorizontal ? positions.first.row : positions.first.col;
+    final linePositions =
+        positions.map((p) => isHorizontal ? p.col : p.row).toList()..sort();
+    return _MpWordRecord(
+      word: word,
+      isHorizontal: isHorizontal,
+      fixedLine: fixedLine,
+      startPos: linePositions.first,
+      endPos: linePositions.last,
+      owner: owner,
+      turnPlaced: turnPlaced,
+      stealCount: 0,
+    );
+  }
+
+  bool isExtendedBy({
+    required bool horizontal,
+    required int line,
+    required int newStart,
+    required int newEnd,
+  }) {
+    if (isHorizontal != horizontal) return false;
+    if (fixedLine != line) return false;
+    return newStart <= startPos &&
+        endPos <= newEnd &&
+        (newStart < startPos || endPos < newEnd);
+  }
+
+  Map<String, dynamic> toMap() => {
+        'word': word,
+        'isHorizontal': isHorizontal,
+        'fixedLine': fixedLine,
+        'startPos': startPos,
+        'endPos': endPos,
+        'owner': owner,
+        'turnPlaced': turnPlaced,
+        'stealCount': stealCount,
+      };
 }
 
 class _WordMeaningBubble extends StatefulWidget {

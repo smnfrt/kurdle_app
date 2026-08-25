@@ -88,6 +88,20 @@ class AuthService {
     }
   }
 
+  Future<User?> ensureFirebaseUser() async {
+    final existing = currentUser;
+    if (existing != null) return existing;
+
+    final restored = await restorePersistedSession();
+    if (restored != null) return restored;
+
+    final anonymous = await signInAnonymously();
+    if (anonymous != null) {
+      await FirestoreService.instance.createUserIfNotExists(anonymous);
+    }
+    return anonymous;
+  }
+
   // ── Google ile giriş ─────────────────────────────────────────────
   Future<User?> signInWithGoogle() async {
     try {

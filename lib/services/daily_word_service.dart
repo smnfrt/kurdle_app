@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:kurdle_app/services/auth_service.dart';
 import 'package:kurdle_app/services/firebase_service.dart';
+import 'package:kurdle_app/services/firestore_service.dart';
 import 'package:kurdle_app/services/logging_service.dart';
 import 'package:kurdle_app/services/progression.dart' as progression;
 
@@ -142,11 +143,14 @@ class DailyWordService {
             SetOptions(merge: true));
         // FIX: kullanıcı dokümanı henüz yoksa tx.update HATA atar (ödül kaybı).
         // set+merge → create-or-update; FieldValue.increment eksik alanı 0 sayar.
-        tx.set(userRef, {
-          'xp': FieldValue.increment(xp),
-          if (peyv > 0) 'peyv': FieldValue.increment(peyv),
-          if (newLevel != oldLevel) 'level': newLevel,
-        }, SetOptions(merge: true));
+        tx.set(
+            userRef,
+            {
+              'xp': FieldValue.increment(xp),
+              if (peyv > 0) 'peyv': FieldValue.increment(peyv),
+              if (newLevel != oldLevel) 'level': newLevel,
+            },
+            SetOptions(merge: true));
 
         return (
           xpGained: xp,
@@ -188,7 +192,7 @@ class DailyWordService {
     final xp = stagesCompleted * 30 + (perfectRun ? 100 : 0);
     final peyv = stagesCompleted * 5 + (perfectRun ? 15 : 0);
     try {
-      return await _db.runTransaction((tx) async {
+      final reward = await _db.runTransaction((tx) async {
         final playRef = _challengePlayRef(uid, key);
         final playSnap = await tx.get(playRef);
         final userRef = _db.collection('users').doc(uid);
@@ -228,11 +232,14 @@ class DailyWordService {
             SetOptions(merge: true));
         // FIX: kullanıcı dokümanı henüz yoksa tx.update HATA atar (ödül kaybı).
         // set+merge → create-or-update; FieldValue.increment eksik alanı 0 sayar.
-        tx.set(userRef, {
-          'xp': FieldValue.increment(xp),
-          if (peyv > 0) 'peyv': FieldValue.increment(peyv),
-          if (newLevel != oldLevel) 'level': newLevel,
-        }, SetOptions(merge: true));
+        tx.set(
+            userRef,
+            {
+              'xp': FieldValue.increment(xp),
+              if (peyv > 0) 'peyv': FieldValue.increment(peyv),
+              if (newLevel != oldLevel) 'level': newLevel,
+            },
+            SetOptions(merge: true));
 
         return (
           xpGained: xp,
@@ -241,6 +248,14 @@ class DailyWordService {
           newLevel: newLevel,
         );
       });
+      if (reward.xpGained > 0 || reward.peyvGained > 0) {
+        await FirestoreService.instance.recordPlayStats(
+          uid: uid,
+          playerScore: totalScore,
+          won: perfectRun,
+        );
+      }
+      return reward;
     } catch (e) {
       Log.warn(
           'DailyWordService', 'recordChallengeResult transaction failed', e);

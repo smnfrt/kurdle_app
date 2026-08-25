@@ -57,7 +57,8 @@ class _FriendLobbyScreenState extends State<FriendLobbyScreen>
   Future<void> _createRoom() async {
     setState(() => _creating = true);
     try {
-      final uid = AuthService.instance.effectiveUid;
+      final user = await AuthService.instance.ensureFirebaseUser();
+      final uid = user?.uid;
       if (uid == null) throw Exception(L.needSignIn);
       String name = AuthService.instance.effectiveDisplayName;
       if (AuthService.instance.currentUser != null) {
@@ -120,7 +121,8 @@ class _FriendLobbyScreenState extends State<FriendLobbyScreen>
       _joinError = '';
     });
     try {
-      final uid = AuthService.instance.effectiveUid;
+      final user = await AuthService.instance.ensureFirebaseUser();
+      final uid = user?.uid;
       if (uid == null) throw Exception(L.needSignIn);
       String name = AuthService.instance.effectiveDisplayName;
       if (AuthService.instance.currentUser != null) {

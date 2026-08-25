@@ -90,9 +90,10 @@ class GameScoreService {
     int wordMult = 1;
 
     for (final cell in cells) {
+      if (!cell.isPending) continue;
       final pts = _scoring.letterPoints(cell.letter);
-      score += cell.isPending ? pts * cell.letterMultiplier : pts;
-      if (cell.isPending) wordMult *= cell.wordMultiplier;
+      score += pts * cell.letterMultiplier;
+      wordMult *= cell.wordMultiplier;
     }
 
     return PlacedWord(word: word, score: score * wordMult, cells: cells);

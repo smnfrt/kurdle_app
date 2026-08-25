@@ -146,8 +146,9 @@ void main() {
     });
   });
 
-  group('GameScoreService.calculateNewWords — locked (kilitli) harf etkileşimi', () {
-    test('Kilitli harf düz puan ekler, bonus/letterMult uygulanmaz', () {
+  group('GameScoreService.calculateNewWords — locked (kilitli) harf etkileşimi',
+      () {
+    test('Kilitli harf kelimeyi olusturur ama hamle puanina eklenmez', () {
       // "AN": A kilitli (commit edilmiş) ama doubleLetter karede, N pending.
       final board = buildBoard([
         cell(7, 7, 'A', pending: false, bonus: CellBonusType.doubleLetter),
@@ -155,9 +156,8 @@ void main() {
       ]);
       final words = service.calculateNewWords(board);
       expect(words.length, 1);
-      // A kilitli -> sadece pts=1 (letterMult yok), N pending -> 1
-      // toplam = 2, wordMult=1
-      expect(words.first.score, 2);
+      // A kilitli -> puan yok, N pending -> 1.
+      expect(words.first.score, 1);
     });
 
     test('Kilitli harf doubleWord karede olsa bile wordMult etkilemez', () {
@@ -167,11 +167,12 @@ void main() {
         cell(7, 8, 'N', pending: true),
       ]);
       final words = service.calculateNewWords(board);
-      // wordMult kilitli hücrede çarpılmaz -> 2
-      expect(words.first.score, 2);
+      // A kilitli -> puan yok, N pending -> 1.
+      expect(words.first.score, 1);
     });
 
-    test('Pending harf kilitli kelimeyi uzatır -> yeni kelime sayılır (ANT)', () {
+    test('Pending harf kilitli kelimeyi uzatır -> yeni kelime sayılır (ANT)',
+        () {
       // Kilitli "AN" + pending "T" -> "ANT"
       final board = buildBoard([
         cell(7, 7, 'A', pending: false),
@@ -181,8 +182,8 @@ void main() {
       final words = service.calculateNewWords(board);
       expect(words.length, 1);
       expect(words.first.word, 'ANT');
-      // A=1, N=1, T=1 (T pending letterMult=1) -> 3
-      expect(words.first.score, 3);
+      // A ve N kilitli -> puan yok, T pending -> 1.
+      expect(words.first.score, 1);
     });
 
     test('Hiç pending olmayan kelime sonuca dahil edilmez', () {
@@ -213,10 +214,11 @@ void main() {
       final byWord = {for (final w in words) w.word: w.score};
       expect(byWord.containsKey('AN'), isTrue);
       expect(byWord.containsKey('AL'), isTrue);
-      // AN: A pending(1) + N kilitli(1) = 2
-      expect(byWord['AN'], 2);
-      // AL: A pending(1) + L kilitli(2) = 3
-      expect(byWord['AL'], 3);
+      // Kilitli N/L kelimeyi olusturur ama puan eklemez.
+      // AN: A pending(1) = 1
+      expect(byWord['AN'], 1);
+      // AL: A pending(1) = 1
+      expect(byWord['AL'], 1);
     });
 
     test('Dikey "RAT": ortadaki harf pending, üst/alt kilitli', () {
@@ -229,8 +231,8 @@ void main() {
       final words = service.calculateNewWords(board);
       expect(words.length, 1);
       expect(words.first.word, 'RAT');
-      // R=1, A=1, T=1 -> 3
-      expect(words.first.score, 3);
+      // R/T kilitli -> puan yok, A pending -> 1.
+      expect(words.first.score, 1);
     });
   });
 
@@ -248,15 +250,15 @@ void main() {
       expect(GameScoreService.totalScore(words), 27);
     });
 
-    test('calculateNewWords çıktısının toplamı çapraz senaryoda 5', () {
+    test('calculateNewWords çıktısının toplamı çapraz senaryoda 2', () {
       final board = buildBoard([
         cell(7, 7, 'A', pending: true),
         cell(7, 8, 'N', pending: false),
         cell(8, 7, 'L', pending: false),
       ]);
       final words = service.calculateNewWords(board);
-      // AN(2) + AL(3) = 5
-      expect(GameScoreService.totalScore(words), 5);
+      // AN(1) + AL(1) = 2. Kilitli harfler puan eklemez.
+      expect(GameScoreService.totalScore(words), 2);
     });
   });
 }

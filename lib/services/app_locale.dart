@@ -285,8 +285,9 @@ class L {
       _s('Üst üste geliştirme yapılamaz!', 'Pêşkeftin li pey hev nayê kirin!');
   static String get wordMaxEnhanced =>
       _s('Bu kelime artık geliştirilemez!', 'Ev peyv êdî nayê pêşxistin!');
-  static String get wordProtected =>
-      _s('Bu kelime henüz korumalı!', 'Ev peyv hîn di bin parastinê de ye!');
+  static String get wordProtected => _s(
+      'Son yazılan kelime olduğu için henüz korumalı!',
+      'Ji ber ku ev peyva dawî ye, hîn di bin parastinê de ye!');
   static String get turnForfeitedMsg =>
       _s('Geçersiz kelime — tur kaybedildi!', 'Peyva nerast — gere wenda bû!');
   static String enhanced(int score) =>

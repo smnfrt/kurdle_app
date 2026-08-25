@@ -349,12 +349,12 @@ class _AuthScreenState extends State<AuthScreen>
 
                     const SizedBox(height: 28),
 
-                    // ── Google butonu ────────────────────────────────
-                    _GoogleBtn(onTap: _loading ? null : _googleSignIn),
+                    // ── Sosyal giriş butonları ───────────────────────
                     if (showAppleSignIn) ...[
-                      const SizedBox(height: 12),
                       _AppleBtn(onTap: _loading ? null : _appleSignIn),
+                      const SizedBox(height: 12),
                     ],
+                    _GoogleBtn(onTap: _loading ? null : _googleSignIn),
 
                     const SizedBox(height: 18),
 
@@ -647,47 +647,10 @@ class _AppleBtn extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return GestureDetector(
+    return _SocialSignInButton(
       onTap: onTap,
-      child: AnimatedOpacity(
-        opacity: onTap == null ? 0.5 : 1.0,
-        duration: const Duration(milliseconds: 150),
-        child: Container(
-          height: 52,
-          decoration: BoxDecoration(
-            color: Colors.black,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: isDark
-                  ? Colors.white.withValues(alpha: 0.16)
-                  : Colors.black.withValues(alpha: 0.12),
-            ),
-            boxShadow: [
-              BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.15),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3)),
-            ],
-          ),
-          child: const Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.apple, color: Colors.white, size: 22),
-              SizedBox(width: 12),
-              Text(
-                'Apple ile Giriş Yap',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.2,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      icon: const Icon(Icons.apple, color: Colors.black, size: 23),
+      label: 'Apple ile Giriş Yap',
     );
   }
 }
@@ -697,6 +660,32 @@ class _AppleBtn extends StatelessWidget {
 class _GoogleBtn extends StatelessWidget {
   final VoidCallback? onTap;
   const _GoogleBtn({this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return _SocialSignInButton(
+      onTap: onTap,
+      icon: Container(
+        width: 22,
+        height: 22,
+        decoration: const BoxDecoration(shape: BoxShape.circle),
+        child: CustomPaint(painter: _GoogleGPainter()),
+      ),
+      label: 'Google ile Giriş Yap',
+    );
+  }
+}
+
+class _SocialSignInButton extends StatelessWidget {
+  final VoidCallback? onTap;
+  final Widget icon;
+  final String label;
+
+  const _SocialSignInButton({
+    required this.onTap,
+    required this.icon,
+    required this.label,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -720,21 +709,15 @@ class _GoogleBtn extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Google "G" logosu
-              Container(
-                width: 22,
-                height: 22,
-                decoration: const BoxDecoration(shape: BoxShape.circle),
-                child: CustomPaint(painter: _GoogleGPainter()),
-              ),
+              SizedBox(width: 24, height: 24, child: Center(child: icon)),
               const SizedBox(width: 12),
-              const Text(
-                'Google ile Giriş Yap',
-                style: TextStyle(
+              Text(
+                label,
+                style: const TextStyle(
                   color: Color(0xFF3C4043),
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
-                  letterSpacing: 0.2,
+                  letterSpacing: 0,
                 ),
               ),
             ],

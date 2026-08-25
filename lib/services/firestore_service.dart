@@ -347,7 +347,11 @@ class FirestoreService {
     );
 
     // 4) Yüksek skor ve liderlik tablosu — ayrı transaction gerektirir
-    await _updateHighScoreAndLeaderboard(uid, playerScore);
+    await _updateHighScoreAndLeaderboard(
+      uid: uid,
+      playerScore: playerScore,
+      won: won,
+    );
 
     return (
       oldLevel: result.oldLevel,
@@ -462,7 +466,8 @@ class FirestoreService {
   //
   // Wordle gibi oyunlar için: XP/Peyv recordResult içinde verilir,
   // burası users.stats.played/won/totalScore + highScore + leaderboard
-  // günceller.
+  // günceller. Skorlu oyunlarda puan + galibiyet, skorsuz kazanımlarda
+  // küçük galibiyet katkısı leaderboard'a yansır.
   Future<void> recordPlayStats({
     required String uid,
     required int playerScore,
@@ -478,10 +483,12 @@ class FirestoreService {
     } catch (e) {
       Log.warn('FirestoreService', 'recordPlayStats failed', e);
     }
-    // Skor 0 ise leaderboard/highScore'a yazma — Wordle gibi skorsuz
-    // oyunlar dummy 0 girişi oluşturmasın.
-    if (playerScore > 0) {
-      await _updateHighScoreAndLeaderboard(uid, playerScore);
+    if (playerScore > 0 || won) {
+      await _updateHighScoreAndLeaderboard(
+        uid: uid,
+        playerScore: playerScore,
+        won: won,
+      );
     }
   }
 
@@ -510,15 +517,37 @@ class FirestoreService {
     }
   }
 
-  Future<void> _updateHighScoreAndLeaderboard(String uid, int score) async {
+  static const String _leaderboardScoreMode = 'performance_v1';
+  static const int _leaderboardWinBonus = 50;
+
+  int _leaderboardDelta({
+    required int playerScore,
+    required bool won,
+  }) {
+    final safeScore = playerScore < 0 ? 0 : playerScore;
+    return safeScore + (won ? _leaderboardWinBonus : 0);
+  }
+
+  int _readInt(Map<String, dynamic> data, String key) {
+    return (data[key] as num?)?.toInt() ?? 0;
+  }
+
+  Future<void> _updateHighScoreAndLeaderboard({
+    required String uid,
+    required int playerScore,
+    required bool won,
+  }) async {
+    final delta = _leaderboardDelta(playerScore: playerScore, won: won);
+    if (delta <= 0) return;
+
     await _db.runTransaction((tx) async {
       final userRef = _users.doc(uid);
       final snap = await tx.get(userRef);
       final current = (snap.data() as Map?)?.cast<String, dynamic>() ?? {};
       final currentHigh = current['stats']?['highScore'] ?? 0;
 
-      if (score > currentHigh) {
-        tx.update(userRef, {'stats.highScore': score});
+      if (playerScore > currentHigh) {
+        tx.update(userRef, {'stats.highScore': playerScore});
       }
 
       // Haftalık ve tüm zamanlar liderlik tablosu
@@ -529,39 +558,68 @@ class FirestoreService {
       final weeklySnap = await tx.get(weeklyRef);
       final weeklyData =
           (weeklySnap.data() as Map?)?.cast<String, dynamic>() ?? {};
-      final weeklyScore = weeklyData['score'] ?? 0;
+      final weeklyScore = _readInt(weeklyData, 'score');
       final weeklyWeekOf = weeklyData['weekOf'] ?? '';
       final currentWeek = _currentWeekOf();
-
-      // Yeni hafta başladıysa sıfırla, yoksa sadece rekor kırınca güncelle
-      if (!weeklySnap.exists ||
+      final weeklyUsesPerformanceMode =
+          weeklyData['scoreMode'] == _leaderboardScoreMode;
+      final shouldResetWeekly = !weeklySnap.exists ||
           weeklyWeekOf != currentWeek ||
-          score > weeklyScore) {
-        tx.set(
-            weeklyRef,
-            {
-              'displayName': displayName,
-              'score': weeklyWeekOf != currentWeek
-                  ? score
-                  : (score > weeklyScore ? score : weeklyScore),
-              'uid': uid,
-              'weekOf': currentWeek,
-            },
-            SetOptions(merge: false));
-      }
+          !weeklyUsesPerformanceMode;
+      final weeklyNextScore = shouldResetWeekly ? delta : weeklyScore + delta;
+      final weeklyRawScore = shouldResetWeekly
+          ? (playerScore > 0 ? playerScore : 0)
+          : (_readInt(weeklyData, 'rawScore') +
+              (playerScore > 0 ? playerScore : 0));
+      final weeklyWins = shouldResetWeekly
+          ? (won ? 1 : 0)
+          : (_readInt(weeklyData, 'wins') + (won ? 1 : 0));
+      final weeklyPlayed =
+          shouldResetWeekly ? 1 : (_readInt(weeklyData, 'played') + 1);
+
+      tx.set(
+          weeklyRef,
+          {
+            'displayName': displayName,
+            'score': weeklyNextScore,
+            'rawScore': weeklyRawScore,
+            'wins': weeklyWins,
+            'played': weeklyPlayed,
+            'uid': uid,
+            'weekOf': currentWeek,
+            'scoreMode': _leaderboardScoreMode,
+          },
+          SetOptions(merge: false));
 
       final allTimeSnap = await tx.get(allTimeRef);
-      final allTimeScore =
-          ((allTimeSnap.data() as Map?)?.cast<String, dynamic>() ??
-                  {})['score'] ??
-              0;
+      final allTimeData =
+          (allTimeSnap.data() as Map?)?.cast<String, dynamic>() ?? {};
+      final stats = (current['stats'] as Map?)?.cast<String, dynamic>() ?? {};
+      final rawTotalScore = _readInt(stats, 'totalScore');
+      final totalWins = _readInt(stats, 'won');
+      final totalPlayed = _readInt(stats, 'played');
+      final historicalPerformanceScore =
+          rawTotalScore + (totalWins * _leaderboardWinBonus);
+      final oldMode = allTimeData['scoreMode'];
+      final oldScore = _readInt(allTimeData, 'score');
+      final allTimeScore = oldMode == _leaderboardScoreMode
+          ? historicalPerformanceScore
+          : historicalPerformanceScore > 0
+              ? historicalPerformanceScore
+              : oldScore + delta;
 
-      if (!allTimeSnap.exists || score > allTimeScore) {
-        tx.set(
-            allTimeRef,
-            {'displayName': displayName, 'score': score, 'uid': uid},
-            SetOptions(merge: true));
-      }
+      tx.set(
+          allTimeRef,
+          {
+            'displayName': displayName,
+            'score': allTimeScore,
+            'rawScore': rawTotalScore,
+            'wins': totalWins,
+            'played': totalPlayed,
+            'uid': uid,
+            'scoreMode': _leaderboardScoreMode,
+          },
+          SetOptions(merge: true));
     });
   }
 

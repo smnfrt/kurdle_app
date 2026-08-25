@@ -93,7 +93,8 @@ class _UsernameMatchScreenState extends State<UsernameMatchScreen> {
 
   Future<void> _invite(UserProfile target) async {
     HapticFeedback.mediumImpact();
-    final uid = AuthService.instance.effectiveUid;
+    final user = await AuthService.instance.ensureFirebaseUser();
+    final uid = user?.uid;
     if (uid == null) {
       if (kDebugMode) {
         debugPrint('[UsernameMatchScreen] invite skipped: uid is null');
@@ -172,12 +173,18 @@ class _UsernameMatchScreenState extends State<UsernameMatchScreen> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(L.inviteFailed),
+          content: Text('${L.inviteFailed} ${_cleanInviteError(e)}'),
           backgroundColor: const Color(0xFFD32F2F),
           duration: const Duration(seconds: 3),
         ),
       );
     }
+  }
+
+  String _cleanInviteError(Object error) {
+    final message = error.toString().replaceAll('Exception: ', '').trim();
+    if (message.isEmpty) return '';
+    return '($message)';
   }
 
   void _leaveWaiting() {
