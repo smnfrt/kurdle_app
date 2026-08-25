@@ -34,6 +34,28 @@ class FerhengService {
 
   static const String _prefRecentSearchesKey = 'ferheng_recent_searches';
   static const int _maxRecentSearches = 20;
+  static const Map<String, List<String>> _coreTurkishLookup = {
+    'GEL': ['HATIN'],
+    'GELME': ['HATIN'],
+    'GELMEK': ['HATIN'],
+    'GIT': ['ÇÛN'],
+    'GITME': ['ÇÛN'],
+    'GITMEK': ['ÇÛN'],
+    'SU': ['AV'],
+    'COCUK': ['ZAROK'],
+    'EV': ['MAL'],
+    'YEMEK': ['XWARIN'],
+    'IC': ['VEXWARIN'],
+    'ICME': ['VEXWARIN'],
+    'ICMEK': ['VEXWARIN'],
+    'GORMEK': ['DÎTIN'],
+    'GOR': ['DÎTIN'],
+    'BULMAK': ['DÎTIN'],
+    'DEMEK': ['GOTIN'],
+    'SOYLEMEK': ['GOTIN'],
+    'YAPMAK': ['KIRIN'],
+    'ETMEK': ['KIRIN'],
+  };
 
   FerhengRepository? _repo;
   FerhengRepository get _repository => _repo ??= FerhengRepository();
@@ -42,6 +64,8 @@ class FerhengService {
   Map<String, FerhengEntry> _byId = const {};
   Map<String, FerhengEntry> _bySurface = const {};
   Map<String, List<String>> _byPrefix = const {}; // 1-4 char prefix → ids
+  Map<String, List<String>> _byTurkishPrefix =
+      const {}; // Türkçe anlam prefix → ids
   Map<String, List<String>> _byCategory = const {}; // category id → ids
   final Map<String, List<FerhengEntry>> _categoryCache = {};
   Map<String, String> _relatedToId = const {}; // çekimli form → başlık id
@@ -88,15 +112,18 @@ class FerhengService {
       _byId = result.byId;
       _bySurface = result.bySurface;
       _byPrefix = result.byPrefix;
+      _byTurkishPrefix = result.byTurkishPrefix;
       _byCategory = result.byCategory;
       _categoryCache.clear();
       _relatedToId = result.relatedToId;
       _sortedIds = result.sortedIds;
+      _mergeTurkishOverrideIndex();
     } catch (e) {
       Log.warn('FerhengService', 'entries bundle load failed', e);
       _byId = const {};
       _bySurface = const {};
       _byPrefix = const {};
+      _byTurkishPrefix = const {};
       _byCategory = const {};
       _categoryCache.clear();
       _relatedToId = const {};
@@ -315,6 +342,18 @@ class FerhengService {
       add(_playableOnlyEntry(q));
     }
 
+    for (final id in _coreTurkishLookup[_normalizeTurkishSearch(query)] ??
+        const <String>[]) {
+      add(await getOrFallback(id));
+      if (out.length >= limit) return out;
+    }
+
+    final trMatches = await _searchTurkishMeanings(query, limit: limit);
+    for (final entry in trMatches) {
+      add(entry);
+      if (out.length >= limit) return out;
+    }
+
     final prefixMatches = await searchPrefix(q, limit: limit);
     for (final entry in prefixMatches) {
       add(entry);
@@ -328,6 +367,81 @@ class FerhengService {
     }
 
     return out;
+  }
+
+  Future<List<FerhengEntry>> _searchTurkishMeanings(String query,
+      {int limit = 20}) async {
+    final q = _normalizeTurkishSearch(query);
+    if (q.isEmpty) return const [];
+    final indexKey = q.length > 4 ? q.substring(0, 4) : q;
+    final candidates = _byTurkishPrefix[indexKey] ?? const [];
+    if (candidates.isEmpty) return const [];
+
+    final scored = <_TurkishSearchMatch>[];
+    final bestScores = <String, int>{};
+    for (final id in candidates) {
+      final score = _turkishSearchScore(id, q);
+      if (score == null) continue;
+      final best = bestScores[id];
+      if (best == null || score < best) {
+        bestScores[id] = score;
+      }
+    }
+    for (final item in bestScores.entries) {
+      scored.add(_TurkishSearchMatch(id: item.key, score: item.value));
+    }
+    scored.sort((a, b) {
+      final byScore = a.score.compareTo(b.score);
+      if (byScore != 0) return byScore;
+      return a.id.compareTo(b.id);
+    });
+
+    final out = <FerhengEntry>[];
+    for (final match in scored.take(limit)) {
+      final entry = await getOrFallback(match.id);
+      if (entry != null) out.add(entry);
+    }
+    return out;
+  }
+
+  int? _turkishSearchScore(String id, String query) {
+    int? best;
+
+    void consider(String text) {
+      final score = _turkishTextScore(text, query);
+      if (score == null) return;
+      if (best == null || score < best!) best = score;
+    }
+
+    final entry = _byId[id];
+    if (entry != null) {
+      for (final def in entry.definitionsTr) {
+        consider(def.gloss);
+        for (final example in def.examples) {
+          consider(example.translation);
+        }
+      }
+    }
+    final override = _trOverrides?[id];
+    if (override != null) consider(override);
+    return best;
+  }
+
+  void _mergeTurkishOverrideIndex() {
+    final overrides = _trOverrides;
+    if (overrides == null || overrides.isEmpty) return;
+    final merged = <String, List<String>>{
+      for (final item in _byTurkishPrefix.entries)
+        item.key: List<String>.from(item.value),
+    };
+    for (final item in overrides.entries) {
+      if (!_byId.containsKey(item.key) || item.value.trim().isEmpty) continue;
+      _indexTurkishText(merged, item.key, item.value);
+    }
+    for (final ids in merged.values) {
+      ids.sort();
+    }
+    _byTurkishPrefix = merged;
   }
 
   Future<bool> isPlayableWord(String word) async {
@@ -1280,6 +1394,7 @@ _ParsedBundle _parseEntriesBundle(Uint8List bytes) {
   final byId = <String, FerhengEntry>{};
   final bySurface = <String, FerhengEntry>{};
   final byPrefix = <String, List<String>>{};
+  final byTurkishPrefix = <String, List<String>>{};
   final byCategory = <String, List<String>>{};
   final relatedToId = <String, String>{};
 
@@ -1291,6 +1406,7 @@ _ParsedBundle _parseEntriesBundle(Uint8List bytes) {
     if (id.isEmpty) continue;
     byId[id] = entry;
     _indexSurfaceEntry(bySurface, entry, map);
+    _indexTurkishEntry(byTurkishPrefix, id, entry);
     for (final p in entry.prefixes) {
       (byPrefix[p] ??= <String>[]).add(id);
     }
@@ -1311,6 +1427,9 @@ _ParsedBundle _parseEntriesBundle(Uint8List bytes) {
   for (final list in byPrefix.values) {
     list.sort();
   }
+  for (final list in byTurkishPrefix.values) {
+    list.sort();
+  }
   for (final list in byCategory.values) {
     list.sort();
   }
@@ -1319,6 +1438,7 @@ _ParsedBundle _parseEntriesBundle(Uint8List bytes) {
     byId: byId,
     bySurface: bySurface,
     byPrefix: byPrefix,
+    byTurkishPrefix: byTurkishPrefix,
     byCategory: byCategory,
     relatedToId: relatedToId,
     sortedIds: sortedIds,
@@ -1355,10 +1475,115 @@ void _indexSurfaceEntry(
   }
 }
 
+void _indexTurkishEntry(
+  Map<String, List<String>> byTurkishPrefix,
+  String id,
+  FerhengEntry entry,
+) {
+  for (final def in entry.definitionsTr) {
+    _indexTurkishText(byTurkishPrefix, id, def.gloss);
+    for (final example in def.examples) {
+      _indexTurkishText(byTurkishPrefix, id, example.translation);
+    }
+  }
+}
+
+void _indexTurkishText(
+  Map<String, List<String>> byTurkishPrefix,
+  String id,
+  String text,
+) {
+  final normalized = _normalizeTurkishSearch(text);
+  if (normalized.isEmpty) return;
+  final indexedTerms = <String>{normalized};
+  indexedTerms.addAll(normalized.split(' ').where((part) => part.length >= 2));
+  for (final term in indexedTerms) {
+    final maxPrefix = term.length < 4 ? term.length : 4;
+    for (var i = 1; i <= maxPrefix; i++) {
+      final key = term.substring(0, i);
+      final ids = byTurkishPrefix[key] ??= <String>[];
+      if (ids.isEmpty || ids.last != id) ids.add(id);
+    }
+  }
+}
+
+String _normalizeTurkishSearch(String value) {
+  final upper = value.trim().replaceAll(RegExp(r'\s+'), ' ').toUpperCase();
+  if (upper.isEmpty) return '';
+  final buffer = StringBuffer();
+  for (final codeUnit in upper.codeUnits) {
+    final ch = String.fromCharCode(codeUnit);
+    final mapped = switch (ch) {
+      'Ç' => 'C',
+      'Ğ' => 'G',
+      'İ' => 'I',
+      'I' => 'I',
+      'Ö' => 'O',
+      'Ş' => 'S',
+      'Ü' => 'U',
+      'Â' => 'A',
+      'Î' => 'I',
+      'Û' => 'U',
+      _ => ch,
+    };
+    if (_isTurkishSearchChar(mapped)) {
+      buffer.write(mapped);
+    } else {
+      buffer.write(' ');
+    }
+  }
+  return buffer.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
+}
+
+bool _isTurkishSearchChar(String value) {
+  if (value.length != 1) return false;
+  final code = value.codeUnitAt(0);
+  return code == 32 || (code >= 48 && code <= 57) || (code >= 65 && code <= 90);
+}
+
+int? _turkishTextScore(String text, String query) {
+  final normalized = _normalizeTurkishSearch(text);
+  if (normalized.isEmpty) return null;
+  final parts = normalized
+      .split(RegExp(r'[,;:.!?()\[\]{}" ]+'))
+      .where((part) => part.isNotEmpty)
+      .toList(growable: false);
+  final phrases = normalized
+      .split(RegExp(r'[,;:.!?()\[\]{}"]+'))
+      .map((part) => part.trim())
+      .where((part) => part.isNotEmpty)
+      .toList(growable: false);
+
+  if (parts.any((part) => part == query) ||
+      phrases.any((phrase) => phrase == query)) {
+    return 0;
+  }
+  if (phrases.any((phrase) => phrase.startsWith(query)) ||
+      parts.any((part) => part.startsWith(query))) {
+    return 1;
+  }
+  if (query.length >= 4 &&
+      phrases.any((phrase) => phrase.split(' ').contains(query))) {
+    return 2;
+  }
+  if (query.length >= 4 && normalized.contains(query)) {
+    return 3;
+  }
+  return null;
+}
+
+class _TurkishSearchMatch {
+  final String id;
+  final int score;
+
+  const _TurkishSearchMatch({required this.id, required this.score});
+}
+
 class _ParsedBundle {
   final Map<String, FerhengEntry> byId;
   final Map<String, FerhengEntry> bySurface;
   final Map<String, List<String>> byPrefix;
+  final Map<String, List<String>> byTurkishPrefix;
   final Map<String, List<String>> byCategory;
   final Map<String, String> relatedToId;
   final List<String> sortedIds;
@@ -1366,6 +1591,7 @@ class _ParsedBundle {
     required this.byId,
     required this.bySurface,
     required this.byPrefix,
+    required this.byTurkishPrefix,
     required this.byCategory,
     required this.relatedToId,
     required this.sortedIds,

@@ -583,7 +583,8 @@ class L {
 
   // ── Ferheng (sözlük) ───────────────────────────────────────────
   static String get ferheng => _s('Ferheng', 'Ferheng');
-  static String get ferhengSearchHint => _s('Kelime ara...', 'Peyvê bigere...');
+  static String get ferhengSearchHint =>
+      _s('Kelime veya Türkçe anlam ara...', 'Peyv an wateya Tirkî bigere...');
   static String get ferhengWotd => _s('Günün Kelimesi', 'Peyva Rojê');
   static String get ferhengNoDefinition =>
       _s('Anlam bulunamadı', 'Wate nehat dîtin');
